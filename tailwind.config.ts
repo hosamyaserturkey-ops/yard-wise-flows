@@ -57,6 +57,14 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        maritime: {
+          DEFAULT: "hsl(var(--maritime-blue))",
+          light: "hsl(var(--maritime-light))",
+        },
+        industrial: "hsl(var(--industrial-gray))",
+        container: "hsl(var(--container-orange))",
+        success: "hsl(var(--success-green))",
+        warning: "hsl(var(--warning-amber))",
       },
       borderRadius: {
         lg: "var(--radius)",
