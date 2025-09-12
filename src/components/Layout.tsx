@@ -1,14 +1,14 @@
 import { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { Container, Ship, FileText, BarChart3 } from "lucide-react";
+import { Link, useLocation, Outlet } from "react-router-dom";
+import { Container, Ship, FileText, BarChart3, LogIn, LogOut, Crown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
-interface LayoutProps {
-  children: ReactNode;
-}
-
-const Layout = ({ children }: LayoutProps) => {
+const Layout = () => {
   const location = useLocation();
+  const { user, profile, signOut } = useAuth();
 
   const navigationItems = [
     { href: "/", label: "Dashboard", icon: BarChart3 },
@@ -26,32 +26,60 @@ const Layout = ({ children }: LayoutProps) => {
               <Container className="h-8 w-8 text-maritime" />
               <h1 className="text-xl font-bold text-industrial">Container Yard Management</h1>
             </div>
-            <nav className="flex space-x-1">
-              {navigationItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    className={cn(
-                      "flex items-center space-x-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-maritime text-maritime-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            
+            <div className="flex items-center space-x-6">
+              <nav className="flex space-x-1">
+                {navigationItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      to={item.href}
+                      className={cn(
+                        "flex items-center space-x-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-maritime text-maritime-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              {user && (
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-muted-foreground">
+                      {profile?.full_name || user.email}
+                    </span>
+                    {profile?.role === 'admin' && (
+                      <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20">
+                        <Crown className="h-3 w-3 mr-1" />
+                        Admin
+                      </Badge>
                     )}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={signOut}
+                    className="border-maritime text-maritime hover:bg-maritime hover:text-white"
                   >
-                    <Icon className="h-4 w-4" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
       <main className="container mx-auto px-4 py-8">
-        {children}
+        <Outlet />
       </main>
     </div>
   );

@@ -7,8 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Container } from "lucide-react";
 import { GateInData } from "@/types/container";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const GateIn = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [formData, setFormData] = useState<GateInData>({
     containerNumber: "",
@@ -17,10 +20,20 @@ const GateIn = () => {
     driverName: "",
     truckNumber: "",
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!user) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to gate in containers.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate form
     if (!formData.containerNumber || !formData.containerType || !formData.driverName || !formData.truckNumber) {
       toast({
@@ -31,28 +44,72 @@ const GateIn = () => {
       return;
     }
 
-    // Process gate in (in real app, save to database)
-    console.log("Gate In Data:", formData);
+    setIsSubmitting(true);
     
-    toast({
-      title: "Success",
-      description: `Container ${formData.containerNumber} gated in successfully`,
-    });
+    try {
+      // Check if container already exists in yard
+      const { data: existingContainer } = await supabase
+        .from('containers')
+        .select('id')
+        .eq('container_number', formData.containerNumber)
+        .eq('status', 'in-yard')
+        .maybeSingle();
+        
+      if (existingContainer) {
+        toast({
+          title: "Container Already In Yard",
+          description: "This container is already gated in.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
 
-    // Print receipt (simplified for demo)
-    printReceipt();
+      const { data, error } = await supabase
+        .from('containers')
+        .insert({
+          container_number: formData.containerNumber,
+          container_type: formData.containerType,
+          shipping_line: formData.shippingLine,
+          driver_name: formData.driverName,
+          truck_number: formData.truckNumber,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: `Container ${formData.containerNumber} gated in successfully`,
+      });
 
-    // Reset form
-    setFormData({
-      containerNumber: "",
-      containerType: "",
-      shippingLine: "SLD",
-      driverName: "",
-      truckNumber: "",
-    });
+      // Print receipt
+      printReceipt(data);
+
+      // Reset form
+      setFormData({
+        containerNumber: "",
+        containerType: "",
+        shippingLine: "SLD",
+        driverName: "",
+        truckNumber: "",
+      });
+      
+    } catch (error) {
+      console.error('Error gating in container:', error);
+      toast({
+        title: "Error",
+        description: "Failed to gate in container. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const printReceipt = () => {
+  const printReceipt = (containerData: any) => {
     const receiptWindow = window.open('', '_blank');
     if (receiptWindow) {
       receiptWindow.document.write(`
@@ -71,14 +128,15 @@ const GateIn = () => {
             <div class="header">
               <h2>Container Yard Management</h2>
               <h3>GATE IN RECEIPT</h3>
+              <p>Receipt #: GI-${containerData.id.substring(0, 8).toUpperCase()}</p>
             </div>
             <div class="content">
-              <div class="row"><span class="label">Container Number:</span> ${formData.containerNumber}</div>
-              <div class="row"><span class="label">Container Type:</span> ${formData.containerType}</div>
-              <div class="row"><span class="label">Shipping Line:</span> ${formData.shippingLine}</div>
-              <div class="row"><span class="label">Driver Name:</span> ${formData.driverName}</div>
-              <div class="row"><span class="label">Truck Number:</span> ${formData.truckNumber}</div>
-              <div class="row"><span class="label">Gate In Time:</span> ${new Date().toLocaleString()}</div>
+              <div class="row"><span class="label">Container Number:</span> ${containerData.container_number}</div>
+              <div class="row"><span class="label">Container Type:</span> ${containerData.container_type}</div>
+              <div class="row"><span class="label">Shipping Line:</span> ${containerData.shipping_line}</div>
+              <div class="row"><span class="label">Driver Name:</span> ${containerData.driver_name}</div>
+              <div class="row"><span class="label">Truck Number:</span> ${containerData.truck_number}</div>
+              <div class="row"><span class="label">Gate In Time:</span> ${new Date(containerData.gate_in_time).toLocaleString()}</div>
             </div>
           </body>
         </html>
@@ -185,8 +243,12 @@ const GateIn = () => {
               >
                 Clear Form
               </Button>
-              <Button type="submit" className="bg-maritime hover:bg-maritime/90">
-                Gate In & Print Receipt
+              <Button 
+                type="submit" 
+                className="bg-maritime hover:bg-maritime/90"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Processing..." : "Gate In & Print Receipt"}
               </Button>
             </div>
           </form>

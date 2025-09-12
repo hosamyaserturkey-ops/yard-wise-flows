@@ -3,45 +3,64 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Ship, Search } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const GateOut = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [selectedContainer, setSelectedContainer] = useState<ContainerType | null>(null);
   const [bookingNumber, setBookingNumber] = useState("");
   const [fees, setFees] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data - containers in yard
+  // Fetch containers in yard
   useEffect(() => {
-    const mockContainers: ContainerType[] = [
-      {
-        id: "1",
-        containerNumber: "SLDX123456",
-        containerType: "20FT",
-        shippingLine: "SLD",
-        driverName: "John Smith",
-        truckNumber: "TRK001",
-        gateInTime: new Date("2024-01-15T10:30:00"),
-        status: "in-yard"
-      },
-      {
-        id: "3",
-        containerNumber: "SLGX345678",
-        containerType: "40FT",
-        shippingLine: "SLG",
-        driverName: "Sarah Wilson",
-        truckNumber: "TRK003",
-        gateInTime: new Date("2024-01-15T12:00:00"),
-        status: "in-yard"
-      }
-    ];
-    setContainers(mockContainers.filter(c => c.status === 'in-yard'));
+    fetchContainers();
   }, []);
+
+  const fetchContainers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('containers')
+        .select('*')
+        .eq('status', 'in-yard')
+        .order('gate_in_time', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedContainers: ContainerType[] = data.map(container => ({
+        id: container.id,
+        containerNumber: container.container_number,
+        containerType: container.container_type,
+        shippingLine: container.shipping_line as 'SLD' | 'SLG',
+        driverName: container.driver_name,
+        truckNumber: container.truck_number,
+        gateInTime: new Date(container.gate_in_time),
+        gateOutTime: container.gate_out_time ? new Date(container.gate_out_time) : undefined,
+        status: container.status as 'in-yard' | 'out',
+        bookingNumber: container.booking_number,
+        fees: container.fees ? Number(container.fees) : undefined,
+      }));
+
+      setContainers(formattedContainers);
+    } catch (error) {
+      console.error('Error fetching containers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load containers. Please refresh the page.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredContainers = containers.filter(container =>
     container.containerNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -53,7 +72,7 @@ const GateOut = () => {
     setSelectedContainer(container);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedContainer || !bookingNumber || !fees) {
@@ -65,26 +84,57 @@ const GateOut = () => {
       return;
     }
 
-    // Process gate out (in real app, update database)
-    console.log("Gate Out Data:", {
-      container: selectedContainer,
-      bookingNumber,
-      fees: parseFloat(fees)
-    });
-    
-    toast({
-      title: "Success",
-      description: `Container ${selectedContainer.containerNumber} gated out successfully`,
-    });
+    if (!user) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to gate out containers.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    // Print receipt
-    printReceipt();
+    setIsSubmitting(true);
 
-    // Reset form
-    setSelectedContainer(null);
-    setBookingNumber("");
-    setFees("");
-    setSearchTerm("");
+    try {
+      const { data, error } = await supabase
+        .from('containers')
+        .update({
+          status: 'out',
+          gate_out_time: new Date().toISOString(),
+          booking_number: bookingNumber,
+          fees: parseFloat(fees),
+        })
+        .eq('id', selectedContainer.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Container ${selectedContainer.containerNumber} gated out successfully`,
+      });
+
+      // Print receipt
+      printReceipt();
+
+      // Reset form and refresh containers
+      setSelectedContainer(null);
+      setBookingNumber("");
+      setFees("");
+      setSearchTerm("");
+      fetchContainers();
+
+    } catch (error) {
+      console.error('Error gating out container:', error);
+      toast({
+        title: "Error",
+        description: "Failed to gate out container. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const printReceipt = () => {
@@ -109,6 +159,7 @@ const GateOut = () => {
             <div class="header">
               <h2>Container Yard Management</h2>
               <h3>GATE OUT RECEIPT</h3>
+              <p>Receipt #: GO-${selectedContainer.id.substring(0, 8).toUpperCase()}</p>
             </div>
             <div class="content">
               <div class="row"><span class="label">Container Number:</span> ${selectedContainer.containerNumber}</div>
@@ -130,6 +181,10 @@ const GateOut = () => {
       receiptWindow.print();
     }
   };
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-64">Loading containers...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -185,7 +240,7 @@ const GateOut = () => {
               ))}
               {filteredContainers.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  No containers found in yard
+                  {searchTerm ? "No containers found matching your search" : "No containers found in yard"}
                 </div>
               )}
             </div>
@@ -249,8 +304,12 @@ const GateOut = () => {
                   >
                     Clear
                   </Button>
-                  <Button type="submit" className="bg-maritime hover:bg-maritime/90">
-                    Gate Out & Print Receipt
+                  <Button 
+                    type="submit" 
+                    className="bg-maritime hover:bg-maritime/90"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Processing..." : "Gate Out & Print Receipt"}
                   </Button>
                 </div>
               </form>

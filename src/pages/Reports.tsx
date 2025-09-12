@@ -8,10 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { FileText, Download, Calendar } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Reports = () => {
+  const { toast } = useToast();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [filteredContainers, setFilteredContainers] = useState<ContainerType[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -20,59 +24,46 @@ const Reports = () => {
     containerType: ""
   });
 
-  // Mock data
   useEffect(() => {
-    const mockContainers: ContainerType[] = [
-      {
-        id: "1",
-        containerNumber: "SLDX123456",
-        containerType: "20FT",
-        shippingLine: "SLD",
-        driverName: "John Smith",
-        truckNumber: "TRK001",
-        gateInTime: new Date("2024-01-15T10:30:00"),
-        status: "in-yard"
-      },
-      {
-        id: "2",
-        containerNumber: "SLGX789012",
-        containerType: "40FT",
-        shippingLine: "SLG",
-        driverName: "Mike Johnson",
-        truckNumber: "TRK002",
-        gateInTime: new Date("2024-01-15T11:15:00"),
-        gateOutTime: new Date("2024-01-15T14:30:00"),
-        status: "out",
-        bookingNumber: "BK001",
-        fees: 150
-      },
-      {
-        id: "3",
-        containerNumber: "SLGX345678",
-        containerType: "40FT",
-        shippingLine: "SLG",
-        driverName: "Sarah Wilson",
-        truckNumber: "TRK003",
-        gateInTime: new Date("2024-01-15T12:00:00"),
-        status: "in-yard"
-      },
-      {
-        id: "4",
-        containerNumber: "SLDX567890",
-        containerType: "20FT",
-        shippingLine: "SLD",
-        driverName: "David Brown",
-        truckNumber: "TRK004",
-        gateInTime: new Date("2024-01-14T09:45:00"),
-        gateOutTime: new Date("2024-01-14T16:20:00"),
-        status: "out",
-        bookingNumber: "BK002",
-        fees: 120
-      }
-    ];
-    setContainers(mockContainers);
-    setFilteredContainers(mockContainers);
+    fetchContainers();
   }, []);
+
+  const fetchContainers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('containers')
+        .select('*')
+        .order('gate_in_time', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedContainers: ContainerType[] = data.map(container => ({
+        id: container.id,
+        containerNumber: container.container_number,
+        containerType: container.container_type,
+        shippingLine: container.shipping_line as 'SLD' | 'SLG',
+        driverName: container.driver_name,
+        truckNumber: container.truck_number,
+        gateInTime: new Date(container.gate_in_time),
+        gateOutTime: container.gate_out_time ? new Date(container.gate_out_time) : undefined,
+        status: container.status as 'in-yard' | 'out',
+        bookingNumber: container.booking_number,
+        fees: container.fees ? Number(container.fees) : undefined,
+      }));
+
+      setContainers(formattedContainers);
+      setFilteredContainers(formattedContainers);
+    } catch (error) {
+      console.error('Error fetching containers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load containers. Please refresh the page.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const applyFilters = () => {
     let filtered = [...containers];

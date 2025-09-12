@@ -3,7 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
 import Layout from "./components/Layout";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import GateIn from "./pages/GateIn";
 import GateOut from "./pages/GateOut";
@@ -14,21 +17,40 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Layout>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/gate-in" element={<GateIn />} />
-            <Route path="/gate-out" element={<GateOut />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/" element={<Layout />}>
+              <Route index element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="gate-in" element={
+                <ProtectedRoute>
+                  <GateIn />
+                </ProtectedRoute>
+              } />
+              <Route path="gate-out" element={
+                <ProtectedRoute>
+                  <GateOut />
+                </ProtectedRoute>
+              } />
+              <Route path="reports" element={
+                <ProtectedRoute>
+                  <Reports />
+                </ProtectedRoute>
+              } />
+              <Route path="*" element={<NotFound />} />
+            </Route>
           </Routes>
-        </Layout>
-      </BrowserRouter>
-    </TooltipProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
