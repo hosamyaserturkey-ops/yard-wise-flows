@@ -79,15 +79,15 @@ const Reports = () => {
       filtered = filtered.filter(c => c.gateInTime <= toDate);
     }
 
-    if (filters.shippingLine) {
+    if (filters.shippingLine && filters.shippingLine !== "all") {
       filtered = filtered.filter(c => c.shippingLine === filters.shippingLine);
     }
 
-    if (filters.status) {
+    if (filters.status && filters.status !== "all") {
       filtered = filtered.filter(c => c.status === filters.status);
     }
 
-    if (filters.containerType) {
+    if (filters.containerType && filters.containerType !== "all") {
       filtered = filtered.filter(c => c.containerType === filters.containerType);
     }
 
@@ -98,9 +98,9 @@ const Reports = () => {
     setFilters({
       dateFrom: "",
       dateTo: "",
-      shippingLine: "",
-      status: "",
-      containerType: ""
+      shippingLine: "all",
+      status: "all",
+      containerType: "all"
     });
     setFilteredContainers(containers);
   };
@@ -196,7 +196,7 @@ const Reports = () => {
                   <SelectValue placeholder="All Lines" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Lines</SelectItem>
+                  <SelectItem value="all">All Lines</SelectItem>
                   <SelectItem value="SLD">SLD</SelectItem>
                   <SelectItem value="SLG">SLG</SelectItem>
                 </SelectContent>
@@ -210,7 +210,7 @@ const Reports = () => {
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="in-yard">In Yard</SelectItem>
                   <SelectItem value="out">Out</SelectItem>
                 </SelectContent>
@@ -224,7 +224,7 @@ const Reports = () => {
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="20FT">20FT</SelectItem>
                   <SelectItem value="40FT">40FT</SelectItem>
                   <SelectItem value="40HC">40HC</SelectItem>
