@@ -13,100 +13,51 @@ interface ContainerData {
   notes?: string;
 }
 
-// Sample container data from the Excel file
+// All container data from the Excel file
 const containerData: ContainerData[] = [
-  {
-    containerNumber: "JZPU7007704",
-    containerSize: "40 HQ",
-    entryDate: "20-Jul-25",
-    status: "Shipped Out",
-    bookingNumber: "EVEREST Transport To ACT",
-    truckNumber: "0",
-    exitDate: "1-Aug-25",
-    shippingLine: "OSC"
-  },
-  {
-    containerNumber: "SLVU1004808",
-    containerSize: "20",
-    entryDate: "23-Jul-25",
-    status: "YARD",
-    grade: "A",
-    shippingLine: "SLD"
-  },
-  {
-    containerNumber: "SLVU3007344",
-    containerSize: "20",
-    entryDate: "23-Jul-25",
-    status: "YARD",
-    grade: "A",
-    shippingLine: "SLD"
-  },
-  {
-    containerNumber: "HMCU3031900",
-    containerSize: "20",
-    entryDate: "23-Jul-25",
-    status: "Shipped Out",
-    grade: "C",
-    bookingNumber: "EVEREST Transport To ACT",
-    truckNumber: "6054786",
-    exitDate: "8/8/25",
-    shippingLine: "SLD",
-    notes: "26 ON Kawar + 25 Transportation"
-  },
-  {
-    containerNumber: "BXAU4574656",
-    containerSize: "40 HQ",
-    entryDate: "23-Jul-25",
-    status: "YARD",
-    grade: "A",
-    shippingLine: "SLD"
-  },
-  {
-    containerNumber: "EISU9067936",
-    containerSize: "40 HQ",
-    entryDate: "24-Jul-25",
-    status: "Shipped Out",
-    bookingNumber: "EVEREST Transport To ACT",
-    truckNumber: "6033448",
-    exitDate: "3-Aug-25",
-    shippingLine: "SLD",
-    notes: "Loading fees 26 + Transportation 50"
-  },
-  {
-    containerNumber: "VSTU9908411",
-    containerSize: "40 HQ",
-    entryDate: "24-Jul-25",
-    status: "YARD",
-    grade: "A",
-    shippingLine: "SLD"
-  },
-  {
-    containerNumber: "TCNU9048422",
-    containerSize: "40 HQ",
-    entryDate: "24-Jul-25",
-    status: "Shipped Out",
-    bookingNumber: "EVEREST Transport To ACT",
-    truckNumber: "6093001",
-    exitDate: "3-Aug-25",
-    shippingLine: "SLD",
-    notes: "Loading fees 26 + Transportation 50"
-  },
-  {
-    containerNumber: "SLVU5022409",
-    containerSize: "40 HQ",
-    entryDate: "24-Jul-25",
-    status: "RESERVED",
-    truckNumber: "000201",
-    shippingLine: "SLD"
-  },
-  {
-    containerNumber: "XHCU5635102",
-    containerSize: "40 HQ",
-    entryDate: "24-Jul-25",
-    status: "RESERVED",
-    truckNumber: "000202",
-    shippingLine: "SLD"
-  }
+  { containerNumber: "JZPU7007704", containerSize: "40 HQ", entryDate: "20-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "0", exitDate: "1-Aug-25", shippingLine: "OSC" },
+  { containerNumber: "SLVU1004808", containerSize: "20", entryDate: "23-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "SLVU3007344", containerSize: "20", entryDate: "23-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "HMCU3031900", containerSize: "20", entryDate: "23-Jul-25", status: "Shipped Out", grade: "C", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6054786", exitDate: "8/8/25", shippingLine: "SLD", notes: "26 ON Kawar + 25 Transportation" },
+  { containerNumber: "BXAU4574656", containerSize: "40 HQ", entryDate: "23-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "EISU9067936", containerSize: "40 HQ", entryDate: "24-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6033448", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "VSTU9908411", containerSize: "40 HQ", entryDate: "24-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "TCNU9048422", containerSize: "40 HQ", entryDate: "24-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6093001", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "SLVU5022409", containerSize: "40 HQ", entryDate: "24-Jul-25", status: "RESERVED", truckNumber: "000201", shippingLine: "SLD" },
+  { containerNumber: "XHCU5635102", containerSize: "40 HQ", entryDate: "24-Jul-25", status: "RESERVED", truckNumber: "000202", shippingLine: "SLD" },
+  { containerNumber: "SLVU6007137", containerSize: "40 HQ", entryDate: "25-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "VOLU4968279", containerSize: "40 HQ", entryDate: "25-Jul-25", status: "Shipped Out", grade: "B", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6034567", exitDate: "8-Aug-25", shippingLine: "SLD", notes: "26 ON Kawar + 50 Transportation" },
+  { containerNumber: "CULU6219559", containerSize: "40 HQ", entryDate: "25-Jul-25", status: "Shipped Out", grade: "B", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6051883", exitDate: "8-Aug-25", shippingLine: "SLD", notes: "26 ON Kawar + 50 Transportation" },
+  { containerNumber: "SLVU4413332", containerSize: "40 HQ", entryDate: "25-Jul-25", status: "YARD", grade: "C", shippingLine: "SLD" },
+  { containerNumber: "CSKU8710724", containerSize: "40 HQ", entryDate: "25-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6051883", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "BXAU4523474", containerSize: "40 HQ", entryDate: "25-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "CULU6285294", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "SLVU5020324", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "BMOU4828016", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "Shipped Out", grade: "B", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6054786", exitDate: "8-Aug-25", shippingLine: "SLD", notes: "26 ON Kawar + 50 Transportation" },
+  { containerNumber: "FYCU7201040", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "SLVU6056419", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "BURU6656626", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "Shipped Out", grade: "B", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6032712", exitDate: "8-Aug-25", shippingLine: "SLD", notes: "26 ON Kawar + 50 Transportation" },
+  { containerNumber: "BURU6668416", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "Shipped Out", grade: "B", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6032006", exitDate: "8-Aug-25", shippingLine: "SLD", notes: "26 ON Kawar + 50 Transportation" },
+  { containerNumber: "CICU6917210", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "TWDU7009427", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6022479", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "SLVU4568376", containerSize: "40 HQ", entryDate: "26-Jul-25", status: "Shipped Out", grade: "B", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6079227", exitDate: "8-Aug-25", shippingLine: "SLD", notes: "26 ON Kawar + 50 Transportation" },
+  { containerNumber: "SLVU4543378", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "Shipped Out", grade: "B", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6080378", exitDate: "8-Aug-25", shippingLine: "SLD", notes: "26 ON Kawar + 50 Transportation" },
+  { containerNumber: "BXAU2024352", containerSize: "20", entryDate: "27-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "MEDU1627111", containerSize: "20", entryDate: "27-Jul-25", status: "Shipped Out", grade: "C", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6050319", exitDate: "8/8/25", shippingLine: "SLD", notes: "26 ON Kawar + 25 Transportation" },
+  { containerNumber: "HPCU2395944", containerSize: "20", entryDate: "27-Jul-25", status: "YARD", grade: "B", shippingLine: "SLD" },
+  { containerNumber: "FCIU9187269", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6075446", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "CRSU9338891", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6032006", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "TCKU3653801", containerSize: "20", entryDate: "27-Jul-25", status: "Shipped Out", grade: "C", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6054786", exitDate: "8/8/25", shippingLine: "SLD", notes: "26 ON Kawar + 25 Transportation" },
+  { containerNumber: "CMAU5220189", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6051250", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "EISU9971898", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6048843", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "TCNU9029314", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6053781", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "DRYU2249232", containerSize: "20", entryDate: "27-Jul-25", status: "Shipped Out", grade: "B", bookingNumber: "EVEREST Transport To ACT", truckNumber: "9063001", exitDate: "8/8/25", shippingLine: "SLD", notes: "26 ON Kawar + 25 Transportation" },
+  { containerNumber: "CULU6228186", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "Shipped Out", grade: "B", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6074081", exitDate: "8-Aug-25", shippingLine: "SLD", notes: "26 ON Kawar + 50 Transportation" },
+  { containerNumber: "BMOU4545510", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "YARD", grade: "C", shippingLine: "SLD" },
+  { containerNumber: "OOLU8116798", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6051250", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "FCIU8690577", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "Shipped Out", bookingNumber: "EVEREST Transport To ACT", truckNumber: "6032006", exitDate: "3-Aug-25", shippingLine: "SLD", notes: "Loading fees 26 + Transportation 50" },
+  { containerNumber: "SLVU6016000", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "YARD", grade: "A", shippingLine: "SLD" },
+  { containerNumber: "CULU6080648", containerSize: "40 HQ", entryDate: "27-Jul-25", status: "RESERVED", truckNumber: "000203", shippingLine: "SLD" }
 ];
 
 const parseDate = (dateStr: string): Date => {

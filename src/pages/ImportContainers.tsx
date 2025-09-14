@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, CheckCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { importAllContainersFromExcel } from "../../scripts/import-containers";
+import { importAllContainersFromExcel } from "../../scripts/import-containers-full";
 
 const ImportContainers = () => {
   const { toast } = useToast();
