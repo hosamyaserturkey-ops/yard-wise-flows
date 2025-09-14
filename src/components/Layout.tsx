@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { Container, Ship, FileText, BarChart3, LogIn, LogOut, Crown } from "lucide-react";
+import { Container, Ship, FileText, BarChart3, LogIn, LogOut, Crown, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ const Layout = () => {
     { href: "/gate-in", label: "Gate In", icon: Container },
     { href: "/gate-out", label: "Gate Out", icon: Ship },
     { href: "/reports", label: "Reports", icon: FileText },
+    { href: "/import", label: "Import", icon: Upload },
   ];
 
   return (
