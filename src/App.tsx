@@ -12,6 +12,7 @@ import GateIn from "./pages/GateIn";
 import GateOut from "./pages/GateOut";
 import Reports from "./pages/Reports";
 import ImportContainers from "./pages/ImportContainers";
+import Bookings from "./pages/Bookings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,11 +47,16 @@ const App = () => (
                   <Reports />
                 </ProtectedRoute>
               } />
-              <Route path="import" element={
-                <ProtectedRoute>
-                  <ImportContainers />
-                </ProtectedRoute>
-              } />
+            <Route path="import" element={
+              <ProtectedRoute>
+                <ImportContainers />
+              </ProtectedRoute>
+            } />
+            <Route path="bookings" element={
+              <ProtectedRoute>
+                <Bookings />
+              </ProtectedRoute>
+            } />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

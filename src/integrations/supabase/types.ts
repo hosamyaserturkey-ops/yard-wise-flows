@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookings: {
+        Row: {
+          booking_number: string
+          created_at: string
+          created_by: string
+          customer_name: string
+          gated_out_containers: number
+          id: string
+          status: string
+          total_containers: number
+          updated_at: string
+        }
+        Insert: {
+          booking_number: string
+          created_at?: string
+          created_by: string
+          customer_name: string
+          gated_out_containers?: number
+          id?: string
+          status?: string
+          total_containers: number
+          updated_at?: string
+        }
+        Update: {
+          booking_number?: string
+          created_at?: string
+          created_by?: string
+          customer_name?: string
+          gated_out_containers?: number
+          id?: string
+          status?: string
+          total_containers?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       containers: {
         Row: {
           booking_number: string | null

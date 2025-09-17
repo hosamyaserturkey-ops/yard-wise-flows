@@ -16,6 +16,8 @@ const GateOut = () => {
   const [selectedContainer, setSelectedContainer] = useState<ContainerType | null>(null);
   const [bookingNumber, setBookingNumber] = useState("");
   const [fees, setFees] = useState("");
+  const [driverName, setDriverName] = useState("");
+  const [truckNumber, setTruckNumber] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -75,10 +77,10 @@ const GateOut = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedContainer || !bookingNumber || !fees) {
+    if (!selectedContainer || !bookingNumber || !fees || !driverName || !truckNumber) {
       toast({
         title: "Error",
-        description: "Please select a container and fill in all required fields",
+        description: "Please fill in all required fields",
         variant: "destructive",
       });
       return;
@@ -103,6 +105,8 @@ const GateOut = () => {
           gate_out_time: new Date().toISOString(),
           booking_number: bookingNumber,
           fees: parseFloat(fees),
+          driver_name: driverName,
+          truck_number: truckNumber,
         })
         .eq('id', selectedContainer.id)
         .select()
@@ -122,6 +126,8 @@ const GateOut = () => {
       setSelectedContainer(null);
       setBookingNumber("");
       setFees("");
+      setDriverName("");
+      setTruckNumber("");
       setSearchTerm("");
       fetchContainers();
 
@@ -168,6 +174,8 @@ const GateOut = () => {
               <div class="row"><span class="label">Driver Name:</span> ${selectedContainer.driverName}</div>
               <div class="row"><span class="label">Truck Number:</span> ${selectedContainer.truckNumber}</div>
               <div class="row"><span class="label">Booking Number:</span> ${bookingNumber}</div>
+              <div class="row"><span class="label">Driver Name:</span> ${driverName}</div>
+              <div class="row"><span class="label">Truck Number:</span> ${truckNumber}</div>
               <div class="row"><span class="label">Gate In Time:</span> ${selectedContainer.gateInTime.toLocaleString()}</div>
               <div class="row"><span class="label">Gate Out Time:</span> ${new Date().toLocaleString()}</div>
               <div class="fees">
@@ -279,6 +287,26 @@ const GateOut = () => {
                   </div>
 
                   <div className="space-y-2">
+                    <Label htmlFor="driverName">Driver Name *</Label>
+                    <Input
+                      id="driverName"
+                      value={driverName}
+                      onChange={(e) => setDriverName(e.target.value)}
+                      placeholder="Enter driver name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="truckNumber">Truck Number *</Label>
+                    <Input
+                      id="truckNumber"
+                      value={truckNumber}
+                      onChange={(e) => setTruckNumber(e.target.value.toUpperCase())}
+                      placeholder="Enter truck number"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="fees">Total Fees (USD) *</Label>
                     <Input
                       id="fees"
@@ -300,6 +328,8 @@ const GateOut = () => {
                       setSelectedContainer(null);
                       setBookingNumber("");
                       setFees("");
+                      setDriverName("");
+                      setTruckNumber("");
                     }}
                   >
                     Clear
