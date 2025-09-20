@@ -7,8 +7,9 @@ export interface Container {
   truckNumber: string;
   gateInTime: Date;
   gateOutTime?: Date;
-  status: 'in-yard' | 'out';
+  status: 'in-yard' | 'out' | 'reserved';
   bookingNumber?: string;
+  bookingId?: string;
   fees?: number;
 }
 

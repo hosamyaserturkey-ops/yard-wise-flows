@@ -1,15 +1,19 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Container, Ship, Clock, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Container, Ship, Clock, Users, Calendar } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import ReserveContainerDialog from "@/components/ReserveContainerDialog";
 
 const Dashboard = () => {
   const { user } = useAuth();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reserveDialogOpen, setReserveDialogOpen] = useState(false);
+  const [selectedContainer, setSelectedContainer] = useState<ContainerType | null>(null);
 
   useEffect(() => {
     fetchContainers();
@@ -33,8 +37,9 @@ const Dashboard = () => {
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),
         gateOutTime: container.gate_out_time ? new Date(container.gate_out_time) : undefined,
-        status: container.status as 'in-yard' | 'out',
+        status: container.status as 'in-yard' | 'out' | 'reserved',
         bookingNumber: container.booking_number,
+        bookingId: container.booking_id,
         fees: container.fees ? Number(container.fees) : undefined,
       }));
 
@@ -47,6 +52,7 @@ const Dashboard = () => {
   };
 
   const inYardCount = containers.filter(c => c.status === 'in-yard').length;
+  const reservedCount = containers.filter(c => c.status === 'reserved').length;
   const outCount = containers.filter(c => c.status === 'out').length;
   const sldCount = containers.filter(c => c.shippingLine === 'SLD').length;
   const slgCount = containers.filter(c => c.shippingLine === 'SLG').length;
@@ -73,6 +79,16 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-maritime">{inYardCount}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-warning">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Reserved</CardTitle>
+            <Calendar className="h-4 w-4 text-warning" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-warning">{reservedCount}</div>
           </CardContent>
         </Card>
 
@@ -120,8 +136,13 @@ const Dashboard = () => {
             {containers.slice(0, 10).map((container) => (
               <div key={container.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
                 <div className="flex items-center space-x-4">
-                  <Badge variant={container.status === 'in-yard' ? 'default' : 'secondary'}>
-                    {container.status === 'in-yard' ? 'IN' : 'OUT'}
+                  <Badge variant={
+                    container.status === 'in-yard' ? 'default' : 
+                    container.status === 'reserved' ? 'outline' :
+                    'secondary'
+                  }>
+                    {container.status === 'in-yard' ? 'IN' : 
+                     container.status === 'reserved' ? 'RESERVED' : 'OUT'}
                   </Badge>
                   <div>
                     <div className="font-medium">{container.containerNumber}</div>
@@ -130,11 +151,25 @@ const Dashboard = () => {
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium">{container.shippingLine}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {container.gateInTime.toLocaleTimeString()}
+                <div className="text-right flex items-center gap-2">
+                  <div>
+                    <div className="text-sm font-medium">{container.shippingLine}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {container.gateInTime.toLocaleTimeString()}
+                    </div>
                   </div>
+                  {(container.status === 'in-yard' || container.status === 'reserved') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedContainer(container);
+                        setReserveDialogOpen(true);
+                      }}
+                    >
+                      {container.status === 'reserved' ? 'Unreserve' : 'Reserve'}
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -146,6 +181,16 @@ const Dashboard = () => {
           </div>
         </CardContent>
       </Card>
+
+      <ReserveContainerDialog
+        open={reserveDialogOpen}
+        onOpenChange={setReserveDialogOpen}
+        container={selectedContainer}
+        onReserved={() => {
+          fetchContainers();
+          setSelectedContainer(null);
+        }}
+      />
     </div>
   );
 };

@@ -52,6 +52,7 @@ export type Database = {
       }
       containers: {
         Row: {
+          booking_id: string | null
           booking_number: string | null
           container_number: string
           container_type: string
@@ -63,11 +64,12 @@ export type Database = {
           gate_out_time: string | null
           id: string
           shipping_line: string
-          status: string
+          status: Database["public"]["Enums"]["container_status"]
           truck_number: string
           updated_at: string
         }
         Insert: {
+          booking_id?: string | null
           booking_number?: string | null
           container_number: string
           container_type: string
@@ -79,11 +81,12 @@ export type Database = {
           gate_out_time?: string | null
           id?: string
           shipping_line: string
-          status?: string
+          status?: Database["public"]["Enums"]["container_status"]
           truck_number: string
           updated_at?: string
         }
         Update: {
+          booking_id?: string | null
           booking_number?: string | null
           container_number?: string
           container_type?: string
@@ -95,11 +98,19 @@ export type Database = {
           gate_out_time?: string | null
           id?: string
           shipping_line?: string
-          status?: string
+          status?: Database["public"]["Enums"]["container_status"]
           truck_number?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "containers_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -140,6 +151,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      container_status: "in-yard" | "out" | "reserved"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -268,6 +280,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      container_status: ["in-yard", "out", "reserved"],
     },
   },
 } as const
