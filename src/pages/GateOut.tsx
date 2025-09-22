@@ -32,7 +32,7 @@ const GateOut = () => {
       const { data, error } = await supabase
         .from('containers')
         .select('*')
-        .eq('status', 'in-yard')
+        .eq('status', 'reserved')
         .order('gate_in_time', { ascending: false });
 
       if (error) throw error;
@@ -46,7 +46,7 @@ const GateOut = () => {
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),
         gateOutTime: container.gate_out_time ? new Date(container.gate_out_time) : undefined,
-        status: container.status as 'in-yard' | 'out',
+        status: container.status as 'in-yard' | 'out' | 'reserved',
         bookingNumber: container.booking_number,
         fees: container.fees ? Number(container.fees) : undefined,
       }));
@@ -77,10 +77,20 @@ const GateOut = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedContainer || !bookingNumber || !fees || !driverName || !truckNumber) {
+    if (!selectedContainer || !fees || !driverName || !truckNumber) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Verify that the container has a booking number (should be reserved)
+    if (!selectedContainer.bookingNumber) {
+      toast({
+        title: "Error",
+        description: "Selected container is not associated with a booking",
         variant: "destructive",
       });
       return;
@@ -98,19 +108,26 @@ const GateOut = () => {
     setIsSubmitting(true);
 
     try {
-      const { data, error } = await supabase
+      // Update container to 'out' status and set gate out details
+      const { error: containerError } = await supabase
         .from('containers')
         .update({
           status: 'out',
           gate_out_time: new Date().toISOString(),
-          booking_number: bookingNumber,
           fees: parseFloat(fees),
           driver_name: driverName,
           truck_number: truckNumber,
         })
-        .eq('id', selectedContainer.id)
-        .select()
-        .single();
+        .eq('id', selectedContainer.id);
+
+      if (containerError) throw containerError;
+
+      // Update booking's gated out containers count
+      const { error: bookingError } = await supabase.rpc('increment_gated_out_containers', {
+        booking_num: selectedContainer.bookingNumber
+      });
+
+      if (bookingError) throw bookingError;
 
       if (error) throw error;
 
@@ -124,7 +141,6 @@ const GateOut = () => {
 
       // Reset form and refresh containers
       setSelectedContainer(null);
-      setBookingNumber("");
       setFees("");
       setDriverName("");
       setTruckNumber("");
@@ -173,7 +189,7 @@ const GateOut = () => {
               <div class="row"><span class="label">Shipping Line:</span> ${selectedContainer.shippingLine}</div>
               <div class="row"><span class="label">Driver Name:</span> ${selectedContainer.driverName}</div>
               <div class="row"><span class="label">Truck Number:</span> ${selectedContainer.truckNumber}</div>
-              <div class="row"><span class="label">Booking Number:</span> ${bookingNumber}</div>
+              <div class="row"><span class="label">Booking Number:</span> ${selectedContainer.bookingNumber}</div>
               <div class="row"><span class="label">Driver Name:</span> ${driverName}</div>
               <div class="row"><span class="label">Truck Number:</span> ${truckNumber}</div>
               <div class="row"><span class="label">Gate In Time:</span> ${selectedContainer.gateInTime.toLocaleString()}</div>
@@ -198,14 +214,14 @@ const GateOut = () => {
     <div className="space-y-6">
       <div className="flex items-center space-x-2">
         <Ship className="h-8 w-8 text-maritime" />
-        <h1 className="text-3xl font-bold text-industrial">Gate Out Container</h1>
+        <h1 className="text-3xl font-bold text-industrial">Gate Out Reserved Container</h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Container Selection */}
         <Card>
           <CardHeader>
-            <CardTitle>Select Container to Gate Out</CardTitle>
+            <CardTitle>Select Reserved Container to Gate Out</CardTitle>
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -237,6 +253,9 @@ const GateOut = () => {
                       <div className="text-sm text-muted-foreground">
                         {container.driverName} • {container.truckNumber}
                       </div>
+                      <div className="text-sm text-blue-600 font-medium">
+                        Booking: {container.bookingNumber}
+                      </div>
                     </div>
                     <div className="text-right text-sm text-muted-foreground">
                       In yard since:<br />
@@ -248,7 +267,7 @@ const GateOut = () => {
               ))}
               {filteredContainers.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  {searchTerm ? "No containers found matching your search" : "No containers found in yard"}
+                  {searchTerm ? "No reserved containers found matching your search" : "No reserved containers available for gate out"}
                 </div>
               )}
             </div>
@@ -271,20 +290,11 @@ const GateOut = () => {
                     <div><span className="font-medium">Line:</span> {selectedContainer.shippingLine}</div>
                     <div><span className="font-medium">Driver:</span> {selectedContainer.driverName}</div>
                     <div><span className="font-medium">Truck:</span> {selectedContainer.truckNumber}</div>
+                    <div><span className="font-medium">Booking:</span> {selectedContainer.bookingNumber}</div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bookingNumber">Booking Number *</Label>
-                    <Input
-                      id="bookingNumber"
-                      value={bookingNumber}
-                      onChange={(e) => setBookingNumber(e.target.value.toUpperCase())}
-                      placeholder="e.g., BK001234"
-                      className="font-mono"
-                    />
-                  </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="driverName">Driver Name *</Label>
@@ -326,7 +336,6 @@ const GateOut = () => {
                     variant="outline"
                     onClick={() => {
                       setSelectedContainer(null);
-                      setBookingNumber("");
                       setFees("");
                       setDriverName("");
                       setTruckNumber("");
