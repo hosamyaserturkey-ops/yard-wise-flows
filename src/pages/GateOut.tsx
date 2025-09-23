@@ -123,13 +123,11 @@ const GateOut = () => {
       if (containerError) throw containerError;
 
       // Update booking's gated out containers count
-      const { error: bookingError } = await supabase.rpc('increment_gated_out_containers', {
+      const { error: bookingError } = await (supabase.rpc as any)('increment_gated_out_containers', {
         booking_num: selectedContainer.bookingNumber
       });
 
       if (bookingError) throw bookingError;
-
-      if (error) throw error;
 
       toast({
         title: "Success",
