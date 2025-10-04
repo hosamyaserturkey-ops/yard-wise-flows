@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Container, Ship, Clock, Users, Calendar } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +15,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [reserveDialogOpen, setReserveDialogOpen] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState<ContainerType | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in-yard' | 'reserved' | 'out'>('all');
+  const [shippingLineFilter, setShippingLineFilter] = useState<'all' | 'SLD' | 'SLG'>('all');
 
   useEffect(() => {
     fetchContainers();
@@ -56,6 +59,12 @@ const Dashboard = () => {
   const outCount = containers.filter(c => c.status === 'out').length;
   const sldCount = containers.filter(c => c.shippingLine === 'SLD').length;
   const slgCount = containers.filter(c => c.shippingLine === 'SLG').length;
+
+  const filteredContainers = containers.filter(container => {
+    const statusMatch = statusFilter === 'all' || container.status === statusFilter;
+    const shippingLineMatch = shippingLineFilter === 'all' || container.shippingLine === shippingLineFilter;
+    return statusMatch && shippingLineMatch;
+  });
 
   if (loading) {
     return <div className="flex justify-center items-center h-64">Loading dashboard...</div>;
@@ -123,42 +132,117 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Recent Activity */}
+      {/* Container Activity with Filters */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Clock className="h-5 w-5 text-maritime" />
-            <span>Recent Container Activity</span>
+            <span>Container Activity</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {containers.slice(0, 10).map((container) => (
-              <div key={container.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                <div className="flex items-center space-x-4">
-                  <Badge variant={
-                    container.status === 'in-yard' ? 'default' : 
-                    container.status === 'reserved' ? 'outline' :
-                    'secondary'
-                  }>
-                    {container.status === 'in-yard' ? 'IN' : 
-                     container.status === 'reserved' ? 'RESERVED' : 'OUT'}
-                  </Badge>
-                  <div>
-                    <div className="font-medium">{container.containerNumber}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {container.driverName} • {container.truckNumber}
+          <Tabs defaultValue="all" onValueChange={(value) => setStatusFilter(value as any)}>
+            <div className="flex justify-between items-center mb-4">
+              <TabsList>
+                <TabsTrigger value="all">All ({containers.length})</TabsTrigger>
+                <TabsTrigger value="in-yard">In Yard ({inYardCount})</TabsTrigger>
+                <TabsTrigger value="reserved">Reserved ({reservedCount})</TabsTrigger>
+                <TabsTrigger value="out">Out ({outCount})</TabsTrigger>
+              </TabsList>
+              
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={shippingLineFilter === 'all' ? 'default' : 'outline'}
+                  onClick={() => setShippingLineFilter('all')}
+                >
+                  All Lines
+                </Button>
+                <Button
+                  size="sm"
+                  variant={shippingLineFilter === 'SLD' ? 'default' : 'outline'}
+                  onClick={() => setShippingLineFilter('SLD')}
+                >
+                  SLD ({sldCount})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={shippingLineFilter === 'SLG' ? 'default' : 'outline'}
+                  onClick={() => setShippingLineFilter('SLG')}
+                >
+                  SLG ({slgCount})
+                </Button>
+              </div>
+            </div>
+
+            <TabsContent value="all" className="space-y-4">
+              {filteredContainers.map((container) => (
+                <div key={container.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                  <div className="flex items-center space-x-4">
+                    <Badge variant={
+                      container.status === 'in-yard' ? 'default' : 
+                      container.status === 'reserved' ? 'outline' :
+                      'secondary'
+                    }>
+                      {container.status === 'in-yard' ? 'IN' : 
+                       container.status === 'reserved' ? 'RESERVED' : 'OUT'}
+                    </Badge>
+                    <div>
+                      <div className="font-medium">{container.containerNumber}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {container.driverName} • {container.truckNumber}
+                        {container.bookingNumber && ` • Booking: ${container.bookingNumber}`}
+                      </div>
                     </div>
+                  </div>
+                  <div className="text-right flex items-center gap-2">
+                    <div>
+                      <div className="text-sm font-medium">{container.shippingLine}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {container.gateInTime.toLocaleTimeString()}
+                      </div>
+                    </div>
+                    {(container.status === 'in-yard' || container.status === 'reserved') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedContainer(container);
+                          setReserveDialogOpen(true);
+                        }}
+                      >
+                        {container.status === 'reserved' ? 'Unreserve' : 'Reserve'}
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="text-right flex items-center gap-2">
-                  <div>
-                    <div className="text-sm font-medium">{container.shippingLine}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {container.gateInTime.toLocaleTimeString()}
+              ))}
+              {filteredContainers.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No containers found with the selected filters.
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="in-yard" className="space-y-4">
+              {filteredContainers.map((container) => (
+                <div key={container.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                  <div className="flex items-center space-x-4">
+                    <Badge variant="default">IN</Badge>
+                    <div>
+                      <div className="font-medium">{container.containerNumber}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {container.driverName} • {container.truckNumber}
+                      </div>
                     </div>
                   </div>
-                  {(container.status === 'in-yard' || container.status === 'reserved') && (
+                  <div className="text-right flex items-center gap-2">
+                    <div>
+                      <div className="text-sm font-medium">{container.shippingLine}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {container.gateInTime.toLocaleTimeString()}
+                      </div>
+                    </div>
                     <Button
                       size="sm"
                       variant="outline"
@@ -167,18 +251,78 @@ const Dashboard = () => {
                         setReserveDialogOpen(true);
                       }}
                     >
-                      {container.status === 'reserved' ? 'Unreserve' : 'Reserve'}
+                      Reserve
                     </Button>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {containers.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No container activity found. Start by gating in some containers.
-              </div>
-            )}
-          </div>
+              ))}
+            </TabsContent>
+
+            <TabsContent value="reserved" className="space-y-4">
+              {filteredContainers.map((container) => (
+                <div key={container.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                  <div className="flex items-center space-x-4">
+                    <Badge variant="outline">RESERVED</Badge>
+                    <div>
+                      <div className="font-medium">{container.containerNumber}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {container.driverName} • {container.truckNumber}
+                        {container.bookingNumber && ` • Booking: ${container.bookingNumber}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right flex items-center gap-2">
+                    <div>
+                      <div className="text-sm font-medium">{container.shippingLine}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {container.gateInTime.toLocaleTimeString()}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedContainer(container);
+                        setReserveDialogOpen(true);
+                      }}
+                    >
+                      Unreserve
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </TabsContent>
+
+            <TabsContent value="out" className="space-y-4">
+              {filteredContainers.map((container) => (
+                <div key={container.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                  <div className="flex items-center space-x-4">
+                    <Badge variant="secondary">OUT</Badge>
+                    <div>
+                      <div className="font-medium">{container.containerNumber}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {container.driverName} • {container.truckNumber}
+                        {container.bookingNumber && ` • Booking: ${container.bookingNumber}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right flex items-center gap-2">
+                    <div>
+                      <div className="text-sm font-medium">{container.shippingLine}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {container.gateOutTime?.toLocaleTimeString() || 'N/A'}
+                      </div>
+                      {container.fees && (
+                        <div className="text-sm font-medium text-success">
+                          ${container.fees}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
