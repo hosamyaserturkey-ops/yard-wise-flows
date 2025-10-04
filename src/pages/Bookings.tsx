@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Users, CheckCircle } from "lucide-react";
+import { Plus, Package, Users, CheckCircle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, CreateBookingData } from "@/types/booking";
 
 export default function Bookings() {
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -214,19 +216,25 @@ export default function Bookings() {
           </Card>
         ) : (
           bookings.map((booking) => (
-            <Card key={booking.id}>
+            <Card 
+              key={booking.id} 
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => navigate(`/bookings/${booking.id}`)}
+            >
               <CardContent className="p-6">
                 <div className="flex justify-between items-start mb-4">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-xl font-semibold">{booking.booking_number}</h3>
                     <p className="text-muted-foreground flex items-center gap-2 mt-1">
                       <Users className="h-4 w-4" />
                       {booking.customer_name}
                     </p>
                   </div>
-                  <Badge className={getStatusColor(booking.status)}>
-                    {booking.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={getStatusColor(booking.status)}>
+                      {booking.status}
+                    </Badge>
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -263,6 +271,21 @@ export default function Bookings() {
                     </div>
                   </div>
                 )}
+
+                <div className="flex justify-end mt-4">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/bookings/${booking.id}`);
+                    }}
+                  >
+                    View Details
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))
