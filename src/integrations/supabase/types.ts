@@ -148,6 +148,10 @@ export type Database = {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      increment_gated_out_containers: {
+        Args: { booking_num: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "user"
