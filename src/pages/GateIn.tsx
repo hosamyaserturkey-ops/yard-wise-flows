@@ -9,6 +9,7 @@ import { Container } from "lucide-react";
 import { GateInData } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import bgGateIn from "@/assets/bg-gate-in.jpg";
 
 const GateIn = () => {
   const { user } = useAuth();
@@ -147,7 +148,17 @@ const GateIn = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div 
+      className="min-h-screen relative py-6"
+      style={{
+        backgroundImage: `url(${bgGateIn})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      <div className="absolute inset-0 bg-black/50"></div>
+      <div className="max-w-2xl mx-auto space-y-6 relative z-10">
       <div className="flex items-center space-x-2">
         <Container className="h-8 w-8 text-maritime" />
         <h1 className="text-3xl font-bold text-industrial">Gate In Container</h1>
@@ -254,6 +265,7 @@ const GateIn = () => {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };

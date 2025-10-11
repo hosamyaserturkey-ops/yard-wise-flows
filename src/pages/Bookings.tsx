@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, CreateBookingData } from "@/types/booking";
+import bgBookings from "@/assets/bg-bookings.jpg";
 
 export default function Bookings() {
   const navigate = useNavigate();
@@ -117,7 +118,17 @@ export default function Bookings() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div 
+      className="min-h-screen relative py-6"
+      style={{
+        backgroundImage: `url(${bgBookings})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      <div className="absolute inset-0 bg-black/50"></div>
+      <div className="container mx-auto p-6 space-y-6 relative z-10">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Bookings</h1>
@@ -290,6 +301,7 @@ export default function Bookings() {
             </Card>
           ))
         )}
+      </div>
       </div>
     </div>
   );

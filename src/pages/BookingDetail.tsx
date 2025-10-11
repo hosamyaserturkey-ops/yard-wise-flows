@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking } from "@/types/booking";
 import type { Container } from "@/types/container";
+import bgBookingDetail from "@/assets/bg-booking-detail.jpg";
 
 export default function BookingDetail() {
   const { bookingId } = useParams<{ bookingId: string }>();
@@ -207,7 +208,17 @@ export default function BookingDetail() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div 
+      className="min-h-screen relative py-6"
+      style={{
+        backgroundImage: `url(${bgBookingDetail})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      <div className="absolute inset-0 bg-black/50"></div>
+      <div className="container mx-auto p-6 space-y-6 relative z-10">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/bookings")}>
           <ArrowLeft className="h-5 w-5" />
@@ -417,6 +428,7 @@ export default function BookingDetail() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

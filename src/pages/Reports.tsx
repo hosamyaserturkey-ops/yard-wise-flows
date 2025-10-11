@@ -10,6 +10,7 @@ import { FileText, Download, Calendar } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import bgReports from "@/assets/bg-reports.jpg";
 
 const Reports = () => {
   const { toast } = useToast();
@@ -147,7 +148,17 @@ const Reports = () => {
   const totalFees = filteredContainers.reduce((sum, container) => sum + (container.fees || 0), 0);
 
   return (
-    <div className="space-y-6">
+    <div 
+      className="min-h-screen relative py-6"
+      style={{
+        backgroundImage: `url(${bgReports})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      <div className="absolute inset-0 bg-black/50"></div>
+      <div className="space-y-6 relative z-10">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <FileText className="h-8 w-8 text-maritime" />
@@ -348,6 +359,7 @@ const Reports = () => {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };

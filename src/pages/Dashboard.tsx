@@ -8,6 +8,7 @@ import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import ReserveContainerDialog from "@/components/ReserveContainerDialog";
+import bgDashboard from "@/assets/bg-dashboard.jpg";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -71,7 +72,17 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div 
+      className="min-h-screen relative py-6"
+      style={{
+        backgroundImage: `url(${bgDashboard})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      <div className="absolute inset-0 bg-black/50"></div>
+      <div className="space-y-6 relative z-10">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-industrial">Dashboard</h1>
         <div className="text-sm text-muted-foreground">
@@ -335,6 +346,7 @@ const Dashboard = () => {
           setSelectedContainer(null);
         }}
       />
+      </div>
     </div>
   );
 };
