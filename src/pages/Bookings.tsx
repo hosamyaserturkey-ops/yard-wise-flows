@@ -9,6 +9,7 @@ import { Plus, Package, Users, CheckCircle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { bookingSchema } from "@/lib/validation";
 import type { Booking, CreateBookingData } from "@/types/booking";
 import bgBookings from "@/assets/bg-bookings.jpg";
 
@@ -61,8 +62,18 @@ export default function Bookings() {
     e.preventDefault();
     if (!user) return;
 
-    setCreating(true);
-    try {
+    // Validate with zod
+    const result = bookingSchema.safeParse(formData);
+    if (!result.success) {
+      const firstError = result.error.errors[0];
+      toast({
+        title: "Validation Error",
+        description: firstError.message,
+        variant: "destructive",
+      });
+      setCreating(false);
+      return;
+    }
       const { error } = await supabase
         .from("bookings")
         .insert({

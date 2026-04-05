@@ -8,6 +8,7 @@ import { Ship, Search } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { gateOutSchema } from "@/lib/validation";
 import bgGateOut from "@/assets/bg-gate-out.jpg";
 
 const GateOut = () => {
@@ -78,10 +79,22 @@ const GateOut = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedContainer || !fees || !driverName || !truckNumber) {
+    // Validate with zod
+    const result = gateOutSchema.safeParse({ driverName, truckNumber, fees });
+    if (!result.success) {
+      const firstError = result.error.errors[0];
+      toast({
+        title: "Validation Error",
+        description: firstError.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedContainer) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please select a container",
         variant: "destructive",
       });
       return;
