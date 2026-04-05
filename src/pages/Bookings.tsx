@@ -71,9 +71,11 @@ export default function Bookings() {
         description: firstError.message,
         variant: "destructive",
       });
-      setCreating(false);
       return;
     }
+
+    setCreating(true);
+    try {
       const { error } = await supabase
         .from("bookings")
         .insert({
