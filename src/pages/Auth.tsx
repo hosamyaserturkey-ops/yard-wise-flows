@@ -23,13 +23,19 @@ const Auth = () => {
     setError("");
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
+    const username = (formData.get("username") as string).trim().toLowerCase();
     const password = formData.get("password") as string;
 
-    const { error } = await signIn(email, password);
+    if (!username || !password) {
+      setError("Please fill in all fields.");
+      setIsLoading(false);
+      return;
+    }
+
+    const { error } = await signIn(username, password);
 
     if (error) {
-      setError(error.message);
+      setError("Invalid username or password.");
     } else {
       navigate("/");
     }
@@ -44,16 +50,44 @@ const Auth = () => {
     setMessage("");
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
+    const fullName = (formData.get("fullName") as string).trim();
+    const username = (formData.get("username") as string).trim().toLowerCase();
     const password = formData.get("password") as string;
-    const fullName = formData.get("fullName") as string;
 
-    const { error } = await signUp(email, password, fullName);
+    if (!fullName || !username || !password) {
+      setError("Please fill in all fields.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (username.length < 3) {
+      setError("Username must be at least 3 characters.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!/^[a-z0-9_]+$/.test(username)) {
+      setError("Username can only contain letters, numbers, and underscores.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      setIsLoading(false);
+      return;
+    }
+
+    const { error } = await signUp(username, password, fullName);
 
     if (error) {
-      setError(error.message);
+      if (error.message?.includes("already registered")) {
+        setError("This username is already taken.");
+      } else {
+        setError(error.message);
+      }
     } else {
-      setMessage("Check your email for a confirmation link!");
+      setMessage("Account created successfully! You can now sign in.");
     }
 
     setIsLoading(false);
@@ -96,12 +130,13 @@ const Auth = () => {
               <TabsContent value="signin">
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
+                    <Label htmlFor="signin-username">Username</Label>
                     <Input
-                      id="signin-email"
-                      name="email"
-                      type="email"
-                      placeholder="Enter your email"
+                      id="signin-username"
+                      name="username"
+                      type="text"
+                      placeholder="Enter your username"
+                      autoComplete="username"
                       required
                     />
                   </div>
@@ -112,6 +147,7 @@ const Auth = () => {
                       name="password"
                       type="password"
                       placeholder="Enter your password"
+                      autoComplete="current-password"
                       required
                     />
                   </div>
@@ -139,12 +175,13 @@ const Auth = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
+                    <Label htmlFor="signup-username">Username</Label>
                     <Input
-                      id="signup-email"
-                      name="email"
-                      type="email"
-                      placeholder="Enter your email"
+                      id="signup-username"
+                      name="username"
+                      type="text"
+                      placeholder="Choose a username"
+                      autoComplete="username"
                       required
                     />
                   </div>
@@ -155,6 +192,7 @@ const Auth = () => {
                       name="password"
                       type="password"
                       placeholder="Create a password"
+                      autoComplete="new-password"
                       required
                     />
                   </div>

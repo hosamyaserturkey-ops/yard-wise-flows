@@ -6,6 +6,7 @@ interface Profile {
   id: string;
   user_id: string;
   full_name: string | null;
+  username: string | null;
   role: 'admin' | 'user';
   created_at: string;
   updated_at: string;
@@ -16,13 +17,16 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
+  signIn: (username: string, password: string) => Promise<{ error: any }>;
+  signUp: (username: string, password: string, fullName: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   isAdmin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Convert username to a deterministic internal email
+const usernameToEmail = (username: string) => `${username.toLowerCase()}@containeryard.app`;
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -47,7 +51,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .single();
 
       if (error) throw error;
-      setProfile(data);
+      setProfile(data as Profile);
     } catch (error) {
       console.error('Error fetching profile:', error);
       setProfile(null);
@@ -55,7 +59,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session);
@@ -73,7 +76,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     );
 
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -87,7 +89,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (username: string, password: string) => {
+    const email = usernameToEmail(username);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -95,16 +98,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { error };
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+  const signUp = async (username: string, password: string, fullName: string) => {
+    const email = usernameToEmail(username);
     
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
+          username: username.toLowerCase(),
         },
       },
     });
