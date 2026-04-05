@@ -9,6 +9,7 @@ import { Container } from "lucide-react";
 import { GateInData } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { gateInSchema } from "@/lib/validation";
 import bgGateIn from "@/assets/bg-gate-in.jpg";
 
 const GateIn = () => {
@@ -35,11 +36,13 @@ const GateIn = () => {
       return;
     }
 
-    // Validate form
-    if (!formData.containerNumber || !formData.containerType || !formData.driverName || !formData.truckNumber) {
+    // Validate form with zod
+    const result = gateInSchema.safeParse(formData);
+    if (!result.success) {
+      const firstError = result.error.errors[0];
       toast({
-        title: "Error",
-        description: "Please fill in all required fields",
+        title: "Validation Error",
+        description: firstError.message,
         variant: "destructive",
       });
       return;

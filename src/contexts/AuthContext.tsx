@@ -51,7 +51,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .single();
 
       if (error) throw error;
-      setProfile(data as Profile);
+
+      // Fetch role from user_roles table
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .limit(1)
+        .maybeSingle();
+
+      const role = (roleData?.role as 'admin' | 'user') || 'user';
+      setProfile({ ...data, role } as Profile);
     } catch (error) {
       console.error('Error fetching profile:', error);
       setProfile(null);
