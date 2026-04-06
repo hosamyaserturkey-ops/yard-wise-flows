@@ -50,6 +50,42 @@ export type Database = {
         }
         Relationships: []
       }
+      container_port_data: {
+        Row: {
+          container_number: string
+          created_at: string
+          daily_demurrage: number
+          free_days: number
+          id: string
+          last_source: string
+          port_arrival_date: string
+          shipping_line: string
+          updated_at: string
+        }
+        Insert: {
+          container_number: string
+          created_at?: string
+          daily_demurrage: number
+          free_days: number
+          id?: string
+          last_source?: string
+          port_arrival_date: string
+          shipping_line: string
+          updated_at?: string
+        }
+        Update: {
+          container_number?: string
+          created_at?: string
+          daily_demurrage?: number
+          free_days?: number
+          id?: string
+          last_source?: string
+          port_arrival_date?: string
+          shipping_line?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       containers: {
         Row: {
           booking_id: string | null
@@ -58,11 +94,14 @@ export type Database = {
           container_type: string
           created_at: string
           created_by: string
+          daily_demurrage: number | null
           driver_name: string
           fees: number | null
+          free_days: number | null
           gate_in_time: string
           gate_out_time: string | null
           id: string
+          port_arrival_date: string | null
           shipping_line: string
           status: Database["public"]["Enums"]["container_status"]
           truck_number: string
@@ -75,11 +114,14 @@ export type Database = {
           container_type: string
           created_at?: string
           created_by: string
+          daily_demurrage?: number | null
           driver_name: string
           fees?: number | null
+          free_days?: number | null
           gate_in_time?: string
           gate_out_time?: string | null
           id?: string
+          port_arrival_date?: string | null
           shipping_line: string
           status?: Database["public"]["Enums"]["container_status"]
           truck_number: string
@@ -92,11 +134,14 @@ export type Database = {
           container_type?: string
           created_at?: string
           created_by?: string
+          daily_demurrage?: number | null
           driver_name?: string
           fees?: number | null
+          free_days?: number | null
           gate_in_time?: string
           gate_out_time?: string | null
           id?: string
+          port_arrival_date?: string | null
           shipping_line?: string
           status?: Database["public"]["Enums"]["container_status"]
           truck_number?: string
@@ -162,7 +207,39 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      container_demurrage: {
+        Row: {
+          chargeable_days: number | null
+          container_number: string | null
+          daily_demurrage: number | null
+          days_from_arrival: number | null
+          demurrage_amount: number | null
+          free_days: number | null
+          port_arrival_date: string | null
+          shipping_line: string | null
+        }
+        Insert: {
+          chargeable_days?: never
+          container_number?: string | null
+          daily_demurrage?: number | null
+          days_from_arrival?: never
+          demurrage_amount?: never
+          free_days?: number | null
+          port_arrival_date?: string | null
+          shipping_line?: string | null
+        }
+        Update: {
+          chargeable_days?: never
+          container_number?: string | null
+          daily_demurrage?: number | null
+          days_from_arrival?: never
+          demurrage_amount?: never
+          free_days?: number | null
+          port_arrival_date?: string | null
+          shipping_line?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_user_role: {
