@@ -36,7 +36,6 @@ const GateIn = () => {
       return;
     }
 
-    // Validate form with zod
     const result = gateInSchema.safeParse(formData);
     if (!result.success) {
       const firstError = result.error.errors[0];
@@ -51,11 +50,44 @@ const GateIn = () => {
     setIsSubmitting(true);
     
     try {
-      // Check if container already exists in yard
+      const containerNumber = formData.containerNumber.trim().toUpperCase();
+
+      // 1) Demurrage check BEFORE gate-in
+      const { data: demurrageRow, error: demurrageError } = await supabase
+        .from("container_demurrage")
+        .select("*")
+        .eq("container_number", containerNumber)
+        .maybeSingle();
+
+      if (demurrageError) {
+        console.error("Error checking demurrage:", demurrageError);
+        toast({
+          title: "Demurrage Check Failed",
+          description: "Could not verify demurrage. Please try again or check port data.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (demurrageRow) {
+        const { chargeable_days, demurrage_amount } = demurrageRow as any;
+        if (chargeable_days > 0) {
+          const confirmed = window.confirm(
+            `This container has ${chargeable_days} demurrage days with amount ${demurrage_amount}. Do you want to continue gate in?`
+          );
+          if (!confirmed) {
+            setIsSubmitting(false);
+            return;
+          }
+        }
+      }
+
+      // 2) Check if container already exists in yard
       const { data: existingContainer } = await supabase
         .from('containers')
         .select('id')
-        .eq('container_number', formData.containerNumber)
+        .eq('container_number', containerNumber)
         .eq('status', 'in-yard')
         .maybeSingle();
         
@@ -69,10 +101,11 @@ const GateIn = () => {
         return;
       }
 
+      // 3) Insert container
       const { data, error } = await supabase
         .from('containers')
         .insert({
-          container_number: formData.containerNumber,
+          container_number: containerNumber,
           container_type: formData.containerType,
           shipping_line: formData.shippingLine,
           driver_name: formData.driverName,
@@ -86,13 +119,11 @@ const GateIn = () => {
       
       toast({
         title: "Success",
-        description: `Container ${formData.containerNumber} gated in successfully`,
+        description: `Container ${containerNumber} gated in successfully`,
       });
 
-      // Print receipt
       printReceipt(data);
 
-      // Reset form
       setFormData({
         containerNumber: "",
         containerType: "",
