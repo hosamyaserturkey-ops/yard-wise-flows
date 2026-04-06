@@ -80,15 +80,20 @@ const GateIn = () => {
       if (demurrageRow) {
         const { chargeable_days, demurrage_amount } = demurrageRow as any;
         if (chargeable_days > 0) {
-          const confirmed = window.confirm(
-            `This container has ${chargeable_days} demurrage days with amount ${demurrage_amount}. Do you want to continue gate in?`
-          );
-          if (!confirmed) {
-            setIsSubmitting(false);
-            return;
-          }
+          // Show styled dialog — pause submission until cash is collected
+          setDemurrageDialog({
+            open: true,
+            chargeableDays: chargeable_days,
+            demurrageAmount: demurrage_amount,
+            containerNumber,
+          });
+          setIsSubmitting(false);
+          return;
         }
       }
+
+      // No demurrage — proceed directly
+      await insertContainer(containerNumber);
 
       // 2) Check if container already exists in yard
       const { data: existingContainer } = await supabase
