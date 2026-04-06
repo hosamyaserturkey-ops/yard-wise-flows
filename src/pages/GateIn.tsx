@@ -24,6 +24,12 @@ const GateIn = () => {
     truckNumber: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [demurrageDialog, setDemurrageDialog] = useState<{
+    open: boolean;
+    chargeableDays: number;
+    demurrageAmount: number;
+    containerNumber: string;
+  }>({ open: false, chargeableDays: 0, demurrageAmount: 0, containerNumber: "" });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
