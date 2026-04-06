@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { gateInSchema } from "@/lib/validation";
 import bgGateIn from "@/assets/bg-gate-in.jpg";
+import DemurrageCollectionDialog from "@/components/DemurrageCollectionDialog";
 
 const GateIn = () => {
   const { user } = useAuth();
@@ -23,6 +24,12 @@ const GateIn = () => {
     truckNumber: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [demurrageDialog, setDemurrageDialog] = useState<{
+    open: boolean;
+    chargeableDays: number;
+    demurrageAmount: number;
+    containerNumber: string;
+  }>({ open: false, chargeableDays: 0, demurrageAmount: 0, containerNumber: "" });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,65 +80,20 @@ const GateIn = () => {
       if (demurrageRow) {
         const { chargeable_days, demurrage_amount } = demurrageRow as any;
         if (chargeable_days > 0) {
-          const confirmed = window.confirm(
-            `This container has ${chargeable_days} demurrage days with amount ${demurrage_amount}. Do you want to continue gate in?`
-          );
-          if (!confirmed) {
-            setIsSubmitting(false);
-            return;
-          }
+          // Show styled dialog — pause submission until cash is collected
+          setDemurrageDialog({
+            open: true,
+            chargeableDays: chargeable_days,
+            demurrageAmount: demurrage_amount,
+            containerNumber,
+          });
+          setIsSubmitting(false);
+          return;
         }
       }
 
-      // 2) Check if container already exists in yard
-      const { data: existingContainer } = await supabase
-        .from('containers')
-        .select('id')
-        .eq('container_number', containerNumber)
-        .eq('status', 'in-yard')
-        .maybeSingle();
-        
-      if (existingContainer) {
-        toast({
-          title: "Container Already In Yard",
-          description: "This container is already gated in.",
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // 3) Insert container
-      const { data, error } = await supabase
-        .from('containers')
-        .insert({
-          container_number: containerNumber,
-          container_type: formData.containerType,
-          shipping_line: formData.shippingLine,
-          driver_name: formData.driverName,
-          truck_number: formData.truckNumber,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-        
-      if (error) throw error;
-      
-      toast({
-        title: "Success",
-        description: `Container ${containerNumber} gated in successfully`,
-      });
-
-      printReceipt(data);
-
-      setFormData({
-        containerNumber: "",
-        containerType: "",
-        shippingLine: "SLD",
-        driverName: "",
-        truckNumber: "",
-      });
-      
+      // No demurrage — proceed directly
+      await insertContainer(containerNumber);
     } catch (error) {
       console.error('Error gating in container:', error);
       toast({
@@ -142,6 +104,55 @@ const GateIn = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const insertContainer = async (containerNumber: string) => {
+    // Check if container already exists in yard
+    const { data: existingContainer } = await supabase
+      .from('containers')
+      .select('id')
+      .eq('container_number', containerNumber)
+      .eq('status', 'in-yard')
+      .maybeSingle();
+
+    if (existingContainer) {
+      toast({
+        title: "Container Already In Yard",
+        description: "This container is already gated in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('containers')
+      .insert({
+        container_number: containerNumber,
+        container_type: formData.containerType,
+        shipping_line: formData.shippingLine,
+        driver_name: formData.driverName,
+        truck_number: formData.truckNumber,
+        created_by: user!.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    toast({
+      title: "Success",
+      description: `Container ${containerNumber} gated in successfully`,
+    });
+
+    printReceipt(data);
+
+    setFormData({
+      containerNumber: "",
+      containerType: "",
+      shippingLine: "SLD",
+      driverName: "",
+      truckNumber: "",
+    });
   };
 
   const printReceipt = (containerData: any) => {
@@ -300,6 +311,30 @@ const GateIn = () => {
         </CardContent>
       </Card>
       </div>
+
+      <DemurrageCollectionDialog
+        open={demurrageDialog.open}
+        onClose={() => setDemurrageDialog(prev => ({ ...prev, open: false }))}
+        onCollected={async () => {
+          setDemurrageDialog(prev => ({ ...prev, open: false }));
+          setIsSubmitting(true);
+          try {
+            await insertContainer(demurrageDialog.containerNumber);
+          } catch (error) {
+            console.error('Error gating in container:', error);
+            toast({
+              title: "Error",
+              description: "Failed to gate in container. Please try again.",
+              variant: "destructive",
+            });
+          } finally {
+            setIsSubmitting(false);
+          }
+        }}
+        chargeableDays={demurrageDialog.chargeableDays}
+        demurrageAmount={demurrageDialog.demurrageAmount}
+        containerNumber={demurrageDialog.containerNumber}
+      />
     </div>
   );
 };
