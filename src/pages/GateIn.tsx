@@ -94,56 +94,6 @@ const GateIn = () => {
 
       // No demurrage — proceed directly
       await insertContainer(containerNumber);
-
-      // 2) Check if container already exists in yard
-      const { data: existingContainer } = await supabase
-        .from('containers')
-        .select('id')
-        .eq('container_number', containerNumber)
-        .eq('status', 'in-yard')
-        .maybeSingle();
-        
-      if (existingContainer) {
-        toast({
-          title: "Container Already In Yard",
-          description: "This container is already gated in.",
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // 3) Insert container
-      const { data, error } = await supabase
-        .from('containers')
-        .insert({
-          container_number: containerNumber,
-          container_type: formData.containerType,
-          shipping_line: formData.shippingLine,
-          driver_name: formData.driverName,
-          truck_number: formData.truckNumber,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-        
-      if (error) throw error;
-      
-      toast({
-        title: "Success",
-        description: `Container ${containerNumber} gated in successfully`,
-      });
-
-      printReceipt(data);
-
-      setFormData({
-        containerNumber: "",
-        containerType: "",
-        shippingLine: "SLD",
-        driverName: "",
-        truckNumber: "",
-      });
-      
     } catch (error) {
       console.error('Error gating in container:', error);
       toast({
@@ -154,6 +104,55 @@ const GateIn = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const insertContainer = async (containerNumber: string) => {
+    // Check if container already exists in yard
+    const { data: existingContainer } = await supabase
+      .from('containers')
+      .select('id')
+      .eq('container_number', containerNumber)
+      .eq('status', 'in-yard')
+      .maybeSingle();
+
+    if (existingContainer) {
+      toast({
+        title: "Container Already In Yard",
+        description: "This container is already gated in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('containers')
+      .insert({
+        container_number: containerNumber,
+        container_type: formData.containerType,
+        shipping_line: formData.shippingLine,
+        driver_name: formData.driverName,
+        truck_number: formData.truckNumber,
+        created_by: user!.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    toast({
+      title: "Success",
+      description: `Container ${containerNumber} gated in successfully`,
+    });
+
+    printReceipt(data);
+
+    setFormData({
+      containerNumber: "",
+      containerType: "",
+      shippingLine: "SLD",
+      driverName: "",
+      truckNumber: "",
+    });
   };
 
   const printReceipt = (containerData: any) => {
