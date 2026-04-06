@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { gateInSchema } from "@/lib/validation";
 import bgGateIn from "@/assets/bg-gate-in.jpg";
+import DemurrageCollectionDialog from "@/components/DemurrageCollectionDialog";
 
 const GateIn = () => {
   const { user } = useAuth();
