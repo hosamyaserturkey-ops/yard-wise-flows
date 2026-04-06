@@ -311,6 +311,30 @@ const GateIn = () => {
         </CardContent>
       </Card>
       </div>
+
+      <DemurrageCollectionDialog
+        open={demurrageDialog.open}
+        onClose={() => setDemurrageDialog(prev => ({ ...prev, open: false }))}
+        onCollected={async () => {
+          setDemurrageDialog(prev => ({ ...prev, open: false }));
+          setIsSubmitting(true);
+          try {
+            await insertContainer(demurrageDialog.containerNumber);
+          } catch (error) {
+            console.error('Error gating in container:', error);
+            toast({
+              title: "Error",
+              description: "Failed to gate in container. Please try again.",
+              variant: "destructive",
+            });
+          } finally {
+            setIsSubmitting(false);
+          }
+        }}
+        chargeableDays={demurrageDialog.chargeableDays}
+        demurrageAmount={demurrageDialog.demurrageAmount}
+        containerNumber={demurrageDialog.containerNumber}
+      />
     </div>
   );
 };
