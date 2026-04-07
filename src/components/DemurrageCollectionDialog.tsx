@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, DollarSign, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 
+const HANDLING_FEE = 7;
+
 interface DemurrageCollectionDialogProps {
   open: boolean;
   onClose: () => void;
@@ -29,6 +31,7 @@ const DemurrageCollectionDialog = ({
   containerNumber,
 }: DemurrageCollectionDialogProps) => {
   const [collected, setCollected] = useState(false);
+  const totalAmount = demurrageAmount + HANDLING_FEE;
 
   const handleConfirmCollection = () => {
     onCollected();
@@ -60,23 +63,31 @@ const DemurrageCollectionDialog = ({
                   <span className="text-muted-foreground">Chargeable Days</span>
                   <Badge variant="destructive">{chargeableDays} days</Badge>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground text-sm">Total Amount Due</span>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Demurrage Amount</span>
+                  <span className="font-semibold">{demurrageAmount.toLocaleString()} JOD</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Handling Fee</span>
+                  <span className="font-semibold">{HANDLING_FEE} JOD</span>
+                </div>
+                <div className="border-t pt-2 flex justify-between items-center">
+                  <span className="text-muted-foreground text-sm font-medium">Total to Collect</span>
                   <span className="text-xl font-bold text-destructive">
-                    ${demurrageAmount.toLocaleString()}
+                    {totalAmount.toLocaleString()} JOD
                   </span>
                 </div>
               </div>
 
               {!collected ? (
                 <p className="text-sm text-muted-foreground">
-                  Please collect <strong>${demurrageAmount.toLocaleString()}</strong> in cash from
+                  Please collect <strong>{totalAmount.toLocaleString()} JOD</strong> in cash from
                   the driver, then mark it as collected below.
                 </p>
               ) : (
                 <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-700 dark:text-green-400">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>Cash payment collected. You may now proceed with gate-in.</span>
+                  <span>Cash payment of {totalAmount.toLocaleString()} JOD collected. You may now proceed with gate-in.</span>
                 </div>
               )}
             </div>
@@ -110,4 +121,5 @@ const DemurrageCollectionDialog = ({
   );
 };
 
+export { HANDLING_FEE };
 export default DemurrageCollectionDialog;
