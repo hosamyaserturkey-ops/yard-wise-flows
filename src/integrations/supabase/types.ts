@@ -157,6 +157,42 @@ export type Database = {
           },
         ]
       }
+      demurrage_payments: {
+        Row: {
+          chargeable_days: number
+          collected_by: string
+          container_number: string
+          created_at: string
+          demurrage_amount: number
+          handling_fee: number
+          id: string
+          shipping_line: string
+          total_collected: number
+        }
+        Insert: {
+          chargeable_days: number
+          collected_by: string
+          container_number: string
+          created_at?: string
+          demurrage_amount: number
+          handling_fee?: number
+          id?: string
+          shipping_line: string
+          total_collected: number
+        }
+        Update: {
+          chargeable_days?: number
+          collected_by?: string
+          container_number?: string
+          created_at?: string
+          demurrage_amount?: number
+          handling_fee?: number
+          id?: string
+          shipping_line?: string
+          total_collected?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
