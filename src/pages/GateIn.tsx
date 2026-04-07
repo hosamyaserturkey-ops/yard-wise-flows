@@ -316,10 +316,40 @@ const GateIn = () => {
         open={demurrageDialog.open}
         onClose={() => setDemurrageDialog(prev => ({ ...prev, open: false }))}
         onCollected={async () => {
+          const { containerNumber, chargeableDays, demurrageAmount } = demurrageDialog;
+          const totalCollected = demurrageAmount + HANDLING_FEE;
           setDemurrageDialog(prev => ({ ...prev, open: false }));
           setIsSubmitting(true);
           try {
-            await insertContainer(demurrageDialog.containerNumber);
+            // Record demurrage payment
+            const { data: paymentRecord, error: paymentError } = await supabase
+              .from('demurrage_payments')
+              .insert({
+                container_number: containerNumber,
+                shipping_line: formData.shippingLine,
+                chargeable_days: chargeableDays,
+                demurrage_amount: demurrageAmount,
+                handling_fee: HANDLING_FEE,
+                total_collected: totalCollected,
+                collected_by: user!.id,
+              })
+              .select()
+              .single();
+
+            if (paymentError) throw paymentError;
+
+            // Print demurrage receipt
+            printDemurrageReceipt({
+              id: paymentRecord.id,
+              containerNumber,
+              shippingLine: formData.shippingLine,
+              chargeableDays,
+              demurrageAmount,
+              handlingFee: HANDLING_FEE,
+              totalCollected,
+            });
+
+            await insertContainer(containerNumber);
           } catch (error) {
             console.error('Error gating in container:', error);
             toast({
