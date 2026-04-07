@@ -192,6 +192,58 @@ const GateIn = () => {
     }
   };
 
+  const printDemurrageReceipt = (data: {
+    id: string;
+    containerNumber: string;
+    shippingLine: string;
+    chargeableDays: number;
+    demurrageAmount: number;
+    handlingFee: number;
+    totalCollected: number;
+  }) => {
+    const receiptWindow = window.open('', '_blank');
+    if (receiptWindow) {
+      receiptWindow.document.write(`
+        <html>
+          <head>
+            <title>Demurrage Receipt</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+              .content { margin: 20px 0; }
+              .row { margin: 8px 0; display: flex; justify-content: space-between; }
+              .label { font-weight: bold; }
+              .total { border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; font-size: 1.2em; }
+              .footer { text-align: center; margin-top: 20px; font-size: 0.85em; color: #666; border-top: 1px solid #ccc; padding-top: 10px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>Container Yard Management</h2>
+              <h3>DEMURRAGE PAYMENT RECEIPT</h3>
+              <p>Receipt #: DM-${data.id.substring(0, 8).toUpperCase()}</p>
+              <p>${new Date().toLocaleString()}</p>
+            </div>
+            <div class="content">
+              <div class="row"><span class="label">Container:</span> <span>${data.containerNumber}</span></div>
+              <div class="row"><span class="label">Shipping Line:</span> <span>${data.shippingLine}</span></div>
+              <div class="row"><span class="label">Chargeable Days:</span> <span>${data.chargeableDays} days</span></div>
+              <div class="row"><span class="label">Demurrage Amount:</span> <span>${data.demurrageAmount.toLocaleString()} JOD</span></div>
+              <div class="row"><span class="label">Handling Fee:</span> <span>${data.handlingFee} JOD</span></div>
+              <div class="row total"><span class="label">Total Collected:</span> <span>${data.totalCollected.toLocaleString()} JOD</span></div>
+            </div>
+            <div class="footer">
+              <p>Payment Method: Cash</p>
+              <p>This receipt confirms demurrage payment has been collected.</p>
+            </div>
+          </body>
+        </html>
+      `);
+      receiptWindow.document.close();
+      receiptWindow.print();
+    }
+  };
+
   return (
     <div 
       className="min-h-screen relative py-6"
