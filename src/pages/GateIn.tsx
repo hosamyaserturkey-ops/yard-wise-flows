@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { gateInSchema } from "@/lib/validation";
 import bgGateIn from "@/assets/bg-gate-in.jpg";
-import DemurrageCollectionDialog from "@/components/DemurrageCollectionDialog";
+import DemurrageCollectionDialog, { HANDLING_FEE } from "@/components/DemurrageCollectionDialog";
 
 const GateIn = () => {
   const { user } = useAuth();
@@ -192,6 +192,58 @@ const GateIn = () => {
     }
   };
 
+  const printDemurrageReceipt = (data: {
+    id: string;
+    containerNumber: string;
+    shippingLine: string;
+    chargeableDays: number;
+    demurrageAmount: number;
+    handlingFee: number;
+    totalCollected: number;
+  }) => {
+    const receiptWindow = window.open('', '_blank');
+    if (receiptWindow) {
+      receiptWindow.document.write(`
+        <html>
+          <head>
+            <title>Demurrage Receipt</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+              .content { margin: 20px 0; }
+              .row { margin: 8px 0; display: flex; justify-content: space-between; }
+              .label { font-weight: bold; }
+              .total { border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; font-size: 1.2em; }
+              .footer { text-align: center; margin-top: 20px; font-size: 0.85em; color: #666; border-top: 1px solid #ccc; padding-top: 10px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>Container Yard Management</h2>
+              <h3>DEMURRAGE PAYMENT RECEIPT</h3>
+              <p>Receipt #: DM-${data.id.substring(0, 8).toUpperCase()}</p>
+              <p>${new Date().toLocaleString()}</p>
+            </div>
+            <div class="content">
+              <div class="row"><span class="label">Container:</span> <span>${data.containerNumber}</span></div>
+              <div class="row"><span class="label">Shipping Line:</span> <span>${data.shippingLine}</span></div>
+              <div class="row"><span class="label">Chargeable Days:</span> <span>${data.chargeableDays} days</span></div>
+              <div class="row"><span class="label">Demurrage Amount:</span> <span>${data.demurrageAmount.toLocaleString()} JOD</span></div>
+              <div class="row"><span class="label">Handling Fee:</span> <span>${data.handlingFee} JOD</span></div>
+              <div class="row total"><span class="label">Total Collected:</span> <span>${data.totalCollected.toLocaleString()} JOD</span></div>
+            </div>
+            <div class="footer">
+              <p>Payment Method: Cash</p>
+              <p>This receipt confirms demurrage payment has been collected.</p>
+            </div>
+          </body>
+        </html>
+      `);
+      receiptWindow.document.close();
+      receiptWindow.print();
+    }
+  };
+
   return (
     <div 
       className="min-h-screen relative py-6"
@@ -316,10 +368,40 @@ const GateIn = () => {
         open={demurrageDialog.open}
         onClose={() => setDemurrageDialog(prev => ({ ...prev, open: false }))}
         onCollected={async () => {
+          const { containerNumber, chargeableDays, demurrageAmount } = demurrageDialog;
+          const totalCollected = demurrageAmount + HANDLING_FEE;
           setDemurrageDialog(prev => ({ ...prev, open: false }));
           setIsSubmitting(true);
           try {
-            await insertContainer(demurrageDialog.containerNumber);
+            // Record demurrage payment
+            const { data: paymentRecord, error: paymentError } = await supabase
+              .from('demurrage_payments')
+              .insert({
+                container_number: containerNumber,
+                shipping_line: formData.shippingLine,
+                chargeable_days: chargeableDays,
+                demurrage_amount: demurrageAmount,
+                handling_fee: HANDLING_FEE,
+                total_collected: totalCollected,
+                collected_by: user!.id,
+              })
+              .select()
+              .single();
+
+            if (paymentError) throw paymentError;
+
+            // Print demurrage receipt
+            printDemurrageReceipt({
+              id: paymentRecord.id,
+              containerNumber,
+              shippingLine: formData.shippingLine,
+              chargeableDays,
+              demurrageAmount,
+              handlingFee: HANDLING_FEE,
+              totalCollected,
+            });
+
+            await insertContainer(containerNumber);
           } catch (error) {
             console.error('Error gating in container:', error);
             toast({
