@@ -355,6 +355,47 @@ const GateIn = () => {
               </div>
             </div>
 
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3">Port & Demurrage Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
+                  <Input
+                    id="portArrivalDate"
+                    type="date"
+                    value={formData.portArrivalDate}
+                    onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="freeDays">Free Days *</Label>
+                  <Input
+                    id="freeDays"
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={formData.freeDays}
+                    onChange={(e) => setFormData({ ...formData, freeDays: e.target.value })}
+                    placeholder="e.g., 7"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="dailyDemurrage">Daily Demurrage (JOD) *</Label>
+                  <Input
+                    id="dailyDemurrage"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.dailyDemurrage}
+                    onChange={(e) => setFormData({ ...formData, dailyDemurrage: e.target.value })}
+                    placeholder="e.g., 15"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end space-x-4">
               <Button
                 type="button"
