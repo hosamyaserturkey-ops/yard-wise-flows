@@ -17,6 +17,15 @@ export const gateInSchema = z.object({
     .min(1, 'Truck number is required')
     .max(20, 'Truck number is too long')
     .regex(/^[A-Z0-9]+$/, 'Only uppercase letters and numbers allowed'),
+  portArrivalDate: z.string().min(1, 'Port arrival date is required'),
+  freeDays: z.string().min(1, 'Free days is required').refine(
+    (val) => { const n = parseInt(val); return !isNaN(n) && n >= 0 && n <= 365; },
+    'Free days must be between 0 and 365'
+  ),
+  dailyDemurrage: z.string().min(1, 'Daily demurrage rate is required').refine(
+    (val) => { const n = parseFloat(val); return !isNaN(n) && n >= 0; },
+    'Daily demurrage must be a positive number'
+  ),
 });
 
 export const gateOutSchema = z.object({

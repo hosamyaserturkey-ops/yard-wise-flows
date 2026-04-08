@@ -19,6 +19,9 @@ export interface GateInData {
   shippingLine: 'SLD' | 'SLG';
   driverName: string;
   truckNumber: string;
+  portArrivalDate: string;
+  freeDays: string;
+  dailyDemurrage: string;
 }
 
 export interface GateOutData {
