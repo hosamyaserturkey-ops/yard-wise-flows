@@ -22,6 +22,9 @@ const GateIn = () => {
     shippingLine: "SLD",
     driverName: "",
     truckNumber: "",
+    portArrivalDate: "",
+    freeDays: "7",
+    dailyDemurrage: "15",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [demurrageDialog, setDemurrageDialog] = useState<{
@@ -92,6 +95,18 @@ const GateIn = () => {
         }
       }
 
+      // Upsert port data for demurrage tracking
+      await supabase
+        .from('container_port_data')
+        .upsert({
+          container_number: containerNumber,
+          shipping_line: formData.shippingLine,
+          port_arrival_date: formData.portArrivalDate,
+          free_days: parseInt(formData.freeDays),
+          daily_demurrage: parseFloat(formData.dailyDemurrage),
+          last_source: 'gate-in',
+        }, { onConflict: 'container_number' });
+
       // No demurrage — proceed directly
       await insertContainer(containerNumber);
     } catch (error) {
@@ -152,6 +167,9 @@ const GateIn = () => {
       shippingLine: "SLD",
       driverName: "",
       truckNumber: "",
+      portArrivalDate: "",
+      freeDays: "7",
+      dailyDemurrage: "15",
     });
   };
 
@@ -347,6 +365,9 @@ const GateIn = () => {
                   shippingLine: "SLD",
                   driverName: "",
                   truckNumber: "",
+                  portArrivalDate: "",
+                  freeDays: "7",
+                  dailyDemurrage: "15",
                 })}
               >
                 Clear Form
