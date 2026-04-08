@@ -193,6 +193,48 @@ export type Database = {
         }
         Relationships: []
       }
+      edi_transmissions: {
+        Row: {
+          ack_received_at: string | null
+          carrier: string
+          container_number: string
+          created_at: string | null
+          edi_content: string | null
+          error_message: string | null
+          filename: string | null
+          id: string
+          sent_at: string | null
+          status: string | null
+          transaction_type: string
+        }
+        Insert: {
+          ack_received_at?: string | null
+          carrier: string
+          container_number: string
+          created_at?: string | null
+          edi_content?: string | null
+          error_message?: string | null
+          filename?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          transaction_type: string
+        }
+        Update: {
+          ack_received_at?: string | null
+          carrier?: string
+          container_number?: string
+          created_at?: string | null
+          edi_content?: string | null
+          error_message?: string | null
+          filename?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          transaction_type?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
