@@ -478,16 +478,20 @@ const GateIn = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setFormData({
-                  containerNumber: "",
-                  containerType: "",
-                  shippingLine: "SLD",
-                  driverName: "",
-                  truckNumber: "",
-                  portArrivalDate: "",
-                  freeDays: "7",
-                  dailyDemurrage: "15",
-                })}
+                onClick={() => {
+                  setFormData({
+                    containerNumber: "",
+                    containerType: "",
+                    shippingLine: "SLD",
+                    driverName: "",
+                    truckNumber: "",
+                    portArrivalDate: "",
+                    freeDays: "7",
+                    dailyDemurrage: "15",
+                  });
+                  setPortDataFound(false);
+                  setLookupDone(false);
+                }}
               >
                 Clear Form
               </Button>
