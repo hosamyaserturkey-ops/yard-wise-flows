@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { gateInSchema } from "@/lib/validation";
 import bgGateIn from "@/assets/bg-gate-in.jpg";
-import DemurrageCollectionDialog, { HANDLING_FEE } from "@/components/DemurrageCollectionDialog";
+import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";
 
 const GateIn = () => {
   const { user } = useAuth();
@@ -462,8 +462,13 @@ const GateIn = () => {
               </div>
 
               {demurragePreview && demurragePreview.amount > 0 && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm font-medium">
-                  ⚠️ Demurrage Due: <strong>{demurragePreview.chargeableDays} chargeable day(s)</strong> × {parseFloat(formData.dailyDemurrage)} JOD = <strong>{demurragePreview.amount.toLocaleString()} JOD</strong>. Gate-in is blocked until demurrage is collected.
+                <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm space-y-2">
+                  <p className="font-medium">⚠️ Demurrage Due — Gate-in blocked</p>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between"><span>Demurrage ({demurragePreview.chargeableDays} days × {parseFloat(formData.dailyDemurrage)} JOD)</span><strong>{demurragePreview.amount.toLocaleString()} JOD</strong></div>
+                    <div className="flex justify-between"><span>Service Fee</span><strong>{SERVICE_FEE} JOD</strong></div>
+                    <div className="flex justify-between border-t border-red-200 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.amount + SERVICE_FEE).toLocaleString()} JOD</strong></div>
+                  </div>
                 </div>
               )}
 
@@ -511,13 +516,12 @@ const GateIn = () => {
       <DemurrageCollectionDialog
         open={demurrageDialog.open}
         onClose={() => setDemurrageDialog(prev => ({ ...prev, open: false }))}
-        onCollected={async () => {
+        onCollected={async (paymentMethod: "cash" | "qlick") => {
           const { containerNumber, chargeableDays, demurrageAmount } = demurrageDialog;
-          const totalCollected = demurrageAmount + HANDLING_FEE;
+          const totalCollected = demurrageAmount + SERVICE_FEE;
           setDemurrageDialog(prev => ({ ...prev, open: false }));
           setIsSubmitting(true);
           try {
-            // Record demurrage payment
             const { data: paymentRecord, error: paymentError } = await supabase
               .from('demurrage_payments')
               .insert({
@@ -525,23 +529,26 @@ const GateIn = () => {
                 shipping_line: formData.shippingLine,
                 chargeable_days: chargeableDays,
                 demurrage_amount: demurrageAmount,
-                handling_fee: HANDLING_FEE,
+                handling_fee: SERVICE_FEE,
                 total_collected: totalCollected,
                 collected_by: user!.id,
+                service_fee: SERVICE_FEE,
+                yard_share: YARD_SHARE,
+                shipping_line_share: SHIPPING_LINE_SHARE,
+                payment_method: paymentMethod,
               })
               .select()
               .single();
 
             if (paymentError) throw paymentError;
 
-            // Print demurrage receipt
             printDemurrageReceipt({
               id: paymentRecord.id,
               containerNumber,
               shippingLine: formData.shippingLine,
               chargeableDays,
               demurrageAmount,
-              handlingFee: HANDLING_FEE,
+              handlingFee: SERVICE_FEE,
               totalCollected,
             });
 
