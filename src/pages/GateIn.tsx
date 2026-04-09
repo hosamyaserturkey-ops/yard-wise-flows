@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,12 +27,67 @@ const GateIn = () => {
     dailyDemurrage: "15",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [portDataFound, setPortDataFound] = useState(false);
+  const [lookupDone, setLookupDone] = useState(false);
   const [demurrageDialog, setDemurrageDialog] = useState<{
     open: boolean;
     chargeableDays: number;
     demurrageAmount: number;
     containerNumber: string;
   }>({ open: false, chargeableDays: 0, demurrageAmount: 0, containerNumber: "" });
+
+  // Debounced lookup of container_port_data when container number changes
+  useEffect(() => {
+    const containerNum = formData.containerNumber.trim().toUpperCase();
+    if (containerNum.length < 4) {
+      setPortDataFound(false);
+      setLookupDone(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from("container_port_data")
+        .select("port_arrival_date, free_days, daily_demurrage, shipping_line")
+        .eq("container_number", containerNum)
+        .maybeSingle();
+
+      if (data) {
+        setFormData(prev => ({
+          ...prev,
+          portArrivalDate: data.port_arrival_date,
+          freeDays: String(data.free_days),
+          dailyDemurrage: String(data.daily_demurrage),
+          shippingLine: data.shipping_line as 'SLD' | 'SLG',
+        }));
+        setPortDataFound(true);
+      } else {
+        setPortDataFound(false);
+      }
+      setLookupDone(true);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.containerNumber]);
+
+  // Calculate demurrage inline
+  const demurragePreview = useMemo(() => {
+    const { portArrivalDate, freeDays, dailyDemurrage } = formData;
+    if (!portArrivalDate || !freeDays || !dailyDemurrage) return null;
+
+    const arrival = new Date(portArrivalDate);
+    const today = new Date();
+    // Reset time to midnight for day-level calculation
+    arrival.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((today.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24));
+    const chargeableDays = diffDays - parseInt(freeDays);
+    const amount = chargeableDays > 0 ? chargeableDays * parseFloat(dailyDemurrage) : 0;
+
+    return { diffDays, chargeableDays, amount };
+  }, [formData.portArrivalDate, formData.freeDays, formData.dailyDemurrage]);
+
+  const hasDemurrageDue = demurragePreview != null && demurragePreview.amount > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,7 +411,12 @@ const GateIn = () => {
             </div>
 
             <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold text-muted-foreground mb-3">Port & Demurrage Information</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+                Port & Demurrage Information
+                {portDataFound && (
+                  <span className="ml-2 text-xs text-green-600 font-normal">(Auto-filled from port data)</span>
+                )}
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
@@ -365,6 +425,8 @@ const GateIn = () => {
                     type="date"
                     value={formData.portArrivalDate}
                     onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
+                    readOnly={portDataFound}
+                    className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
 
@@ -378,6 +440,8 @@ const GateIn = () => {
                     value={formData.freeDays}
                     onChange={(e) => setFormData({ ...formData, freeDays: e.target.value })}
                     placeholder="e.g., 7"
+                    readOnly={portDataFound}
+                    className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
 
@@ -391,34 +455,52 @@ const GateIn = () => {
                     value={formData.dailyDemurrage}
                     onChange={(e) => setFormData({ ...formData, dailyDemurrage: e.target.value })}
                     placeholder="e.g., 15"
+                    readOnly={portDataFound}
+                    className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
               </div>
+
+              {demurragePreview && demurragePreview.amount > 0 && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm font-medium">
+                  ⚠️ Demurrage Due: <strong>{demurragePreview.chargeableDays} chargeable day(s)</strong> × {parseFloat(formData.dailyDemurrage)} JOD = <strong>{demurragePreview.amount.toLocaleString()} JOD</strong>. Gate-in is blocked until demurrage is collected.
+                </div>
+              )}
+
+              {demurragePreview && demurragePreview.amount === 0 && formData.portArrivalDate && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
+                  ✅ No demurrage due — {demurragePreview.chargeableDays <= 0 ? `${Math.abs(demurragePreview.chargeableDays)} free day(s) remaining` : "within free period"}.
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-4">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setFormData({
-                  containerNumber: "",
-                  containerType: "",
-                  shippingLine: "SLD",
-                  driverName: "",
-                  truckNumber: "",
-                  portArrivalDate: "",
-                  freeDays: "7",
-                  dailyDemurrage: "15",
-                })}
+                onClick={() => {
+                  setFormData({
+                    containerNumber: "",
+                    containerType: "",
+                    shippingLine: "SLD",
+                    driverName: "",
+                    truckNumber: "",
+                    portArrivalDate: "",
+                    freeDays: "7",
+                    dailyDemurrage: "15",
+                  });
+                  setPortDataFound(false);
+                  setLookupDone(false);
+                }}
               >
                 Clear Form
               </Button>
               <Button 
                 type="submit" 
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting}
+                disabled={isSubmitting || hasDemurrageDue}
               >
-                {isSubmitting ? "Processing..." : "Gate In & Print Receipt"}
+                {isSubmitting ? "Processing..." : hasDemurrageDue ? "Demurrage Due — Cannot Gate In" : "Gate In & Print Receipt"}
               </Button>
             </div>
           </form>
