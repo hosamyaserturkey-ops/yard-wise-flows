@@ -8,15 +8,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, DollarSign, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, DollarSign, CheckCircle2, CreditCard, Banknote } from "lucide-react";
 import { useState } from "react";
 
-const HANDLING_FEE = 7;
+const SERVICE_FEE = 7;
+const YARD_SHARE = 5;
+const SHIPPING_LINE_SHARE = 2;
 
 interface DemurrageCollectionDialogProps {
   open: boolean;
   onClose: () => void;
-  onCollected: () => void;
+  onCollected: (paymentMethod: "cash" | "qlick") => void;
   chargeableDays: number;
   demurrageAmount: number;
   containerNumber: string;
@@ -30,17 +32,30 @@ const DemurrageCollectionDialog = ({
   demurrageAmount,
   containerNumber,
 }: DemurrageCollectionDialogProps) => {
-  const [collected, setCollected] = useState(false);
-  const totalAmount = demurrageAmount + HANDLING_FEE;
+  const [step, setStep] = useState<"info" | "method" | "confirmed">("info");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "qlick" | null>(null);
+  const totalAmount = demurrageAmount + SERVICE_FEE;
 
-  const handleConfirmCollection = () => {
-    onCollected();
-    setCollected(false);
+  const handleSelectMethod = (method: "cash" | "qlick") => {
+    setPaymentMethod(method);
+    setStep("confirmed");
+  };
+
+  const handleConfirm = () => {
+    if (paymentMethod) {
+      onCollected(paymentMethod);
+    }
+    resetState();
   };
 
   const handleCancel = () => {
-    setCollected(false);
+    resetState();
     onClose();
+  };
+
+  const resetState = () => {
+    setStep("info");
+    setPaymentMethod(null);
   };
 
   return (
@@ -68,8 +83,8 @@ const DemurrageCollectionDialog = ({
                   <span className="font-semibold">{demurrageAmount.toLocaleString()} JOD</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Handling Fee</span>
-                  <span className="font-semibold">{HANDLING_FEE} JOD</span>
+                  <span className="text-muted-foreground">Service Fee</span>
+                  <span className="font-semibold">{SERVICE_FEE} JOD</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between items-center">
                   <span className="text-muted-foreground text-sm font-medium">Total to Collect</span>
@@ -79,15 +94,39 @@ const DemurrageCollectionDialog = ({
                 </div>
               </div>
 
-              {!collected ? (
+              {step === "info" && (
                 <p className="text-sm text-muted-foreground">
-                  Please collect <strong>{totalAmount.toLocaleString()} JOD</strong> in cash from
-                  the driver, then mark it as collected below.
+                  Please collect <strong>{totalAmount.toLocaleString()} JOD</strong> from the driver. Choose a payment method below.
                 </p>
-              ) : (
+              )}
+
+              {step === "method" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    className="h-20 flex-col gap-2 border-2 hover:border-primary"
+                    onClick={() => handleSelectMethod("cash")}
+                  >
+                    <Banknote className="h-6 w-6" />
+                    <span>Cash</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-20 flex-col gap-2 border-2 hover:border-primary"
+                    onClick={() => handleSelectMethod("qlick")}
+                  >
+                    <CreditCard className="h-6 w-6" />
+                    <span>Qlick</span>
+                  </Button>
+                </div>
+              )}
+
+              {step === "confirmed" && (
                 <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-700 dark:text-green-400">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>Cash payment of {totalAmount.toLocaleString()} JOD collected. You may now proceed with gate-in.</span>
+                  <span>
+                    Payment of {totalAmount.toLocaleString()} JOD via {paymentMethod === "cash" ? "Cash" : "Qlick"} confirmed. Proceed with gate-in.
+                  </span>
                 </div>
               )}
             </div>
@@ -97,19 +136,16 @@ const DemurrageCollectionDialog = ({
           <Button variant="outline" onClick={handleCancel}>
             Cancel Gate-In
           </Button>
-          {!collected ? (
-            <Button
-              variant="default"
-              className="gap-1"
-              onClick={() => setCollected(true)}
-            >
+          {step === "info" && (
+            <Button className="gap-1" onClick={() => setStep("method")}>
               <DollarSign className="h-4 w-4" />
-              Mark Cash Collected
+              Collect Payment
             </Button>
-          ) : (
+          )}
+          {step === "confirmed" && (
             <Button
               className="gap-1 bg-green-600 hover:bg-green-700"
-              onClick={handleConfirmCollection}
+              onClick={handleConfirm}
             >
               <CheckCircle2 className="h-4 w-4" />
               Proceed with Gate-In
@@ -121,5 +157,5 @@ const DemurrageCollectionDialog = ({
   );
 };
 
-export { HANDLING_FEE };
+export { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE };
 export default DemurrageCollectionDialog;
