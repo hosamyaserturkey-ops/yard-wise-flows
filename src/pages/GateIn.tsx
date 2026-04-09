@@ -411,7 +411,12 @@ const GateIn = () => {
             </div>
 
             <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold text-muted-foreground mb-3">Port & Demurrage Information</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+                Port & Demurrage Information
+                {portDataFound && (
+                  <span className="ml-2 text-xs text-green-600 font-normal">(Auto-filled from port data)</span>
+                )}
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
@@ -420,6 +425,8 @@ const GateIn = () => {
                     type="date"
                     value={formData.portArrivalDate}
                     onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
+                    readOnly={portDataFound}
+                    className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
 
@@ -433,6 +440,8 @@ const GateIn = () => {
                     value={formData.freeDays}
                     onChange={(e) => setFormData({ ...formData, freeDays: e.target.value })}
                     placeholder="e.g., 7"
+                    readOnly={portDataFound}
+                    className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
 
@@ -446,9 +455,24 @@ const GateIn = () => {
                     value={formData.dailyDemurrage}
                     onChange={(e) => setFormData({ ...formData, dailyDemurrage: e.target.value })}
                     placeholder="e.g., 15"
+                    readOnly={portDataFound}
+                    className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
               </div>
+
+              {demurragePreview && demurragePreview.amount > 0 && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm font-medium">
+                  ⚠️ Demurrage Due: <strong>{demurragePreview.chargeableDays} chargeable day(s)</strong> × {parseFloat(formData.dailyDemurrage)} JOD = <strong>{demurragePreview.amount.toLocaleString()} JOD</strong>. Gate-in is blocked until demurrage is collected.
+                </div>
+              )}
+
+              {demurragePreview && demurragePreview.amount === 0 && formData.portArrivalDate && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
+                  ✅ No demurrage due — {demurragePreview.chargeableDays <= 0 ? `${Math.abs(demurragePreview.chargeableDays)} free day(s) remaining` : "within free period"}.
+                </div>
+              )}
+            </div>
             </div>
 
             <div className="flex justify-end space-x-4">
