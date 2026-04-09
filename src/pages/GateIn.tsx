@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,12 +27,67 @@ const GateIn = () => {
     dailyDemurrage: "15",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [portDataFound, setPortDataFound] = useState(false);
+  const [lookupDone, setLookupDone] = useState(false);
   const [demurrageDialog, setDemurrageDialog] = useState<{
     open: boolean;
     chargeableDays: number;
     demurrageAmount: number;
     containerNumber: string;
   }>({ open: false, chargeableDays: 0, demurrageAmount: 0, containerNumber: "" });
+
+  // Debounced lookup of container_port_data when container number changes
+  useEffect(() => {
+    const containerNum = formData.containerNumber.trim().toUpperCase();
+    if (containerNum.length < 4) {
+      setPortDataFound(false);
+      setLookupDone(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from("container_port_data")
+        .select("port_arrival_date, free_days, daily_demurrage, shipping_line")
+        .eq("container_number", containerNum)
+        .maybeSingle();
+
+      if (data) {
+        setFormData(prev => ({
+          ...prev,
+          portArrivalDate: data.port_arrival_date,
+          freeDays: String(data.free_days),
+          dailyDemurrage: String(data.daily_demurrage),
+          shippingLine: data.shipping_line as 'SLD' | 'SLG',
+        }));
+        setPortDataFound(true);
+      } else {
+        setPortDataFound(false);
+      }
+      setLookupDone(true);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.containerNumber]);
+
+  // Calculate demurrage inline
+  const demurragePreview = useMemo(() => {
+    const { portArrivalDate, freeDays, dailyDemurrage } = formData;
+    if (!portArrivalDate || !freeDays || !dailyDemurrage) return null;
+
+    const arrival = new Date(portArrivalDate);
+    const today = new Date();
+    // Reset time to midnight for day-level calculation
+    arrival.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((today.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24));
+    const chargeableDays = diffDays - parseInt(freeDays);
+    const amount = chargeableDays > 0 ? chargeableDays * parseFloat(dailyDemurrage) : 0;
+
+    return { diffDays, chargeableDays, amount };
+  }, [formData.portArrivalDate, formData.freeDays, formData.dailyDemurrage]);
+
+  const hasDemurrageDue = demurragePreview != null && demurragePreview.amount > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
