@@ -166,8 +166,13 @@ export type Database = {
           demurrage_amount: number
           handling_fee: number
           id: string
+          payment_method: string
+          service_fee: number
           shipping_line: string
+          shipping_line_share: number
           total_collected: number
+          transferred: boolean
+          yard_share: number
         }
         Insert: {
           chargeable_days: number
@@ -177,8 +182,13 @@ export type Database = {
           demurrage_amount: number
           handling_fee?: number
           id?: string
+          payment_method?: string
+          service_fee?: number
           shipping_line: string
+          shipping_line_share?: number
           total_collected: number
+          transferred?: boolean
+          yard_share?: number
         }
         Update: {
           chargeable_days?: number
@@ -188,8 +198,13 @@ export type Database = {
           demurrage_amount?: number
           handling_fee?: number
           id?: string
+          payment_method?: string
+          service_fee?: number
           shipping_line?: string
+          shipping_line_share?: number
           total_collected?: number
+          transferred?: boolean
+          yard_share?: number
         }
         Relationships: []
       }
@@ -262,6 +277,36 @@ export type Database = {
           updated_at?: string
           user_id?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      shipping_line_transfers: {
+        Row: {
+          amount_transferred: number
+          created_at: string
+          id: string
+          receipt_url: string | null
+          shipping_line: string
+          transferred_at: string
+          transferred_by: string
+        }
+        Insert: {
+          amount_transferred: number
+          created_at?: string
+          id?: string
+          receipt_url?: string | null
+          shipping_line: string
+          transferred_at?: string
+          transferred_by: string
+        }
+        Update: {
+          amount_transferred?: number
+          created_at?: string
+          id?: string
+          receipt_url?: string | null
+          shipping_line?: string
+          transferred_at?: string
+          transferred_by?: string
         }
         Relationships: []
       }
