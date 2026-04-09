@@ -494,9 +494,9 @@ const GateIn = () => {
               <Button 
                 type="submit" 
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting}
+                disabled={isSubmitting || hasDemurrageDue}
               >
-                {isSubmitting ? "Processing..." : "Gate In & Print Receipt"}
+                {isSubmitting ? "Processing..." : hasDemurrageDue ? "Demurrage Due — Cannot Gate In" : "Gate In & Print Receipt"}
               </Button>
             </div>
           </form>
