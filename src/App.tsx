@@ -15,6 +15,7 @@ import ImportContainers from "./pages/ImportContainers";
 import Bookings from "./pages/Bookings";
 import BookingDetail from "./pages/BookingDetail";
 import PortDemurrageData from "./pages/PortDemurrageData";
+import Accounting from "./pages/Accounting";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,11 @@ const App = () => (
             <Route path="port-data" element={
               <ProtectedRoute>
                 <PortDemurrageData />
+              </ProtectedRoute>
+            } />
+            <Route path="accounting" element={
+              <ProtectedRoute>
+                <Accounting />
               </ProtectedRoute>
             } />
             <Route path="bookings/:bookingId" element={
