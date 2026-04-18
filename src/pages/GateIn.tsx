@@ -462,13 +462,36 @@ const GateIn = () => {
               </div>
 
               {demurragePreview && demurragePreview.amount > 0 && (
-                <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm space-y-2">
+                <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm space-y-3">
                   <p className="font-medium">⚠️ Demurrage Due — Gate-in blocked</p>
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between"><span>Demurrage ({demurragePreview.chargeableDays} days × {parseFloat(formData.dailyDemurrage)} JOD)</span><strong>{demurragePreview.amount.toLocaleString()} JOD</strong></div>
                     <div className="flex justify-between"><span>Service Fee</span><strong>{SERVICE_FEE} JOD</strong></div>
                     <div className="flex justify-between border-t border-red-200 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.amount + SERVICE_FEE).toLocaleString()} JOD</strong></div>
                   </div>
+                  <Button
+                    type="button"
+                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() => {
+                      // Validate required fields before opening payment dialog
+                      if (!formData.containerNumber || !formData.shippingLine) {
+                        toast({
+                          title: "Missing info",
+                          description: "Please fill in container number and shipping line first.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      setDemurrageDialog({
+                        open: true,
+                        chargeableDays: demurragePreview.chargeableDays,
+                        demurrageAmount: demurragePreview.amount,
+                        containerNumber: formData.containerNumber.trim().toUpperCase(),
+                      });
+                    }}
+                  >
+                    💵 Collect Payment & Print Receipt
+                  </Button>
                 </div>
               )}
 
