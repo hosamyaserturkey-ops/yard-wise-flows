@@ -179,36 +179,60 @@ const GateIn = () => {
     try {
       const containerNumber = formData.containerNumber.trim().toUpperCase();
 
-      // 1) Demurrage check BEFORE gate-in
-      const { data: demurrageRow, error: demurrageError } = await supabase
-        .from("container_demurrage")
-        .select("*")
+      // 1) Block double gate-in: if this container is currently in the yard,
+      //    refuse before doing anything else (so we never re-prompt for payment).
+      const { data: inYardRow } = await supabase
+        .from("containers")
+        .select("id")
         .eq("container_number", containerNumber)
+        .eq("status", "in-yard")
         .maybeSingle();
 
-      if (demurrageError) {
-        console.error("Error checking demurrage:", demurrageError);
+      if (inYardRow) {
         toast({
-          title: "Demurrage Check Failed",
-          description: "Could not verify demurrage. Please try again or check port data.",
+          title: "Container Already In Yard",
+          description: "This container is already gated in. Gate it out before gating in again.",
           variant: "destructive",
         });
+        setAlreadyInYard(true);
         setIsSubmitting(false);
         return;
       }
 
-      if (demurrageRow) {
-        const { chargeable_days, demurrage_amount } = demurrageRow as DemurrageRow;
-        if (chargeable_days > 0) {
-          // Show styled dialog — pause submission until cash is collected
-          setDemurrageDialog({
-            open: true,
-            chargeableDays: chargeable_days,
-            demurrageAmount: demurrage_amount,
-            containerNumber,
+      // 2) Demurrage check BEFORE gate-in — but skip entirely if a payment
+      //    has already been collected for this container (since the last
+      //    gate-out, or ever if it has never been gated out).
+      if (!demurrageAlreadyPaid) {
+        const { data: demurrageRow, error: demurrageError } = await supabase
+          .from("container_demurrage")
+          .select("*")
+          .eq("container_number", containerNumber)
+          .maybeSingle();
+
+        if (demurrageError) {
+          console.error("Error checking demurrage:", demurrageError);
+          toast({
+            title: "Demurrage Check Failed",
+            description: "Could not verify demurrage. Please try again or check port data.",
+            variant: "destructive",
           });
           setIsSubmitting(false);
           return;
+        }
+
+        if (demurrageRow) {
+          const { chargeable_days, demurrage_amount } = demurrageRow as DemurrageRow;
+          if (chargeable_days > 0) {
+            // Show styled dialog — pause submission until cash is collected
+            setDemurrageDialog({
+              open: true,
+              chargeableDays: chargeable_days,
+              demurrageAmount: demurrage_amount,
+              containerNumber,
+            });
+            setIsSubmitting(false);
+            return;
+          }
         }
       }
 
@@ -224,7 +248,7 @@ const GateIn = () => {
           last_source: 'gate-in',
         }, { onConflict: 'container_number' });
 
-      // No demurrage — proceed directly
+      // No demurrage (or already paid) — proceed directly
       await insertContainer(containerNumber);
     } catch (error) {
       console.error('Error gating in container:', error);
