@@ -247,39 +247,64 @@ const GateIn = () => {
 
   const printReceipt = (containerData: InsertedContainerRow) => {
     const receiptWindow = window.open('', '_blank');
-    if (receiptWindow) {
-      receiptWindow.document.write(`
-        <html>
-          <head>
-            <title>Gate In Receipt</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
-              .content { margin: 20px 0; }
-              .row { margin: 10px 0; }
-              .label { font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h2>Container Yard Management</h2>
-              <h3>GATE IN RECEIPT</h3>
-              <p>Receipt #: GI-${containerData.id.substring(0, 8).toUpperCase()}</p>
-            </div>
-            <div class="content">
-              <div class="row"><span class="label">Container Number:</span> ${containerData.container_number}</div>
-              <div class="row"><span class="label">Container Type:</span> ${containerData.container_type}</div>
-              <div class="row"><span class="label">Shipping Line:</span> ${containerData.shipping_line}</div>
-              <div class="row"><span class="label">Driver Name:</span> ${containerData.driver_name}</div>
-              <div class="row"><span class="label">Truck Number:</span> ${containerData.truck_number}</div>
-              <div class="row"><span class="label">Gate In Time:</span> ${new Date(containerData.gate_in_time).toLocaleString()}</div>
-            </div>
-          </body>
-        </html>
-      `);
-      receiptWindow.document.close();
-      receiptWindow.print();
+    if (!receiptWindow) {
+      toast({
+        title: "Pop-up blocked",
+        description: "Please allow pop-ups to print the gate-in receive note.",
+        variant: "destructive",
+      });
+      return;
     }
+    receiptWindow.document.write(`
+      <html>
+        <head>
+          <title>Gate In Receive Note - ${containerData.container_number}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; max-width: 480px; margin: 0 auto; color: #111; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 12px; }
+            .header h2 { margin: 0; }
+            .header h3 { margin: 6px 0; letter-spacing: 1px; }
+            .meta { font-size: 0.85em; color: #555; }
+            .content { margin: 20px 0; }
+            .row { margin: 10px 0; display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding-bottom: 6px; }
+            .label { font-weight: bold; }
+            .value { font-family: 'Courier New', monospace; }
+            .footer { text-align: center; margin-top: 24px; font-size: 0.8em; color: #666; border-top: 1px solid #ccc; padding-top: 10px; }
+            .signatures { display: flex; justify-content: space-between; margin-top: 40px; font-size: 0.85em; }
+            .sig { width: 45%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>Container Yard Management</h2>
+            <h3>GATE IN — RECEIVE NOTE</h3>
+            <p class="meta">Receipt #: GI-${containerData.id.substring(0, 8).toUpperCase()}</p>
+            <p class="meta">${new Date(containerData.gate_in_time).toLocaleString()}</p>
+          </div>
+          <div class="content">
+            <div class="row"><span class="label">Container Number</span><span class="value">${containerData.container_number}</span></div>
+            <div class="row"><span class="label">Container Type</span><span class="value">${containerData.container_type}</span></div>
+            <div class="row"><span class="label">Shipping Line</span><span class="value">${containerData.shipping_line}</span></div>
+            <div class="row"><span class="label">Driver Name</span><span class="value">${containerData.driver_name}</span></div>
+            <div class="row"><span class="label">Truck Number</span><span class="value">${containerData.truck_number}</span></div>
+          </div>
+          <div class="signatures">
+            <div class="sig">Driver Signature</div>
+            <div class="sig">Gate Officer</div>
+          </div>
+          <div class="footer">
+            <p>Please retain this receive note as proof of yard entry.</p>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() { window.print(); }, 200);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    receiptWindow.document.close();
   };
 
   const printDemurrageReceipt = (data: {
@@ -326,11 +351,15 @@ const GateIn = () => {
               <p>Payment Method: Cash</p>
               <p>This receipt confirms demurrage payment has been collected.</p>
             </div>
+            <script>
+              window.onload = function() {
+                setTimeout(function() { window.print(); }, 200);
+              };
+            </script>
           </body>
         </html>
       `);
       receiptWindow.document.close();
-      receiptWindow.print();
     }
   };
 
@@ -593,6 +622,9 @@ const GateIn = () => {
               totalCollected,
             });
 
+            // Small delay so the demurrage receipt window opens cleanly
+            // before the gate-in receive note pop-up is triggered.
+            await new Promise((r) => setTimeout(r, 600));
             await insertContainer(containerNumber);
           } catch (error) {
             console.error('Error gating in container:', error);
