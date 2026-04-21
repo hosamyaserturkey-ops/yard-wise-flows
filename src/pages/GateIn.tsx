@@ -61,10 +61,13 @@ const GateIn = () => {
     if (containerNum.length < 4) {
       setPortDataFound(false);
       setLookupDone(false);
+      setDemurrageAlreadyPaid(false);
+      setAlreadyInYard(false);
       return;
     }
 
     const timer = setTimeout(async () => {
+      // Port data lookup
       const { data } = await supabase
         .from("container_port_data")
         .select("port_arrival_date, free_days, daily_demurrage, shipping_line")
@@ -83,6 +86,43 @@ const GateIn = () => {
       } else {
         setPortDataFound(false);
       }
+
+      // Already-in-yard check
+      const { data: inYardRow } = await supabase
+        .from("containers")
+        .select("id")
+        .eq("container_number", containerNum)
+        .eq("status", "in-yard")
+        .maybeSingle();
+      setAlreadyInYard(!!inYardRow);
+
+      // Demurrage already paid check:
+      // a payment "covers" the next gate-in if it was made after the most
+      // recent gate-out for this container (or the container has never been
+      // gated out and any payment exists).
+      const { data: lastGateOutRow } = await supabase
+        .from("containers")
+        .select("gate_out_time")
+        .eq("container_number", containerNum)
+        .not("gate_out_time", "is", null)
+        .order("gate_out_time", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let paymentQuery = supabase
+        .from("demurrage_payments")
+        .select("id, created_at")
+        .eq("container_number", containerNum)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (lastGateOutRow?.gate_out_time) {
+        paymentQuery = paymentQuery.gt("created_at", lastGateOutRow.gate_out_time);
+      }
+
+      const { data: paymentRow } = await paymentQuery.maybeSingle();
+      setDemurrageAlreadyPaid(!!paymentRow);
+
       setLookupDone(true);
     }, 500);
 
