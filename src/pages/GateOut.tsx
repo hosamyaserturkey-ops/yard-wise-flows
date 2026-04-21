@@ -43,7 +43,7 @@ const GateOut = () => {
         id: container.id,
         containerNumber: container.container_number,
         containerType: container.container_type,
-        shippingLine: container.shipping_line as 'SLD' | 'SLG',
+        shippingLine: container.shipping_line as any,
         driverName: container.driver_name,
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),
