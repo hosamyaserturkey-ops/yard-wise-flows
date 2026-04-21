@@ -39,11 +39,17 @@ interface ShippingLineBreakdown {
   transferred: boolean;
 }
 
+interface TransferRow {
+  shipping_line: string;
+  amount_transferred: number;
+  receipt_url: string | null;
+}
+
 const Accounting = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [payments, setPayments] = useState<PaymentRow[]>([]);
-  const [transfers, setTransfers] = useState<any[]>([]);
+  const [transfers, setTransfers] = useState<TransferRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [transferDialog, setTransferDialog] = useState<{
     open: boolean;
@@ -151,9 +157,10 @@ const Accounting = () => {
       setTransferDialog({ open: false, shippingLine: "", amount: 0 });
       setReceiptFile(null);
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Transfer error:", error);
-      toast({ title: "Error", description: error.message || "Failed to record transfer.", variant: "destructive" });
+      const message = error instanceof Error ? error.message : "Failed to record transfer.";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setIsTransferring(false);
     }

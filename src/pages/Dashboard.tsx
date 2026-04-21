@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Container, Ship, Clock, Users, Calendar } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
+import type { ShippingLine } from "@/lib/shippingLines";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import ReserveContainerDialog from "@/components/ReserveContainerDialog";
@@ -36,7 +37,7 @@ const Dashboard = () => {
         id: container.id,
         containerNumber: container.container_number,
         containerType: container.container_type,
-        shippingLine: container.shipping_line as any,
+        shippingLine: container.shipping_line as ShippingLine,
         driverName: container.driver_name,
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),
@@ -152,7 +153,10 @@ const Dashboard = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="all" onValueChange={(value) => setStatusFilter(value as any)}>
+          <Tabs
+            defaultValue="all"
+            onValueChange={(value) => setStatusFilter(value as "all" | "in-yard" | "reserved" | "out")}
+          >
             <div className="flex justify-between items-center mb-4">
               <TabsList>
                 <TabsTrigger value="all">All ({containers.length})</TabsTrigger>

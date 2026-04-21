@@ -13,6 +13,22 @@ import { gateInSchema } from "@/lib/validation";
 import bgGateIn from "@/assets/bg-gate-in.jpg";
 import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
+import type { ShippingLine } from "@/lib/shippingLines";
+
+interface DemurrageRow {
+  chargeable_days: number;
+  demurrage_amount: number;
+}
+
+interface InsertedContainerRow {
+  id: string;
+  container_number: string;
+  container_type: string;
+  shipping_line: string;
+  driver_name: string;
+  truck_number: string;
+  gate_in_time: string;
+}
 
 const GateIn = () => {
   const { user } = useAuth();
@@ -59,7 +75,7 @@ const GateIn = () => {
           portArrivalDate: data.port_arrival_date,
           freeDays: String(data.free_days),
           dailyDemurrage: String(data.daily_demurrage),
-          shippingLine: data.shipping_line as any,
+          shippingLine: data.shipping_line as ShippingLine,
         }));
         setPortDataFound(true);
       } else {
@@ -137,7 +153,7 @@ const GateIn = () => {
       }
 
       if (demurrageRow) {
-        const { chargeable_days, demurrage_amount } = demurrageRow as any;
+        const { chargeable_days, demurrage_amount } = demurrageRow as DemurrageRow;
         if (chargeable_days > 0) {
           // Show styled dialog — pause submission until cash is collected
           setDemurrageDialog({
@@ -229,7 +245,7 @@ const GateIn = () => {
     });
   };
 
-  const printReceipt = (containerData: any) => {
+  const printReceipt = (containerData: InsertedContainerRow) => {
     const receiptWindow = window.open('', '_blank');
     if (receiptWindow) {
       receiptWindow.document.write(`
@@ -377,7 +393,7 @@ const GateIn = () => {
                 <Label htmlFor="shippingLine">Shipping Line *</Label>
                 <Select
                   value={formData.shippingLine}
-                  onValueChange={(value) => setFormData({ ...formData, shippingLine: value as any })}
+                  onValueChange={(value) => setFormData({ ...formData, shippingLine: value as ShippingLine })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select shipping line" />
