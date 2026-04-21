@@ -351,6 +351,11 @@ const GateIn = () => {
               <p>Payment Method: Cash</p>
               <p>This receipt confirms demurrage payment has been collected.</p>
             </div>
+            <script>
+              window.onload = function() {
+                setTimeout(function() { window.print(); }, 200);
+              };
+            </script>
           </body>
         </html>
       `);
