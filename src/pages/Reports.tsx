@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import bgReports from "@/assets/bg-reports.jpg";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
+import type { ShippingLine } from "@/lib/shippingLines";
 
 const Reports = () => {
   const { toast } = useToast();
@@ -43,7 +44,7 @@ const Reports = () => {
         id: container.id,
         containerNumber: container.container_number,
         containerType: container.container_type,
-        shippingLine: container.shipping_line as any,
+        shippingLine: container.shipping_line as ShippingLine,
         driverName: container.driver_name,
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),

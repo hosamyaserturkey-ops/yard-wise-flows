@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Ship, Search } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
+import type { ShippingLine } from "@/lib/shippingLines";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { gateOutSchema } from "@/lib/validation";
@@ -43,7 +44,7 @@ const GateOut = () => {
         id: container.id,
         containerNumber: container.container_number,
         containerType: container.container_type,
-        shippingLine: container.shipping_line as any,
+        shippingLine: container.shipping_line as ShippingLine,
         driverName: container.driver_name,
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),
@@ -137,7 +138,7 @@ const GateOut = () => {
       if (containerError) throw containerError;
 
       // Update booking's gated out containers count
-      const { error: bookingError } = await (supabase.rpc as any)('increment_gated_out_containers', {
+      const { error: bookingError } = await supabase.rpc("increment_gated_out_containers", {
         booking_num: selectedContainer.bookingNumber
       });
 

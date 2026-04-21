@@ -15,6 +15,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 
+type SpreadsheetRow = Record<string, unknown>;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  return error instanceof Error ? error.message : fallback;
+};
+
 const portDataSchema = z.object({
   containerNumber: z.string().trim().min(1, "Container number is required").max(20).regex(/^[A-Z0-9]+$/, "Only uppercase letters and numbers"),
   shippingLine: z.enum(SHIPPING_LINES as unknown as [string, ...string[]]),
@@ -79,8 +85,8 @@ const PortDemurrageData = () => {
       toast({ title: "Success", description: `Port data saved for ${result.data.containerNumber}` });
       queryClient.invalidateQueries({ queryKey: ["container_port_data"] });
       setFormData({ containerNumber: "", shippingLine: "SLD", portArrivalDate: "", freeDays: "7", dailyDemurrage: "15" });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to save port data", variant: "destructive" });
+    } catch (error: unknown) {
+      toast({ title: "Error", description: getErrorMessage(error, "Failed to save port data"), variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -97,7 +103,7 @@ const PortDemurrageData = () => {
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+      const rows = XLSX.utils.sheet_to_json<SpreadsheetRow>(sheet);
 
       let success = 0;
       const errors: string[] = [];
@@ -127,8 +133,8 @@ const PortDemurrageData = () => {
           );
           if (error) { errors.push(`${containerNumber}: ${error.message}`); continue; }
           success++;
-        } catch (err: any) {
-          errors.push(`Row error: ${err.message}`);
+        } catch (err: unknown) {
+          errors.push(`Row error: ${getErrorMessage(err, "Unknown row error")}`);
         }
       }
 
@@ -137,8 +143,8 @@ const PortDemurrageData = () => {
         toast({ title: "Import Complete", description: `${success} records imported successfully` });
         queryClient.invalidateQueries({ queryKey: ["container_port_data"] });
       }
-    } catch (err: any) {
-      toast({ title: "Import Failed", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Import Failed", description: getErrorMessage(err, "Import failed"), variant: "destructive" });
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -289,7 +295,7 @@ const PortDemurrageData = () => {
   );
 };
 
-function parseExcelDate(value: any): string | null {
+function parseExcelDate(value: unknown): string | null {
   if (!value) return null;
   if (typeof value === "number") {
     const date = XLSX.SSF.parse_date_code(value);

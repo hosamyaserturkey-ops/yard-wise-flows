@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking } from "@/types/booking";
 import type { Container } from "@/types/container";
+import type { ShippingLine } from "@/lib/shippingLines";
 import bgBookingDetail from "@/assets/bg-booking-detail.jpg";
 
 export default function BookingDetail() {
@@ -58,7 +59,7 @@ export default function BookingDetail() {
         id: container.id,
         containerNumber: container.container_number,
         containerType: container.container_type,
-        shippingLine: container.shipping_line as any,
+        shippingLine: container.shipping_line as ShippingLine,
         driverName: container.driver_name,
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),
@@ -83,7 +84,7 @@ export default function BookingDetail() {
         id: container.id,
         containerNumber: container.container_number,
         containerType: container.container_type,
-        shippingLine: container.shipping_line as any,
+        shippingLine: container.shipping_line as ShippingLine,
         driverName: container.driver_name,
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),
