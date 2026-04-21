@@ -622,6 +622,9 @@ const GateIn = () => {
               totalCollected,
             });
 
+            // Small delay so the demurrage receipt window opens cleanly
+            // before the gate-in receive note pop-up is triggered.
+            await new Promise((r) => setTimeout(r, 600));
             await insertContainer(containerNumber);
           } catch (error) {
             console.error('Error gating in container:', error);
