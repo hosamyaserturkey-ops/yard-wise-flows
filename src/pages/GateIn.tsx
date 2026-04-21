@@ -701,6 +701,11 @@ const GateIn = () => {
 
             if (paymentError) throw paymentError;
 
+            // Mark this container as paid so the dialog/banner won't reappear
+            // if the user lingers on or revisits the form before the lookup
+            // refreshes from the database.
+            setDemurrageAlreadyPaid(true);
+
             printDemurrageReceipt({
               id: paymentRecord.id,
               containerNumber,
