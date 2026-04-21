@@ -355,7 +355,6 @@ const GateIn = () => {
         </html>
       `);
       receiptWindow.document.close();
-      receiptWindow.print();
     }
   };
 
