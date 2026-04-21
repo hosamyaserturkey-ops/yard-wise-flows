@@ -46,6 +46,8 @@ const GateIn = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [portDataFound, setPortDataFound] = useState(false);
   const [lookupDone, setLookupDone] = useState(false);
+  const [demurrageAlreadyPaid, setDemurrageAlreadyPaid] = useState(false);
+  const [alreadyInYard, setAlreadyInYard] = useState(false);
   const [demurrageDialog, setDemurrageDialog] = useState<{
     open: boolean;
     chargeableDays: number;
