@@ -146,7 +146,10 @@ const GateIn = () => {
     return { diffDays, chargeableDays, amount };
   }, [formData.portArrivalDate, formData.freeDays, formData.dailyDemurrage]);
 
-  const hasDemurrageDue = demurragePreview != null && demurragePreview.amount > 0;
+  const hasDemurrageDue =
+    !demurrageAlreadyPaid &&
+    demurragePreview != null &&
+    demurragePreview.amount > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
