@@ -21,6 +21,67 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return error instanceof Error ? error.message : fallback;
 };
 
+const normalizeHeader = (header: string) =>
+  header
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const HEADER_ALIASES = {
+  containerNumber: ["containernumber", "container", "containerno", "containerid"],
+  containerType: ["containertype", "type", "containersize", "size"],
+  shippingLine: ["shippingline", "line", "shipping"],
+  portArrivalDate: ["portarrivaldate", "arrivaldate", "portdate", "arrival", "vesselarrivaldate", "vesselarrival"],
+  freeDays: ["freedays", "free", "daysfree"],
+  dailyDemurrage: ["dailydemurrage", "demurrage", "dailyrate", "rate"],
+  dailyDemurrage20: ["dailydemurrage20", "demurrage20", "rate20", "20rate", "20ftdemurrage", "demurrage20ft"],
+  dailyDemurrage40: ["dailydemurrage40", "demurrage40", "rate40", "40rate", "40ftdemurrage", "demurrage40ft"],
+  dailyDemurrage45: ["dailydemurrage45", "demurrage45", "rate45", "45rate", "45ftdemurrage", "demurrage45ft"],
+} as const;
+
+const getCellByAliases = (row: SpreadsheetRow, aliases: readonly string[]) => {
+  const entries = Object.entries(row);
+  for (const [key, value] of entries) {
+    if (aliases.includes(normalizeHeader(key))) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const normalizeContainerType = (value: unknown): string | null => {
+  if (value == null) return null;
+  const normalized = String(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!normalized) return null;
+  if (normalized.startsWith("20")) return "20FT";
+  if (normalized.startsWith("45")) return "45FT";
+  if (normalized.startsWith("40")) {
+    if (normalized.includes("HC") || normalized.includes("HIGHCUBE")) return "40HC";
+    return "40FT";
+  }
+  return null;
+};
+
+const parseNumberOrNull = (value: unknown): number | null => {
+  if (value == null || value === "") return null;
+  const parsed = Number.parseFloat(String(value));
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const resolveDailyDemurrage = (row: SpreadsheetRow): number | null => {
+  const genericRate = parseNumberOrNull(getCellByAliases(row, HEADER_ALIASES.dailyDemurrage));
+  const rate20 = parseNumberOrNull(getCellByAliases(row, HEADER_ALIASES.dailyDemurrage20));
+  const rate40 = parseNumberOrNull(getCellByAliases(row, HEADER_ALIASES.dailyDemurrage40));
+  const rate45 = parseNumberOrNull(getCellByAliases(row, HEADER_ALIASES.dailyDemurrage45));
+  const containerType = normalizeContainerType(getCellByAliases(row, HEADER_ALIASES.containerType));
+
+  if (containerType === "20FT") return rate20 ?? genericRate;
+  if (containerType === "45FT") return rate45 ?? rate40 ?? genericRate;
+  if (containerType === "40FT" || containerType === "40HC") return rate40 ?? genericRate;
+
+  // If container type is not present, still allow a single generic value.
+  return genericRate;
+};
+
 const portDataSchema = z.object({
   containerNumber: z.string().trim().min(1, "Container number is required").max(20).regex(/^[A-Z0-9]+$/, "Only uppercase letters and numbers"),
   shippingLine: z.enum(SHIPPING_LINES as unknown as [string, ...string[]]),
@@ -107,34 +168,78 @@ const PortDemurrageData = () => {
 
       let success = 0;
       const errors: string[] = [];
+      const upsertPayload = new Map<
+        string,
+        {
+          container_number: string;
+          shipping_line: string;
+          port_arrival_date: string;
+          free_days: number;
+          daily_demurrage: number;
+          last_source: "excel";
+        }
+      >();
 
-      for (const row of rows) {
+      for (let i = 0; i < rows.length; i += 1) {
+        const row = rows[i];
+        const rowLabel = `Row ${i + 2}`;
         try {
-          const containerNumber = String(row["Container Number"] || row["container_number"] || "").trim().toUpperCase();
-          const shippingLine = String(row["Shipping Line"] || row["shipping_line"] || "").trim().toUpperCase();
-          const portArrivalDate = parseExcelDate(row["Port Arrival Date"] || row["port_arrival_date"]);
-          const freeDays = parseInt(String(row["Free Days"] || row["free_days"] || "7"), 10);
-          const dailyDemurrage = parseFloat(String(row["Daily Demurrage"] || row["daily_demurrage"] || "15"));
-
-          if (!containerNumber) { errors.push(`Row missing container number`); continue; }
-          if (!(SHIPPING_LINES as readonly string[]).includes(shippingLine)) { errors.push(`${containerNumber}: invalid shipping line "${shippingLine}"`); continue; }
-          if (!portArrivalDate) { errors.push(`${containerNumber}: invalid date`); continue; }
-
-          const { error } = await supabase.from("container_port_data").upsert(
-            {
-              container_number: containerNumber,
-              shipping_line: shippingLine,
-              port_arrival_date: portArrivalDate,
-              free_days: isNaN(freeDays) ? 7 : freeDays,
-              daily_demurrage: isNaN(dailyDemurrage) ? 15 : dailyDemurrage,
-              last_source: "excel",
-            },
-            { onConflict: "container_number" }
+          const containerNumber = String(getCellByAliases(row, HEADER_ALIASES.containerNumber) ?? "")
+            .trim()
+            .toUpperCase();
+          const shippingLine = String(getCellByAliases(row, HEADER_ALIASES.shippingLine) ?? "")
+            .trim()
+            .toUpperCase();
+          const portArrivalDate = parseExcelDate(
+            getCellByAliases(row, HEADER_ALIASES.portArrivalDate)
           );
-          if (error) { errors.push(`${containerNumber}: ${error.message}`); continue; }
-          success++;
+          const freeDaysRaw = getCellByAliases(row, HEADER_ALIASES.freeDays);
+          const freeDays = Number.parseInt(String(freeDaysRaw ?? "7"), 10);
+          const dailyDemurrage = resolveDailyDemurrage(row);
+
+          if (!containerNumber) {
+            errors.push(`${rowLabel}: missing container number`);
+            continue;
+          }
+          if (!(SHIPPING_LINES as readonly string[]).includes(shippingLine)) {
+            errors.push(`${rowLabel} (${containerNumber}): invalid shipping line "${shippingLine}"`);
+            continue;
+          }
+          if (!portArrivalDate) {
+            errors.push(`${rowLabel} (${containerNumber}): invalid port arrival date`);
+            continue;
+          }
+          if (dailyDemurrage == null) {
+            errors.push(`${rowLabel} (${containerNumber}): missing daily demurrage (or type-based rate)`);
+            continue;
+          }
+
+          upsertPayload.set(containerNumber, {
+            container_number: containerNumber,
+            shipping_line: shippingLine,
+            port_arrival_date: portArrivalDate,
+            free_days: Number.isNaN(freeDays) ? 7 : freeDays,
+            daily_demurrage: dailyDemurrage,
+            last_source: "excel",
+          });
         } catch (err: unknown) {
-          errors.push(`Row error: ${getErrorMessage(err, "Unknown row error")}`);
+          errors.push(`${rowLabel}: ${getErrorMessage(err, "Unknown row error")}`);
+        }
+      }
+
+      const records = Array.from(upsertPayload.values());
+      const chunkSize = 100;
+
+      for (let start = 0; start < records.length; start += chunkSize) {
+        const chunk = records.slice(start, start + chunkSize);
+        const { error } = await supabase
+          .from("container_port_data")
+          .upsert(chunk, { onConflict: "container_number" });
+
+        if (error) {
+          errors.push(`Batch ${Math.floor(start / chunkSize) + 1}: ${error.message}`);
+        } else {
+          success += chunk.length;
         }
       }
 
@@ -215,10 +320,11 @@ const PortDemurrageData = () => {
                 <p>Upload an Excel file with the following columns:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li><strong>Container Number</strong> — e.g., SEKU1157908</li>
+                  <li><strong>Container Type</strong> — e.g., 20FT, 40FT, 40HC, 45FT (needed for type-based rates)</li>
                   <li><strong>Shipping Line</strong> — one of: {SHIPPING_LINES.join(", ")}</li>
-                  <li><strong>Port Arrival Date</strong> — date format</li>
+                  <li><strong>Port Arrival Date</strong> or <strong>Vessel Arrival Date</strong> — date format</li>
                   <li><strong>Free Days</strong> — integer (default 7)</li>
-                  <li><strong>Daily Demurrage</strong> — rate in JOD (default 15)</li>
+                  <li><strong>Daily Demurrage</strong> (single value) or type-based columns like <strong>Daily Demurrage 20</strong> / <strong>Daily Demurrage 40</strong></li>
                 </ul>
                 <p className="text-xs">Column headers can also use snake_case (e.g., container_number).</p>
               </div>
@@ -302,8 +408,21 @@ function parseExcelDate(value: unknown): string | null {
     if (date) return `${date.y}-${String(date.m).padStart(2, "0")}-${String(date.d).padStart(2, "0")}`;
     return null;
   }
-  const d = new Date(String(value));
-  if (isNaN(d.getTime())) return null;
+  const raw = String(value).trim();
+
+  // Accept common manual formats like DD/MM/YYYY and DD-MM-YYYY
+  const dayFirstMatch = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dayFirstMatch) {
+    const day = Number.parseInt(dayFirstMatch[1], 10);
+    const month = Number.parseInt(dayFirstMatch[2], 10);
+    const year = Number.parseInt(dayFirstMatch[3], 10);
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
+
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return null;
   return d.toISOString().split("T")[0];
 }
 
