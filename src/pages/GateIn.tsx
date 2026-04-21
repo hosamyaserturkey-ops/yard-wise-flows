@@ -312,6 +312,10 @@ const GateIn = () => {
       freeDays: "7",
       dailyDemurrage: "15",
     });
+    setPortDataFound(false);
+    setLookupDone(false);
+    setDemurrageAlreadyPaid(false);
+    setAlreadyInYard(false);
   };
 
   const printReceipt = (containerData: InsertedContainerRow) => {
