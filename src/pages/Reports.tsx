@@ -208,8 +208,9 @@ const Reports = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Lines</SelectItem>
-                  <SelectItem value="SLD">SLD</SelectItem>
-                  <SelectItem value="SLG">SLG</SelectItem>
+                  {SHIPPING_LINES.map((sl) => (
+                    <SelectItem key={sl} value={sl}>{sl}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

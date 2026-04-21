@@ -1,8 +1,10 @@
+import type { ShippingLine } from "@/lib/shippingLines";
+
 export interface Container {
   id: string;
   containerNumber: string;
   containerType: string;
-  shippingLine: 'SLD' | 'SLG';
+  shippingLine: ShippingLine;
   driverName: string;
   truckNumber: string;
   gateInTime: Date;
@@ -16,7 +18,7 @@ export interface Container {
 export interface GateInData {
   containerNumber: string;
   containerType: string;
-  shippingLine: 'SLD' | 'SLG';
+  shippingLine: ShippingLine;
   driverName: string;
   truckNumber: string;
   portArrivalDate: string;

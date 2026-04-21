@@ -58,7 +58,7 @@ const GateIn = () => {
           portArrivalDate: data.port_arrival_date,
           freeDays: String(data.free_days),
           dailyDemurrage: String(data.daily_demurrage),
-          shippingLine: data.shipping_line as 'SLD' | 'SLG',
+          shippingLine: data.shipping_line as any,
         }));
         setPortDataFound(true);
       } else {
@@ -376,14 +376,15 @@ const GateIn = () => {
                 <Label htmlFor="shippingLine">Shipping Line *</Label>
                 <Select
                   value={formData.shippingLine}
-                  onValueChange={(value: 'SLD' | 'SLG') => setFormData({ ...formData, shippingLine: value })}
+                  onValueChange={(value) => setFormData({ ...formData, shippingLine: value as any })}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select shipping line" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SLD">SLD</SelectItem>
-                    <SelectItem value="SLG">SLG</SelectItem>
+                    {SHIPPING_LINES.map((sl) => (
+                      <SelectItem key={sl} value={sl}>{sl}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -172,8 +172,9 @@ const PortDemurrageData = () => {
                     <Select value={formData.shippingLine} onValueChange={(v) => setFormData({ ...formData, shippingLine: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="SLD">SLD</SelectItem>
-                        <SelectItem value="SLG">SLG</SelectItem>
+                        {SHIPPING_LINES.map((sl) => (
+                          <SelectItem key={sl} value={sl}>{sl}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -207,7 +208,7 @@ const PortDemurrageData = () => {
                 <p>Upload an Excel file with the following columns:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li><strong>Container Number</strong> — e.g., SEKU1157908</li>
-                  <li><strong>Shipping Line</strong> — SLD or SLG</li>
+                  <li><strong>Shipping Line</strong> — one of: {SHIPPING_LINES.join(", ")}</li>
                   <li><strong>Port Arrival Date</strong> — date format</li>
                   <li><strong>Free Days</strong> — integer (default 7)</li>
                   <li><strong>Daily Demurrage</strong> — rate in JOD (default 15)</li>

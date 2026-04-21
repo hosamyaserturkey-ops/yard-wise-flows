@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SHIPPING_LINES } from './shippingLines';
 
 export const gateInSchema = z.object({
   containerNumber: z.string()
@@ -8,7 +9,7 @@ export const gateInSchema = z.object({
   containerType: z.enum(['20FT', '40FT', '40HC', '45FT', '20FR', '40FR'], {
     errorMap: () => ({ message: 'Please select a container type' }),
   }),
-  shippingLine: z.enum(['SLD', 'SLG']),
+  shippingLine: z.enum(SHIPPING_LINES as unknown as [string, ...string[]]),
   driverName: z.string()
     .trim()
     .min(1, 'Driver name is required')
