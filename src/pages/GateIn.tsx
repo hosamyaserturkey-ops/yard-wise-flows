@@ -577,7 +577,19 @@ const GateIn = () => {
                 </div>
               </div>
 
-              {demurragePreview && demurragePreview.amount > 0 && (
+              {alreadyInYard && (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-300 rounded-md text-amber-800 text-sm">
+                  ⚠️ This container is already in the yard. It must be gated out before it can be gated in again.
+                </div>
+              )}
+
+              {!alreadyInYard && demurrageAlreadyPaid && demurragePreview && demurragePreview.amount > 0 && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
+                  ✅ Demurrage already paid for this container — no further collection required.
+                </div>
+              )}
+
+              {!demurrageAlreadyPaid && demurragePreview && demurragePreview.amount > 0 && (
                 <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm space-y-3">
                   <p className="font-medium">⚠️ Demurrage Due — Gate-in blocked</p>
                   <div className="space-y-1 text-xs">
