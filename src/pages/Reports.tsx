@@ -11,6 +11,7 @@ import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import bgReports from "@/assets/bg-reports.jpg";
+import { SHIPPING_LINES } from "@/lib/shippingLines";
 
 const Reports = () => {
   const { toast } = useToast();
@@ -42,7 +43,7 @@ const Reports = () => {
         id: container.id,
         containerNumber: container.container_number,
         containerType: container.container_type,
-        shippingLine: container.shipping_line as 'SLD' | 'SLG',
+        shippingLine: container.shipping_line as any,
         driverName: container.driver_name,
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),
@@ -208,8 +209,9 @@ const Reports = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Lines</SelectItem>
-                  <SelectItem value="SLD">SLD</SelectItem>
-                  <SelectItem value="SLG">SLG</SelectItem>
+                  {SHIPPING_LINES.map((sl) => (
+                    <SelectItem key={sl} value={sl}>{sl}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

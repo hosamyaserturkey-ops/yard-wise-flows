@@ -13,10 +13,11 @@ import { z } from "zod";
 import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SHIPPING_LINES } from "@/lib/shippingLines";
 
 const portDataSchema = z.object({
   containerNumber: z.string().trim().min(1, "Container number is required").max(20).regex(/^[A-Z0-9]+$/, "Only uppercase letters and numbers"),
-  shippingLine: z.enum(["SLD", "SLG"]),
+  shippingLine: z.enum(SHIPPING_LINES as unknown as [string, ...string[]]),
   portArrivalDate: z.string().min(1, "Port arrival date is required"),
   freeDays: z.coerce.number().int().min(0).max(365),
   dailyDemurrage: z.coerce.number().min(0).max(99999),
@@ -110,7 +111,7 @@ const PortDemurrageData = () => {
           const dailyDemurrage = parseFloat(String(row["Daily Demurrage"] || row["daily_demurrage"] || "15"));
 
           if (!containerNumber) { errors.push(`Row missing container number`); continue; }
-          if (!["SLD", "SLG"].includes(shippingLine)) { errors.push(`${containerNumber}: invalid shipping line "${shippingLine}"`); continue; }
+          if (!(SHIPPING_LINES as readonly string[]).includes(shippingLine)) { errors.push(`${containerNumber}: invalid shipping line "${shippingLine}"`); continue; }
           if (!portArrivalDate) { errors.push(`${containerNumber}: invalid date`); continue; }
 
           const { error } = await supabase.from("container_port_data").upsert(
@@ -172,8 +173,9 @@ const PortDemurrageData = () => {
                     <Select value={formData.shippingLine} onValueChange={(v) => setFormData({ ...formData, shippingLine: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="SLD">SLD</SelectItem>
-                        <SelectItem value="SLG">SLG</SelectItem>
+                        {SHIPPING_LINES.map((sl) => (
+                          <SelectItem key={sl} value={sl}>{sl}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -207,7 +209,7 @@ const PortDemurrageData = () => {
                 <p>Upload an Excel file with the following columns:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li><strong>Container Number</strong> — e.g., SEKU1157908</li>
-                  <li><strong>Shipping Line</strong> — SLD or SLG</li>
+                  <li><strong>Shipping Line</strong> — one of: {SHIPPING_LINES.join(", ")}</li>
                   <li><strong>Port Arrival Date</strong> — date format</li>
                   <li><strong>Free Days</strong> — integer (default 7)</li>
                   <li><strong>Daily Demurrage</strong> — rate in JOD (default 15)</li>

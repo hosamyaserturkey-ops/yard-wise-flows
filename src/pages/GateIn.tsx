@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { gateInSchema } from "@/lib/validation";
 import bgGateIn from "@/assets/bg-gate-in.jpg";
 import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";
+import { SHIPPING_LINES } from "@/lib/shippingLines";
 
 const GateIn = () => {
   const { user } = useAuth();
@@ -58,7 +59,7 @@ const GateIn = () => {
           portArrivalDate: data.port_arrival_date,
           freeDays: String(data.free_days),
           dailyDemurrage: String(data.daily_demurrage),
-          shippingLine: data.shipping_line as 'SLD' | 'SLG',
+          shippingLine: data.shipping_line as any,
         }));
         setPortDataFound(true);
       } else {
@@ -376,14 +377,15 @@ const GateIn = () => {
                 <Label htmlFor="shippingLine">Shipping Line *</Label>
                 <Select
                   value={formData.shippingLine}
-                  onValueChange={(value: 'SLD' | 'SLG') => setFormData({ ...formData, shippingLine: value })}
+                  onValueChange={(value) => setFormData({ ...formData, shippingLine: value as any })}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select shipping line" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SLD">SLD</SelectItem>
-                    <SelectItem value="SLG">SLG</SelectItem>
+                    {SHIPPING_LINES.map((sl) => (
+                      <SelectItem key={sl} value={sl}>{sl}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
