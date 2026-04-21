@@ -11,6 +11,7 @@ import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import bgReports from "@/assets/bg-reports.jpg";
+import { SHIPPING_LINES } from "@/lib/shippingLines";
 
 const Reports = () => {
   const { toast } = useToast();

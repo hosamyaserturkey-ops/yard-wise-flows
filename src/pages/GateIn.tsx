@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { gateInSchema } from "@/lib/validation";
 import bgGateIn from "@/assets/bg-gate-in.jpg";
 import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";
+import { SHIPPING_LINES } from "@/lib/shippingLines";
 
 const GateIn = () => {
   const { user } = useAuth();
