@@ -46,6 +46,8 @@ const GateIn = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [portDataFound, setPortDataFound] = useState(false);
   const [lookupDone, setLookupDone] = useState(false);
+  const [demurrageAlreadyPaid, setDemurrageAlreadyPaid] = useState(false);
+  const [alreadyInYard, setAlreadyInYard] = useState(false);
   const [demurrageDialog, setDemurrageDialog] = useState<{
     open: boolean;
     chargeableDays: number;
@@ -59,10 +61,13 @@ const GateIn = () => {
     if (containerNum.length < 4) {
       setPortDataFound(false);
       setLookupDone(false);
+      setDemurrageAlreadyPaid(false);
+      setAlreadyInYard(false);
       return;
     }
 
     const timer = setTimeout(async () => {
+      // Port data lookup
       const { data } = await supabase
         .from("container_port_data")
         .select("port_arrival_date, free_days, daily_demurrage, shipping_line")
@@ -81,6 +86,43 @@ const GateIn = () => {
       } else {
         setPortDataFound(false);
       }
+
+      // Already-in-yard check
+      const { data: inYardRow } = await supabase
+        .from("containers")
+        .select("id")
+        .eq("container_number", containerNum)
+        .eq("status", "in-yard")
+        .maybeSingle();
+      setAlreadyInYard(!!inYardRow);
+
+      // Demurrage already paid check:
+      // a payment "covers" the next gate-in if it was made after the most
+      // recent gate-out for this container (or the container has never been
+      // gated out and any payment exists).
+      const { data: lastGateOutRow } = await supabase
+        .from("containers")
+        .select("gate_out_time")
+        .eq("container_number", containerNum)
+        .not("gate_out_time", "is", null)
+        .order("gate_out_time", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let paymentQuery = supabase
+        .from("demurrage_payments")
+        .select("id, created_at")
+        .eq("container_number", containerNum)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (lastGateOutRow?.gate_out_time) {
+        paymentQuery = paymentQuery.gt("created_at", lastGateOutRow.gate_out_time);
+      }
+
+      const { data: paymentRow } = await paymentQuery.maybeSingle();
+      setDemurrageAlreadyPaid(!!paymentRow);
+
       setLookupDone(true);
     }, 500);
 
@@ -104,7 +146,10 @@ const GateIn = () => {
     return { diffDays, chargeableDays, amount };
   }, [formData.portArrivalDate, formData.freeDays, formData.dailyDemurrage]);
 
-  const hasDemurrageDue = demurragePreview != null && demurragePreview.amount > 0;
+  const hasDemurrageDue =
+    !demurrageAlreadyPaid &&
+    demurragePreview != null &&
+    demurragePreview.amount > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,36 +179,60 @@ const GateIn = () => {
     try {
       const containerNumber = formData.containerNumber.trim().toUpperCase();
 
-      // 1) Demurrage check BEFORE gate-in
-      const { data: demurrageRow, error: demurrageError } = await supabase
-        .from("container_demurrage")
-        .select("*")
+      // 1) Block double gate-in: if this container is currently in the yard,
+      //    refuse before doing anything else (so we never re-prompt for payment).
+      const { data: inYardRow } = await supabase
+        .from("containers")
+        .select("id")
         .eq("container_number", containerNumber)
+        .eq("status", "in-yard")
         .maybeSingle();
 
-      if (demurrageError) {
-        console.error("Error checking demurrage:", demurrageError);
+      if (inYardRow) {
         toast({
-          title: "Demurrage Check Failed",
-          description: "Could not verify demurrage. Please try again or check port data.",
+          title: "Container Already In Yard",
+          description: "This container is already gated in. Gate it out before gating in again.",
           variant: "destructive",
         });
+        setAlreadyInYard(true);
         setIsSubmitting(false);
         return;
       }
 
-      if (demurrageRow) {
-        const { chargeable_days, demurrage_amount } = demurrageRow as DemurrageRow;
-        if (chargeable_days > 0) {
-          // Show styled dialog — pause submission until cash is collected
-          setDemurrageDialog({
-            open: true,
-            chargeableDays: chargeable_days,
-            demurrageAmount: demurrage_amount,
-            containerNumber,
+      // 2) Demurrage check BEFORE gate-in — but skip entirely if a payment
+      //    has already been collected for this container (since the last
+      //    gate-out, or ever if it has never been gated out).
+      if (!demurrageAlreadyPaid) {
+        const { data: demurrageRow, error: demurrageError } = await supabase
+          .from("container_demurrage")
+          .select("*")
+          .eq("container_number", containerNumber)
+          .maybeSingle();
+
+        if (demurrageError) {
+          console.error("Error checking demurrage:", demurrageError);
+          toast({
+            title: "Demurrage Check Failed",
+            description: "Could not verify demurrage. Please try again or check port data.",
+            variant: "destructive",
           });
           setIsSubmitting(false);
           return;
+        }
+
+        if (demurrageRow) {
+          const { chargeable_days, demurrage_amount } = demurrageRow as DemurrageRow;
+          if (chargeable_days > 0) {
+            // Show styled dialog — pause submission until cash is collected
+            setDemurrageDialog({
+              open: true,
+              chargeableDays: chargeable_days,
+              demurrageAmount: demurrage_amount,
+              containerNumber,
+            });
+            setIsSubmitting(false);
+            return;
+          }
         }
       }
 
@@ -179,7 +248,7 @@ const GateIn = () => {
           last_source: 'gate-in',
         }, { onConflict: 'container_number' });
 
-      // No demurrage — proceed directly
+      // No demurrage (or already paid) — proceed directly
       await insertContainer(containerNumber);
     } catch (error) {
       console.error('Error gating in container:', error);
@@ -243,6 +312,10 @@ const GateIn = () => {
       freeDays: "7",
       dailyDemurrage: "15",
     });
+    setPortDataFound(false);
+    setLookupDone(false);
+    setDemurrageAlreadyPaid(false);
+    setAlreadyInYard(false);
   };
 
   const printReceipt = (containerData: InsertedContainerRow) => {
@@ -508,7 +581,19 @@ const GateIn = () => {
                 </div>
               </div>
 
-              {demurragePreview && demurragePreview.amount > 0 && (
+              {alreadyInYard && (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-300 rounded-md text-amber-800 text-sm">
+                  ⚠️ This container is already in the yard. It must be gated out before it can be gated in again.
+                </div>
+              )}
+
+              {!alreadyInYard && demurrageAlreadyPaid && demurragePreview && demurragePreview.amount > 0 && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
+                  ✅ Demurrage already paid for this container — no further collection required.
+                </div>
+              )}
+
+              {!demurrageAlreadyPaid && demurragePreview && demurragePreview.amount > 0 && (
                 <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm space-y-3">
                   <p className="font-medium">⚠️ Demurrage Due — Gate-in blocked</p>
                   <div className="space-y-1 text-xs">
@@ -566,6 +651,8 @@ const GateIn = () => {
                   });
                   setPortDataFound(false);
                   setLookupDone(false);
+                  setDemurrageAlreadyPaid(false);
+                  setAlreadyInYard(false);
                 }}
               >
                 Clear Form
@@ -573,9 +660,15 @@ const GateIn = () => {
               <Button 
                 type="submit" 
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting || hasDemurrageDue}
+                disabled={isSubmitting || hasDemurrageDue || alreadyInYard}
               >
-                {isSubmitting ? "Processing..." : hasDemurrageDue ? "Demurrage Due — Cannot Gate In" : "Gate In & Print Receipt"}
+                {isSubmitting
+                  ? "Processing..."
+                  : alreadyInYard
+                    ? "Already In Yard — Cannot Gate In"
+                    : hasDemurrageDue
+                      ? "Demurrage Due — Cannot Gate In"
+                      : "Gate In & Print Receipt"}
               </Button>
             </div>
           </form>
@@ -611,6 +704,11 @@ const GateIn = () => {
               .single();
 
             if (paymentError) throw paymentError;
+
+            // Mark this container as paid so the dialog/banner won't reappear
+            // if the user lingers on or revisits the form before the lookup
+            // refreshes from the database.
+            setDemurrageAlreadyPaid(true);
 
             printDemurrageReceipt({
               id: paymentRecord.id,
