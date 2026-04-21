@@ -647,6 +647,8 @@ const GateIn = () => {
                   });
                   setPortDataFound(false);
                   setLookupDone(false);
+                  setDemurrageAlreadyPaid(false);
+                  setAlreadyInYard(false);
                 }}
               >
                 Clear Form
@@ -654,9 +656,15 @@ const GateIn = () => {
               <Button 
                 type="submit" 
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting || hasDemurrageDue}
+                disabled={isSubmitting || hasDemurrageDue || alreadyInYard}
               >
-                {isSubmitting ? "Processing..." : hasDemurrageDue ? "Demurrage Due — Cannot Gate In" : "Gate In & Print Receipt"}
+                {isSubmitting
+                  ? "Processing..."
+                  : alreadyInYard
+                    ? "Already In Yard — Cannot Gate In"
+                    : hasDemurrageDue
+                      ? "Demurrage Due — Cannot Gate In"
+                      : "Gate In & Print Receipt"}
               </Button>
             </div>
           </form>
