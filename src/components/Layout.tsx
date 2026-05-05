@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { Container, Ship, FileText, BarChart3, LogIn, LogOut, Crown, Upload, Calendar, Anchor, Calculator } from "lucide-react";
+import { Container, Ship, FileText, BarChart3, LogOut, Crown, Upload, Calendar, Anchor, Calculator, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -8,18 +8,21 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const Layout = () => {
   const location = useLocation();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, isAdmin } = useAuth();
+  const admin = isAdmin();
 
-  const navigationItems = [
-    { href: "/", label: "Dashboard", icon: BarChart3 },
-    { href: "/gate-in", label: "Gate In", icon: Container },
-    { href: "/gate-out", label: "Gate Out", icon: Ship },
-    { href: "/reports", label: "Reports", icon: FileText },
-    { href: "/import", label: "Import", icon: Upload },
-    { href: "/port-data", label: "Port Data", icon: Anchor },
-    { href: "/bookings", label: "Bookings", icon: Calendar },
-    { href: "/accounting", label: "Accounting", icon: Calculator },
+  const baseItems = [
+    { href: "/", label: "Dashboard", icon: BarChart3, adminOnly: false },
+    { href: "/gate-in", label: "Gate In", icon: Container, adminOnly: false },
+    { href: "/gate-out", label: "Gate Out", icon: Ship, adminOnly: false },
+    { href: "/reports", label: "Reports", icon: FileText, adminOnly: false },
+    { href: "/bookings", label: "Bookings", icon: Calendar, adminOnly: false },
+    { href: "/import", label: "Import", icon: Upload, adminOnly: true },
+    { href: "/port-data", label: "Port Data", icon: Anchor, adminOnly: true },
+    { href: "/accounting", label: "Accounting", icon: Calculator, adminOnly: true },
+    { href: "/admin/users", label: "Users", icon: Users, adminOnly: true },
   ];
+  const navigationItems = baseItems.filter((i) => !i.adminOnly || admin);
 
   return (
     <div className="min-h-screen bg-background">
