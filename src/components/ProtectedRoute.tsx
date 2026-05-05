@@ -1,6 +1,8 @@
 import { Navigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,7 +10,19 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) => {
-  const { user, profile, loading } = useAuth();
+  const { user, isAdmin, loading } = useAuth();
+  const notified = useRef(false);
+
+  const denied = !loading && user && adminOnly && !isAdmin();
+
+  useEffect(() => {
+    if (denied && !notified.current) {
+      notified.current = true;
+      toast.error("Admin access required", {
+        description: "You don't have permission to view this page.",
+      });
+    }
+  }, [denied]);
 
   if (loading) {
     return (
@@ -30,7 +44,7 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
     return <Navigate to="/auth" replace />;
   }
 
-  if (adminOnly && profile?.role !== 'admin') {
+  if (denied) {
     return <Navigate to="/" replace />;
   }
 

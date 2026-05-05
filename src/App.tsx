@@ -16,6 +16,7 @@ import Bookings from "./pages/Bookings";
 import BookingDetail from "./pages/BookingDetail";
 import PortDemurrageData from "./pages/PortDemurrageData";
 import Accounting from "./pages/Accounting";
+import UserManagement from "./pages/UserManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,31 +51,36 @@ const App = () => (
                   <Reports />
                 </ProtectedRoute>
               } />
-            <Route path="import" element={
-              <ProtectedRoute>
-                <ImportContainers />
-              </ProtectedRoute>
-            } />
-            <Route path="bookings" element={
-              <ProtectedRoute>
-                <Bookings />
-              </ProtectedRoute>
-            } />
-            <Route path="port-data" element={
-              <ProtectedRoute>
-                <PortDemurrageData />
-              </ProtectedRoute>
-            } />
-            <Route path="accounting" element={
-              <ProtectedRoute>
-                <Accounting />
-              </ProtectedRoute>
-            } />
-            <Route path="bookings/:bookingId" element={
-              <ProtectedRoute>
-                <BookingDetail />
-              </ProtectedRoute>
-            } />
+              <Route path="import" element={
+                <ProtectedRoute adminOnly>
+                  <ImportContainers />
+                </ProtectedRoute>
+              } />
+              <Route path="bookings" element={
+                <ProtectedRoute>
+                  <Bookings />
+                </ProtectedRoute>
+              } />
+              <Route path="port-data" element={
+                <ProtectedRoute adminOnly>
+                  <PortDemurrageData />
+                </ProtectedRoute>
+              } />
+              <Route path="accounting" element={
+                <ProtectedRoute adminOnly>
+                  <Accounting />
+                </ProtectedRoute>
+              } />
+              <Route path="admin/users" element={
+                <ProtectedRoute adminOnly>
+                  <UserManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="bookings/:bookingId" element={
+                <ProtectedRoute>
+                  <BookingDetail />
+                </ProtectedRoute>
+              } />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

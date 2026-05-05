@@ -47,19 +47,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, user_id, full_name, username, created_at, updated_at')
         .eq('user_id', userId)
         .single();
 
       if (error) throw error;
 
-      // Fetch role from user_roles table
-      const { data: roleData } = await supabase
+      const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .limit(1)
         .maybeSingle();
+
+      if (roleError) throw roleError;
 
       const role = (roleData?.role as 'admin' | 'user') || 'user';
       setProfile({ ...data, role } as Profile);
