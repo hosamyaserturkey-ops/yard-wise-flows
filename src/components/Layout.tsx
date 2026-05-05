@@ -47,11 +47,16 @@ const Layout = () => {
                         "flex items-center space-x-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                         isActive
                           ? "bg-maritime text-maritime-foreground"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          : item.adminOnly
+                            ? "text-warning hover:text-warning hover:bg-warning/10"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
                       )}
                     >
                       <Icon className="h-4 w-4" />
                       <span>{item.label}</span>
+                      {item.adminOnly && !isActive && (
+                        <Crown className="h-3 w-3 opacity-70" />
+                      )}
                     </Link>
                   );
                 })}
