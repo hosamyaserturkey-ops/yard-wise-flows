@@ -189,6 +189,15 @@ const GateIn = () => {
       return;
     }
 
+    if (!formData.portArrivalDate || !formData.freeDays || !formData.dailyDemurrage) {
+      toast({
+        title: "Port Data Required",
+        description: "Enter port arrival date, free days, and daily rate.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
