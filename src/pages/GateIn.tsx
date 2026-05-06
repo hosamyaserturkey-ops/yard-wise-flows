@@ -697,7 +697,7 @@ const GateIn = () => {
               <Button 
                 type="submit" 
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting || hasDemurrageDue || alreadyInYard}
+                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !portDataComplete}
               >
                 {isSubmitting
                   ? "Processing..."
@@ -705,7 +705,11 @@ const GateIn = () => {
                     ? "Already In Yard — Cannot Gate In"
                     : hasDemurrageDue
                       ? "Demurrage Due — Cannot Gate In"
-                      : "Gate In & Print Receipt"}
+                      : !portDataComplete && lookupDone && !portDataFound
+                        ? "Port Data Required — Cannot Gate In"
+                        : !portDataComplete
+                          ? "Enter Container Number"
+                          : "Gate In & Print Receipt"}
               </Button>
             </div>
           </form>
