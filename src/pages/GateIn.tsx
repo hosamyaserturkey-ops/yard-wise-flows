@@ -158,6 +158,14 @@ const GateIn = () => {
     demurragePreview != null &&
     demurragePreview.amount > 0;
 
+  const portDataComplete =
+    !!formData.portArrivalDate &&
+    formData.freeDays !== "" &&
+    formData.dailyDemurrage !== "" &&
+    parseFloat(formData.dailyDemurrage) > 0;
+
+  const showNoPortDataWarning = lookupDone && !portDataFound;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
