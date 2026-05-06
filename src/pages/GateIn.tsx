@@ -85,6 +85,12 @@ const GateIn = () => {
         }));
         setPortDataFound(true);
       } else {
+        setFormData(prev => ({
+          ...prev,
+          portArrivalDate: "",
+          freeDays: "",
+          dailyDemurrage: "",
+        }));
         setPortDataFound(false);
       }
 
