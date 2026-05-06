@@ -41,8 +41,8 @@ const GateIn = () => {
     driverName: "",
     truckNumber: "",
     portArrivalDate: "",
-    freeDays: "7",
-    dailyDemurrage: "15",
+    freeDays: "",
+    dailyDemurrage: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [portDataFound, setPortDataFound] = useState(false);
