@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Container } from "lucide-react";
+import { Container, AlertTriangle } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { GateInData } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,8 +41,8 @@ const GateIn = () => {
     driverName: "",
     truckNumber: "",
     portArrivalDate: "",
-    freeDays: "7",
-    dailyDemurrage: "15",
+    freeDays: "",
+    dailyDemurrage: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [portDataFound, setPortDataFound] = useState(false);
@@ -84,6 +85,12 @@ const GateIn = () => {
         }));
         setPortDataFound(true);
       } else {
+        setFormData(prev => ({
+          ...prev,
+          portArrivalDate: "",
+          freeDays: "",
+          dailyDemurrage: "",
+        }));
         setPortDataFound(false);
       }
 
@@ -151,6 +158,14 @@ const GateIn = () => {
     demurragePreview != null &&
     demurragePreview.amount > 0;
 
+  const portDataComplete =
+    !!formData.portArrivalDate &&
+    formData.freeDays !== "" &&
+    formData.dailyDemurrage !== "" &&
+    parseFloat(formData.dailyDemurrage) > 0;
+
+  const showNoPortDataWarning = lookupDone && !portDataFound;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -169,6 +184,15 @@ const GateIn = () => {
       toast({
         title: "Validation Error",
         description: firstError.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.portArrivalDate || !formData.freeDays || !formData.dailyDemurrage) {
+      toast({
+        title: "Port Data Required",
+        description: "Enter port arrival date, free days, and daily rate.",
         variant: "destructive",
       });
       return;
@@ -245,7 +269,7 @@ const GateIn = () => {
           port_arrival_date: formData.portArrivalDate,
           free_days: parseInt(formData.freeDays),
           daily_demurrage: parseFloat(formData.dailyDemurrage),
-          last_source: 'gate-in',
+          last_source: portDataFound ? 'gate-in' : 'gate-in-manual',
         }, { onConflict: 'container_number' });
 
       // No demurrage (or already paid) — proceed directly
@@ -309,8 +333,8 @@ const GateIn = () => {
       driverName: "",
       truckNumber: "",
       portArrivalDate: "",
-      freeDays: "7",
-      dailyDemurrage: "15",
+      freeDays: "",
+      dailyDemurrage: "",
     });
     setPortDataFound(false);
     setLookupDone(false);
@@ -537,6 +561,18 @@ const GateIn = () => {
                   <span className="ml-2 text-xs text-green-600 font-normal">(Auto-filled from port data)</span>
                 )}
               </h3>
+
+              {showNoPortDataWarning && (
+                <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900 [&>svg]:text-amber-600">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>No port data found for this container</AlertTitle>
+                  <AlertDescription>
+                    Enter the port arrival date, free days allowance, and daily demurrage rate below.
+                    These values are required before gate-in can proceed.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
@@ -546,6 +582,7 @@ const GateIn = () => {
                     value={formData.portArrivalDate}
                     onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
                     readOnly={portDataFound}
+                    max={new Date().toISOString().split('T')[0]}
                     className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
@@ -646,8 +683,8 @@ const GateIn = () => {
                     driverName: "",
                     truckNumber: "",
                     portArrivalDate: "",
-                    freeDays: "7",
-                    dailyDemurrage: "15",
+                    freeDays: "",
+                    dailyDemurrage: "",
                   });
                   setPortDataFound(false);
                   setLookupDone(false);
@@ -660,7 +697,7 @@ const GateIn = () => {
               <Button 
                 type="submit" 
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting || hasDemurrageDue || alreadyInYard}
+                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !portDataComplete}
               >
                 {isSubmitting
                   ? "Processing..."
@@ -668,7 +705,11 @@ const GateIn = () => {
                     ? "Already In Yard — Cannot Gate In"
                     : hasDemurrageDue
                       ? "Demurrage Due — Cannot Gate In"
-                      : "Gate In & Print Receipt"}
+                      : !portDataComplete && lookupDone && !portDataFound
+                        ? "Port Data Required — Cannot Gate In"
+                        : !portDataComplete
+                          ? "Enter Container Number"
+                          : "Gate In & Print Receipt"}
               </Button>
             </div>
           </form>
