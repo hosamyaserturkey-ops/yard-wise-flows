@@ -333,8 +333,8 @@ const GateIn = () => {
       driverName: "",
       truckNumber: "",
       portArrivalDate: "",
-      freeDays: "7",
-      dailyDemurrage: "15",
+      freeDays: "",
+      dailyDemurrage: "",
     });
     setPortDataFound(false);
     setLookupDone(false);
