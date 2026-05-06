@@ -269,7 +269,7 @@ const GateIn = () => {
           port_arrival_date: formData.portArrivalDate,
           free_days: parseInt(formData.freeDays),
           daily_demurrage: parseFloat(formData.dailyDemurrage),
-          last_source: 'gate-in',
+          last_source: portDataFound ? 'gate-in' : 'gate-in-manual',
         }, { onConflict: 'container_number' });
 
       // No demurrage (or already paid) — proceed directly
