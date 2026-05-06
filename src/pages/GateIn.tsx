@@ -561,6 +561,18 @@ const GateIn = () => {
                   <span className="ml-2 text-xs text-green-600 font-normal">(Auto-filled from port data)</span>
                 )}
               </h3>
+
+              {showNoPortDataWarning && (
+                <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900 [&>svg]:text-amber-600">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>No port data found for this container</AlertTitle>
+                  <AlertDescription>
+                    Enter the port arrival date, free days allowance, and daily demurrage rate below.
+                    These values are required before gate-in can proceed.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
@@ -570,6 +582,7 @@ const GateIn = () => {
                     value={formData.portArrivalDate}
                     onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
                     readOnly={portDataFound}
+                    max={new Date().toISOString().split('T')[0]}
                     className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
                   />
                 </div>
