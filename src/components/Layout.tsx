@@ -26,12 +26,12 @@ const Layout = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card shadow-sm">
+      <header className="border-b border-white/10 bg-black/30 backdrop-blur-md">
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Container className="h-8 w-8 text-maritime" />
-              <h1 className="text-xl font-bold text-industrial">Container Yard Management</h1>
+              <Container className="h-8 w-8 text-white drop-shadow-md" />
+              <h1 className="text-xl font-bold text-white drop-shadow-md">Container Yard Management</h1>
             </div>
             
             <div className="flex items-center space-x-6">
@@ -44,12 +44,12 @@ const Layout = () => {
                       key={item.href}
                       to={item.href}
                       className={cn(
-                        "flex items-center space-x-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                        "flex items-center space-x-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors drop-shadow-md",
                         isActive
-                          ? "bg-maritime text-maritime-foreground"
+                          ? "bg-maritime/80 text-white backdrop-blur-sm shadow-sm"
                           : item.adminOnly
-                            ? "text-warning hover:text-warning hover:bg-warning/10"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                            ? "text-warning hover:text-warning hover:bg-warning/20"
+                            : "text-white/90 hover:text-white hover:bg-white/15"
                       )}
                     >
                       <Icon className="h-4 w-4" />
@@ -65,11 +65,11 @@ const Layout = () => {
               {user && (
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-white/80 drop-shadow-sm">
                       {profile?.full_name || user.email}
                     </span>
                     {profile?.role === 'admin' && (
-                      <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20">
+                      <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/30 backdrop-blur-sm">
                         <Crown className="h-3 w-3 mr-1" />
                         Admin
                       </Badge>
@@ -79,7 +79,7 @@ const Layout = () => {
                     variant="outline" 
                     size="sm"
                     onClick={signOut}
-                    className="border-maritime text-maritime hover:bg-maritime hover:text-white"
+                    className="border-white/40 text-white bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:text-white"
                   >
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
