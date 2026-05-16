@@ -156,14 +156,15 @@ export const importAllContainersFromExcel = async (): Promise<{ success: number;
         container_number: container.containerNumber,
         container_type: mapContainerType(container.containerSize),
         shipping_line: mapShippingLine(container.shippingLine),
-        driver_name: 'Excel Import Driver', // Default value since not in Excel
+        driver_name: 'Excel Import Driver',
         truck_number: container.truckNumber || 'Unknown',
         gate_in_time: gateInTime.toISOString(),
         gate_out_time: gateOutTime?.toISOString() || null,
         status: mapStatus(container.status),
         booking_number: container.bookingNumber || null,
         fees: calculateFees(container.notes),
-        created_by: user.id
+        created_by: user.id,
+        yard_id: process.env.YARD_ID || '',
       };
 
       const { error } = await supabase
