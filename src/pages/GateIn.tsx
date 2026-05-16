@@ -311,6 +311,8 @@ const GateIn = () => {
       return;
     }
 
+    const yardId = currentYardId();
+    if (!yardId) throw new Error("No yard assigned to your account");
     const { data, error } = await supabase
       .from('containers')
       .insert({
@@ -320,6 +322,7 @@ const GateIn = () => {
         driver_name: formData.driverName,
         truck_number: formData.truckNumber,
         created_by: user!.id,
+        yard_id: yardId,
       })
       .select()
       .single();
