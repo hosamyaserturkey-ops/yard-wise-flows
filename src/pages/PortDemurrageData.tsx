@@ -235,6 +235,7 @@ const PortDemurrageData = () => {
             free_days: Number.isNaN(freeDays) ? 7 : freeDays,
             daily_demurrage: dailyDemurrage,
             last_source: "excel",
+            yard_id: yardId,
           });
         } catch (err: unknown) {
           errors.push(`${rowLabel}: ${getErrorMessage(err, "Unknown row error")}`);
