@@ -144,35 +144,53 @@ const GateIn = () => {
     return () => clearTimeout(timer);
   }, [formData.containerNumber]);
 
-  // Calculate demurrage inline
+  // Auto-fill free days when shipping line changes (if rules exist for it)
+  useEffect(() => {
+    if (hasDemurrageRules(formData.shippingLine)) {
+      const rule = DEMURRAGE_RULES[formData.shippingLine];
+      setFormData(prev =>
+        prev.freeDays === String(rule.freeDays)
+          ? prev
+          : { ...prev, freeDays: String(rule.freeDays) }
+      );
+    }
+  }, [formData.shippingLine]);
+
+  // New tiered demurrage calculation
   const demurragePreview = useMemo(() => {
-    const { portArrivalDate, freeDays, dailyDemurrage } = formData;
-    if (!portArrivalDate || !freeDays || !dailyDemurrage) return null;
+    if (!formData.portArrivalDate || !formData.containerType) return null;
+    const result = calculateDemurrage(
+      formData.shippingLine,
+      formData.containerType,
+      formData.portArrivalDate,
+    );
+    return result;
+  }, [
+    formData.portArrivalDate,
+    formData.containerType,
+    formData.shippingLine,
+  ]);
 
-    const arrival = new Date(portArrivalDate);
+  const portArrivalIsFuture = useMemo(() => {
+    if (!formData.portArrivalDate) return false;
+    const a = new Date(formData.portArrivalDate);
     const today = new Date();
-    // Reset time to midnight for day-level calculation
-    arrival.setHours(0, 0, 0, 0);
+    a.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
-    const diffDays = Math.floor((today.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24));
-    const chargeableDays = diffDays - parseInt(freeDays);
-    const amount = chargeableDays > 0 ? chargeableDays * parseFloat(dailyDemurrage) : 0;
-
-    return { diffDays, chargeableDays, amount };
-  }, [formData.portArrivalDate, formData.freeDays, formData.dailyDemurrage]);
+    return a.getTime() > today.getTime();
+  }, [formData.portArrivalDate]);
 
   const hasDemurrageDue =
     !demurrageAlreadyPaid &&
     demurragePreview != null &&
-    demurragePreview.amount > 0;
+    demurragePreview.totalJOD > 0;
 
+  // Port data is "complete enough" to gate in as long as arrival date is set and not in the future.
   const portDataComplete =
-    !!formData.portArrivalDate &&
-    formData.freeDays !== "" &&
-    formData.dailyDemurrage !== "" &&
-    parseFloat(formData.dailyDemurrage) > 0;
+    !!formData.portArrivalDate && !portArrivalIsFuture;
 
   const showNoPortDataWarning = lookupDone && !portDataFound;
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
