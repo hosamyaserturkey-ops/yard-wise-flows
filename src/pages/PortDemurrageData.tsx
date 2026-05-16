@@ -130,6 +130,12 @@ const PortDemurrageData = () => {
 
     setIsSubmitting(true);
     try {
+      const yardId = currentYardId();
+      if (!yardId) {
+        toast({ title: "Error", description: "No yard assigned to your account", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
       const { error } = await supabase.from("container_port_data").upsert(
         {
           container_number: result.data.containerNumber,
@@ -138,6 +144,7 @@ const PortDemurrageData = () => {
           free_days: result.data.freeDays,
           daily_demurrage: result.data.dailyDemurrage,
           last_source: "manual",
+          yard_id: yardId,
         },
         { onConflict: "container_number" }
       );
