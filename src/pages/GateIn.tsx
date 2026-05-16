@@ -32,7 +32,7 @@ interface InsertedContainerRow {
 }
 
 const GateIn = () => {
-  const { user } = useAuth();
+  const { user, currentYardId } = useAuth();
   const { toast } = useToast();
   const [formData, setFormData] = useState<GateInData>({
     containerNumber: "",
