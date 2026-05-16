@@ -857,11 +857,11 @@ const GateIn = () => {
                   : alreadyInYard
                     ? "Already In Yard — Cannot Gate In"
                     : hasDemurrageDue
-                      ? "Demurrage Due — Cannot Gate In"
-                      : !portDataComplete && lookupDone && !portDataFound
-                        ? "Port Data Required — Cannot Gate In"
-                        : !portDataComplete
-                          ? "Enter Container Number"
+                      ? "Demurrage Due — Collect Payment First"
+                      : !formData.portArrivalDate
+                        ? "Enter Port Arrival Date"
+                        : portArrivalIsFuture
+                          ? "Invalid Port Arrival Date"
                           : "Gate In & Print Receipt"}
               </Button>
             </div>
