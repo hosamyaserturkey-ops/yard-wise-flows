@@ -70,17 +70,24 @@ const Layout = () => {
 
               {user && (
                 <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-white/80 drop-shadow-sm">
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm text-white drop-shadow-sm">
                       {profile?.full_name || user.email}
                     </span>
-                    {profile?.role === 'admin' && (
-                      <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/30 backdrop-blur-sm">
-                        <Crown className="h-3 w-3 mr-1" />
-                        Admin
-                      </Badge>
-                    )}
+                    <span className="text-xs text-white/70 drop-shadow-sm">
+                      {superAdmin ? "Super Admin" : profile?.yard_name ? `Yard: ${profile.yard_name}` : "No yard"}
+                    </span>
                   </div>
+                  {superAdmin && (
+                    <Badge variant="secondary" className="bg-warning/30 text-white border-warning/40 backdrop-blur-sm">
+                      <ShieldCheck className="h-3 w-3 mr-1" /> Super
+                    </Badge>
+                  )}
+                  {!superAdmin && profile?.role === 'admin' && (
+                    <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/30 backdrop-blur-sm">
+                      <Crown className="h-3 w-3 mr-1" /> Admin
+                    </Badge>
+                  )}
                   <Button 
                     variant="outline" 
                     size="sm"
