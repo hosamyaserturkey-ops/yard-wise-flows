@@ -15,6 +15,14 @@ import bgGateIn from "@/assets/bg-gate-in.jpg";
 import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  calculateDemurrage,
+  hasDemurrageRules,
+  toDemurrageContainerType,
+  DEMURRAGE_RULES,
+  USD_TO_JOD,
+} from "@/lib/demurrage";
 
 interface DemurrageRow {
   chargeable_days: number;
