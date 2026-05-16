@@ -15,6 +15,14 @@ import bgGateIn from "@/assets/bg-gate-in.jpg";
 import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  calculateDemurrage,
+  hasDemurrageRules,
+  toDemurrageContainerType,
+  DEMURRAGE_RULES,
+  USD_TO_JOD,
+} from "@/lib/demurrage";
 
 interface DemurrageRow {
   chargeable_days: number;
@@ -136,35 +144,53 @@ const GateIn = () => {
     return () => clearTimeout(timer);
   }, [formData.containerNumber]);
 
-  // Calculate demurrage inline
+  // Auto-fill free days when shipping line changes (if rules exist for it)
+  useEffect(() => {
+    if (hasDemurrageRules(formData.shippingLine)) {
+      const rule = DEMURRAGE_RULES[formData.shippingLine];
+      setFormData(prev =>
+        prev.freeDays === String(rule.freeDays)
+          ? prev
+          : { ...prev, freeDays: String(rule.freeDays) }
+      );
+    }
+  }, [formData.shippingLine]);
+
+  // New tiered demurrage calculation
   const demurragePreview = useMemo(() => {
-    const { portArrivalDate, freeDays, dailyDemurrage } = formData;
-    if (!portArrivalDate || !freeDays || !dailyDemurrage) return null;
+    if (!formData.portArrivalDate || !formData.containerType) return null;
+    const result = calculateDemurrage(
+      formData.shippingLine,
+      formData.containerType,
+      formData.portArrivalDate,
+    );
+    return result;
+  }, [
+    formData.portArrivalDate,
+    formData.containerType,
+    formData.shippingLine,
+  ]);
 
-    const arrival = new Date(portArrivalDate);
+  const portArrivalIsFuture = useMemo(() => {
+    if (!formData.portArrivalDate) return false;
+    const a = new Date(formData.portArrivalDate);
     const today = new Date();
-    // Reset time to midnight for day-level calculation
-    arrival.setHours(0, 0, 0, 0);
+    a.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
-    const diffDays = Math.floor((today.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24));
-    const chargeableDays = diffDays - parseInt(freeDays);
-    const amount = chargeableDays > 0 ? chargeableDays * parseFloat(dailyDemurrage) : 0;
-
-    return { diffDays, chargeableDays, amount };
-  }, [formData.portArrivalDate, formData.freeDays, formData.dailyDemurrage]);
+    return a.getTime() > today.getTime();
+  }, [formData.portArrivalDate]);
 
   const hasDemurrageDue =
     !demurrageAlreadyPaid &&
     demurragePreview != null &&
-    demurragePreview.amount > 0;
+    demurragePreview.totalJOD > 0;
 
+  // Port data is "complete enough" to gate in as long as arrival date is set and not in the future.
   const portDataComplete =
-    !!formData.portArrivalDate &&
-    formData.freeDays !== "" &&
-    formData.dailyDemurrage !== "" &&
-    parseFloat(formData.dailyDemurrage) > 0;
+    !!formData.portArrivalDate && !portArrivalIsFuture;
 
   const showNoPortDataWarning = lookupDone && !portDataFound;
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,7 +204,14 @@ const GateIn = () => {
       return;
     }
 
-    const result = gateInSchema.safeParse(formData);
+    // dailyDemurrage is no longer collected from the user — supply a placeholder
+    // so the existing schema (which still requires it) keeps passing.
+    const dataForValidation = {
+      ...formData,
+      freeDays: formData.freeDays || "0",
+      dailyDemurrage: "0",
+    };
+    const result = gateInSchema.safeParse(dataForValidation);
     if (!result.success) {
       const firstError = result.error.errors[0];
       toast({
@@ -189,10 +222,19 @@ const GateIn = () => {
       return;
     }
 
-    if (!formData.portArrivalDate || !formData.freeDays || !formData.dailyDemurrage) {
+    if (!formData.portArrivalDate) {
       toast({
-        title: "Port Data Required",
-        description: "Enter port arrival date, free days, and daily rate.",
+        title: "Port Arrival Date Required",
+        description: "Enter the port arrival date before gating in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (portArrivalIsFuture) {
+      toast({
+        title: "Invalid Port Arrival Date",
+        description: "Port arrival date cannot be in the future.",
         variant: "destructive",
       });
       return;
@@ -223,41 +265,21 @@ const GateIn = () => {
         return;
       }
 
-      // 2) Demurrage check BEFORE gate-in — but skip entirely if a payment
-      //    has already been collected for this container (since the last
-      //    gate-out, or ever if it has never been gated out).
-      if (!demurrageAlreadyPaid) {
-        const { data: demurrageRow, error: demurrageError } = await supabase
-          .from("container_demurrage")
-          .select("*")
-          .eq("container_number", containerNumber)
-          .maybeSingle();
-
-        if (demurrageError) {
-          console.error("Error checking demurrage:", demurrageError);
-          toast({
-            title: "Demurrage Check Failed",
-            description: "Could not verify demurrage. Please try again or check port data.",
-            variant: "destructive",
-          });
-          setIsSubmitting(false);
-          return;
-        }
-
-        if (demurrageRow) {
-          const { chargeable_days, demurrage_amount } = demurrageRow as DemurrageRow;
-          if (chargeable_days > 0) {
-            // Show styled dialog — pause submission until cash is collected
-            setDemurrageDialog({
-              open: true,
-              chargeableDays: chargeable_days,
-              demurrageAmount: demurrage_amount,
-              containerNumber,
-            });
-            setIsSubmitting(false);
-            return;
-          }
-        }
+      // 2) Demurrage check BEFORE gate-in using the new tiered calculation,
+      //    skipped if already paid since the last gate-out.
+      if (!demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0) {
+        const chargeableDays = Math.max(
+          0,
+          demurragePreview.daysElapsed - demurragePreview.freeDays,
+        );
+        setDemurrageDialog({
+          open: true,
+          chargeableDays,
+          demurrageAmount: demurragePreview.totalJOD,
+          containerNumber,
+        });
+        setIsSubmitting(false);
+        return;
       }
 
       // Upsert port data for demurrage tracking
@@ -273,11 +295,12 @@ const GateIn = () => {
           container_number: containerNumber,
           shipping_line: formData.shippingLine,
           port_arrival_date: formData.portArrivalDate,
-          free_days: parseInt(formData.freeDays),
-          daily_demurrage: parseFloat(formData.dailyDemurrage),
+          free_days: parseInt(formData.freeDays || "0"),
+          daily_demurrage: 0,
           last_source: portDataFound ? 'gate-in' : 'gate-in-manual',
           yard_id: yardIdForPort,
         }, { onConflict: 'container_number' });
+
 
       // No demurrage (or already paid) — proceed directly
       await insertContainer(containerNumber);
@@ -577,56 +600,179 @@ const GateIn = () => {
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>No port data found for this container</AlertTitle>
                   <AlertDescription>
-                    Enter the port arrival date, free days allowance, and daily demurrage rate below.
-                    These values are required before gate-in can proceed.
+                    Enter the port arrival date below. Demurrage will be calculated automatically from the shipping line's tier rules. You can still proceed with gate-in.
                   </AlertDescription>
                 </Alert>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
-                  <Input
-                    id="portArrivalDate"
-                    type="date"
-                    value={formData.portArrivalDate}
-                    onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
-                    readOnly={portDataFound}
-                    max={new Date().toISOString().split('T')[0]}
-                    className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
-                  />
-                </div>
+              <Tabs defaultValue="port" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="port">Port & Demurrage</TabsTrigger>
+                  <TabsTrigger value="line">Shipping Line</TabsTrigger>
+                </TabsList>
 
-                <div className="space-y-2">
-                  <Label htmlFor="freeDays">Free Days *</Label>
-                  <Input
-                    id="freeDays"
-                    type="number"
-                    min="0"
-                    max="365"
-                    value={formData.freeDays}
-                    onChange={(e) => setFormData({ ...formData, freeDays: e.target.value })}
-                    placeholder="e.g., 7"
-                    readOnly={portDataFound}
-                    className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
-                  />
-                </div>
+                <TabsContent value="port" className="space-y-4 pt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
+                      <Input
+                        id="portArrivalDate"
+                        type="date"
+                        value={formData.portArrivalDate}
+                        onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
+                        max={new Date().toISOString().split('T')[0]}
+                      />
+                      {portArrivalIsFuture && (
+                        <p className="text-xs text-destructive">Port arrival date cannot be in the future.</p>
+                      )}
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="dailyDemurrage">Daily Demurrage (JOD) *</Label>
-                  <Input
-                    id="dailyDemurrage"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formData.dailyDemurrage}
-                    onChange={(e) => setFormData({ ...formData, dailyDemurrage: e.target.value })}
-                    placeholder="e.g., 15"
-                    readOnly={portDataFound}
-                    className={portDataFound ? "bg-muted cursor-not-allowed" : ""}
-                  />
-                </div>
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="freeDays">Free Days *</Label>
+                      <Input
+                        id="freeDays"
+                        type="number"
+                        min="0"
+                        max="365"
+                        value={formData.freeDays}
+                        onChange={(e) => setFormData({ ...formData, freeDays: e.target.value })}
+                        placeholder="Auto from shipping line"
+                      />
+                      {hasDemurrageRules(formData.shippingLine) && (
+                        <p className="text-xs text-muted-foreground">
+                          {formData.shippingLine} default: {DEMURRAGE_RULES[formData.shippingLine].freeDays} days
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Demurrage calculation result */}
+                  {demurragePreview && formData.portArrivalDate && !portArrivalIsFuture && (
+                    <div className="rounded-md border bg-card p-4 space-y-3">
+                      {demurragePreview.totalJOD === 0 ? (
+                        <div className="p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
+                          ✅ No demurrage due — {Math.max(0, demurragePreview.freeDays - demurragePreview.daysElapsed)} free day(s) remaining.
+                          <div className="text-xs mt-1 text-green-600">
+                            {demurragePreview.daysElapsed} day(s) elapsed since port arrival, {demurragePreview.freeDays} free.
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-baseline justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">Total Demurrage Due</p>
+                              <p className="text-2xl font-bold text-destructive">
+                                {demurragePreview.totalJOD.toLocaleString()} JOD
+                              </p>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Subtotal: ${demurragePreview.totalUSD.toLocaleString()} USD
+                            </p>
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs border">
+                              <thead className="bg-muted">
+                                <tr>
+                                  <th className="text-left p-2">Period</th>
+                                  <th className="text-right p-2">Days</th>
+                                  <th className="text-right p-2">Rate (USD/day)</th>
+                                  <th className="text-right p-2">Subtotal (USD)</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {demurragePreview.breakdown.map((row, i) => (
+                                  <tr key={i} className="border-t">
+                                    <td className="p-2">{row.period}</td>
+                                    <td className="p-2 text-right">{row.days}</td>
+                                    <td className="p-2 text-right">${row.rateUSD}</td>
+                                    <td className="p-2 text-right">${row.subtotalUSD.toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                                <tr className="border-t font-semibold bg-muted/50">
+                                  <td className="p-2" colSpan={3}>Total (USD)</td>
+                                  <td className="p-2 text-right">${demurragePreview.totalUSD.toLocaleString()}</td>
+                                </tr>
+                                <tr className="border-t text-muted-foreground">
+                                  <td className="p-2" colSpan={3}>Exchange Rate</td>
+                                  <td className="p-2 text-right">1 USD = {USD_TO_JOD} JOD</td>
+                                </tr>
+                                <tr className="border-t font-bold bg-destructive/10 text-destructive">
+                                  <td className="p-2" colSpan={3}>Total (JOD)</td>
+                                  <td className="p-2 text-right">{demurragePreview.totalJOD.toLocaleString()} JOD</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {!hasDemurrageRules(formData.shippingLine) && formData.portArrivalDate && (
+                    <p className="text-xs text-muted-foreground">
+                      No tiered demurrage rules configured for {formData.shippingLine}. No demurrage will be charged.
+                    </p>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="line" className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="shippingLineTab">Shipping Line *</Label>
+                    <Select
+                      value={formData.shippingLine}
+                      onValueChange={(value) => setFormData({ ...formData, shippingLine: value as ShippingLine })}
+                    >
+                      <SelectTrigger id="shippingLineTab">
+                        <SelectValue placeholder="Select shipping line" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SHIPPING_LINES.map((sl) => (
+                          <SelectItem key={sl} value={sl}>{sl}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Synced with the Shipping Line field above.
+                    </p>
+                  </div>
+
+                  {hasDemurrageRules(formData.shippingLine) ? (
+                    <div className="rounded-md border overflow-x-auto">
+                      <div className="bg-muted px-3 py-2 text-sm font-semibold">
+                        {formData.shippingLine} — Demurrage Tier Rules
+                      </div>
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            <th className="text-left p-2">Period</th>
+                            <th className="text-right p-2">20FT (USD/day)</th>
+                            <th className="text-right p-2">40FT (USD/day)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {DEMURRAGE_RULES[formData.shippingLine].tiers.map((tier, i) => (
+                            <tr key={i} className="border-t">
+                              <td className="p-2">{tier.label}</td>
+                              <td className="p-2 text-right">{tier.rate20 === 0 ? "Free" : `$${tier.rate20}`}</td>
+                              <td className="p-2 text-right">{tier.rate40 === 0 ? "Free" : `$${tier.rate40}`}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {formData.containerType && (
+                        <p className="px-3 py-2 text-xs text-muted-foreground border-t">
+                          Applied rate column for this container: <strong>{toDemurrageContainerType(formData.containerType)}</strong>
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No tier rules configured for {formData.shippingLine}.
+                    </p>
+                  )}
+                </TabsContent>
+              </Tabs>
 
               {alreadyInYard && (
                 <div className="mt-4 p-3 bg-amber-50 border border-amber-300 rounded-md text-amber-800 text-sm">
@@ -634,25 +780,24 @@ const GateIn = () => {
                 </div>
               )}
 
-              {!alreadyInYard && demurrageAlreadyPaid && demurragePreview && demurragePreview.amount > 0 && (
+              {!alreadyInYard && demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0 && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
                   ✅ Demurrage already paid for this container — no further collection required.
                 </div>
               )}
 
-              {!demurrageAlreadyPaid && demurragePreview && demurragePreview.amount > 0 && (
+              {!demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0 && (
                 <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm space-y-3">
-                  <p className="font-medium">⚠️ Demurrage Due — Gate-in blocked</p>
+                  <p className="font-medium">⚠️ Demurrage Due — Collect payment before gate-in</p>
                   <div className="space-y-1 text-xs">
-                    <div className="flex justify-between"><span>Demurrage ({demurragePreview.chargeableDays} days × {parseFloat(formData.dailyDemurrage)} JOD)</span><strong>{demurragePreview.amount.toLocaleString()} JOD</strong></div>
+                    <div className="flex justify-between"><span>Demurrage Total</span><strong>{demurragePreview.totalJOD.toLocaleString()} JOD</strong></div>
                     <div className="flex justify-between"><span>Service Fee</span><strong>{SERVICE_FEE} JOD</strong></div>
-                    <div className="flex justify-between border-t border-red-200 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.amount + SERVICE_FEE).toLocaleString()} JOD</strong></div>
+                    <div className="flex justify-between border-t border-red-200 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.totalJOD + SERVICE_FEE).toLocaleString()} JOD</strong></div>
                   </div>
                   <Button
                     type="button"
                     className="w-full bg-red-600 hover:bg-red-700 text-white"
                     onClick={() => {
-                      // Validate required fields before opening payment dialog
                       if (!formData.containerNumber || !formData.shippingLine) {
                         toast({
                           title: "Missing info",
@@ -661,22 +806,20 @@ const GateIn = () => {
                         });
                         return;
                       }
+                      const chargeableDays = Math.max(
+                        0,
+                        demurragePreview.daysElapsed - demurragePreview.freeDays,
+                      );
                       setDemurrageDialog({
                         open: true,
-                        chargeableDays: demurragePreview.chargeableDays,
-                        demurrageAmount: demurragePreview.amount,
+                        chargeableDays,
+                        demurrageAmount: demurragePreview.totalJOD,
                         containerNumber: formData.containerNumber.trim().toUpperCase(),
                       });
                     }}
                   >
                     💵 Collect Payment & Print Receipt
                   </Button>
-                </div>
-              )}
-
-              {demurragePreview && demurragePreview.amount === 0 && formData.portArrivalDate && (
-                <div className="mt-4 p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
-                  ✅ No demurrage due — {demurragePreview.chargeableDays <= 0 ? `${Math.abs(demurragePreview.chargeableDays)} free day(s) remaining` : "within free period"}.
                 </div>
               )}
             </div>
@@ -714,11 +857,11 @@ const GateIn = () => {
                   : alreadyInYard
                     ? "Already In Yard — Cannot Gate In"
                     : hasDemurrageDue
-                      ? "Demurrage Due — Cannot Gate In"
-                      : !portDataComplete && lookupDone && !portDataFound
-                        ? "Port Data Required — Cannot Gate In"
-                        : !portDataComplete
-                          ? "Enter Container Number"
+                      ? "Demurrage Due — Collect Payment First"
+                      : !formData.portArrivalDate
+                        ? "Enter Port Arrival Date"
+                        : portArrivalIsFuture
+                          ? "Invalid Port Arrival Date"
                           : "Gate In & Print Receipt"}
               </Button>
             </div>
