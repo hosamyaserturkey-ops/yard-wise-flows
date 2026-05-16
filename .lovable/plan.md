@@ -1,55 +1,78 @@
+# Multi-Yard (Multi-Tenant) Architecture
 
+Convert the app so each yard is an isolated tenant with its own admin, users, containers, bookings, port data, payments, and accounting. A platform super-admin sits above all yards.
 
-## Goal
+## Roles
 
-Wipe all operational data from the database (keeping schema, users, and roles intact) and seed `container_port_data` with realistic fake test data so you can test the demurrage workflow end-to-end.
+- **super_admin** — you. Creates yards, creates the first admin of each yard, can view/manage anything across all yards. Not bound to a single yard.
+- **admin** (yard admin) — manages users and all data inside one yard. Can create yard users, edit/delete any record in their yard.
+- **user** — operator inside one yard. Standard gate-in / gate-out / bookings work, scoped to their yard.
 
-## What gets cleared
+Each non-super user belongs to exactly **one** yard.
 
-All rows from these tables will be deleted:
-- `containers` — all gate-in/gate-out records
-- `container_port_data` — all port arrival rows (will be re-seeded)
-- `demurrage_payments` — all collected payments
-- `shipping_line_transfers` — all payout transfers
-- `bookings` — all bookings
-- `edi_transmissions` — all EDI logs
+## Existing data
 
-What stays untouched:
-- `auth.users`, `profiles`, `user_roles` (your login + admin role preserved)
-- All table structures, RLS policies, functions, triggers
-- Storage bucket `transfer-receipts` (files remain; we only clear DB rows)
+Wipe: all containers, bookings, container_port_data, demurrage_payments, shipping_line_transfers, edi_transmissions, all profiles/user_roles, and all auth users. Start clean. After migration we re-create one super-admin account.
 
-## Fake port data to seed (15 containers)
+## Database changes
 
-Mix of overdue (demurrage due), borderline, and within-free-days cases across the 12 supported shipping lines. Free days = 7 for all. Port arrival dates are relative to today (2026-04-21).
+New table:
+- `yards` — `id`, `name`, `code` (short unique slug), `created_by`, `created_at`
 
-| # | Container | Shipping Line | Port Arrival | Free Days | Daily Demurrage (JOD) | Expected status |
-|---|-----------|---------------|--------------|-----------|----------------------|-----------------|
-| 1  | SLGU1234567 | SLG | 2026-03-15 | 7 | 25 | Overdue (~30 chargeable days) |
-| 2  | SLDU2345678 | SLD | 2026-03-20 | 7 | 25 | Overdue (~25 days) |
-| 3  | SFSU3456789 | SFS | 2026-04-01 | 7 | 30 | Overdue (~13 days) |
-| 4  | MDKU4567890 | MDK | 2026-04-05 | 7 | 20 | Overdue (~9 days) |
-| 5  | INXU5678901 | INX | 2026-04-08 | 7 | 35 | Overdue (~6 days) |
-| 6  | ICRU6789012 | ICR | 2026-04-10 | 7 | 28 | Overdue (~4 days) |
-| 7  | EMKU7890123 | EMK | 2026-04-12 | 7 | 22 | Borderline (~2 days) |
-| 8  | BLTU8901234 | BLT | 2026-04-14 | 7 | 25 | Just due (1 day) |
-| 9  | AXLU9012345 | AXL | 2026-04-15 | 7 | 30 | Free period ends today |
-| 10 | XSLU0123456 | XSL | 2026-04-17 | 7 | 25 | Within free days |
-| 11 | TRLU1122334 | TRL | 2026-04-18 | 7 | 25 | Within free days |
-| 12 | 2XXU2233445 | 2   | 2026-04-19 | 7 | 25 | Within free days |
-| 13 | SEKU1157908 | SLD | 2026-03-10 | 7 | 30 | Heavily overdue (~35 days, matches your earlier test) |
-| 14 | MSCU3344556 | SLG | 2026-04-19 | 7 | 25 | Within free days |
-| 15 | CMAU4455667 | SFS | 2026-04-02 | 7 | 30 | Overdue (~12 days) |
+Extend enum `app_role` with `super_admin`.
 
-This gives you variety: containers with payment due, containers right at the cutoff, and containers still in their free period.
+Add `yard_id uuid references yards(id)` to:
+- `profiles` (nullable — super_admin has no yard)
+- `containers`, `bookings`, `container_port_data`, `demurrage_payments`, `shipping_line_transfers`, `edi_transmissions` (NOT NULL)
 
-## Technical execution
+New helper functions (SECURITY DEFINER, search_path=public):
+- `is_super_admin(uid)`
+- `current_yard_id()` — returns the caller's `profiles.yard_id`
+- `is_yard_admin(uid, yard_id)` — true if user is admin of that yard
 
-1. Run a single SQL transaction via `psql` (data-only, no schema changes):
-   - `TRUNCATE` the 6 operational tables (with `RESTART IDENTITY CASCADE` where needed) — `TRUNCATE` is fast and resets everything cleanly.
-   - `INSERT` the 15 rows above into `container_port_data` with `last_source = 'manual'`.
-2. Verify with a `SELECT COUNT(*)` per table and a `SELECT *` from `container_port_data`.
-3. Output the seeded data back to you in chat as a clean table for reference.
+### RLS pattern (applied to every data table)
 
-No code changes, no migrations — schema is preserved exactly. After this runs, your dashboard will show zero containers/bookings/payments, and any of the 15 container numbers above will trigger the demurrage flow on the Gate In page.
+- **SELECT**: `is_super_admin(auth.uid()) OR yard_id = current_yard_id()`
+- **INSERT**: `yard_id = current_yard_id() AND created_by = auth.uid()` (super-admin can insert anywhere)
+- **UPDATE**: `is_super_admin(...) OR (yard_id = current_yard_id() AND (owner OR is_yard_admin(...)))`
+- **DELETE**: `is_super_admin(...) OR is_yard_admin(auth.uid(), yard_id)`
 
+`yards` table:
+- SELECT: super_admin sees all; everyone else sees only their own yard.
+- INSERT/UPDATE/DELETE: super_admin only.
+
+`profiles` and `user_roles`:
+- super_admin: full access.
+- yard admin: can view/update/delete profiles and user_roles for users whose `profiles.yard_id` matches theirs (cannot promote to super_admin).
+- user: own row only.
+
+`handle_new_user` trigger reads `raw_user_meta_data.yard_id` and `raw_user_meta_data.role` (defaults to 'user') to provision the new profile + user_roles row in one shot. The `prevent_role_change` trigger stays in place.
+
+## Frontend changes
+
+- **AuthContext**: load `profile.yard_id`, `profile.yard_name`, `role` (`super_admin | admin | user`). Expose `isSuperAdmin()`, `isAdmin()`, `currentYardId`.
+- **Layout header**: show current yard name next to the user. Super-admin sees "All Yards" plus a yard switcher dropdown that filters their view.
+- **Routing / nav**:
+  - Super-admin only: `/admin/yards` (create yards, list yards, create yard's first admin).
+  - Yard admin: existing admin pages (Import, Port Data, Accounting, Users) — scoped to their yard automatically by RLS.
+  - User: existing operator pages.
+- **Auth page**: remove public sign-up. Login only. Account creation is done by super-admin (creates yard admins) and yard admins (create users in their yard).
+- **New page `Yards` (super-admin)**: create yard (name + code), list yards, "Create yard admin" button (username, password, full name → calls signup with `yard_id` + role=admin in metadata).
+- **UserManagement**: yard admins see only users in their yard, and the "Create user" form auto-assigns the new user to their yard. Super-admin sees everyone.
+- **All data queries** stay the same — RLS does the filtering. We just remove any client-side role checks that don't account for super_admin and add `yard_id` to all `INSERT` payloads.
+
+## Out of scope (this pass)
+
+- Per-yard branding / theming.
+- Cross-yard reporting dashboards for super-admin (basic list only for now).
+- Billing / subscription per yard.
+
+## Order of execution
+
+1. SQL migration (wipe + schema + RLS + trigger update).
+2. Update `AuthContext`, `ProtectedRoute`, `Layout` for super_admin + yard awareness.
+3. Add `Yards` page + super-admin nav.
+4. Update `UserManagement` for yard-scoped user creation.
+5. Update every data-insert call site to include `yard_id`.
+6. Remove sign-up UI from `Auth` page.
+7. Manually create the first super-admin account (instructions provided).
