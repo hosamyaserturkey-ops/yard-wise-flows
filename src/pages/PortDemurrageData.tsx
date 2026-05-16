@@ -168,6 +168,12 @@ const PortDemurrageData = () => {
     setImportResults(null);
 
     try {
+      const yardId = currentYardId();
+      if (!yardId) {
+        toast({ title: "Error", description: "No yard assigned to your account", variant: "destructive" });
+        setImporting(false);
+        return;
+      }
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -184,6 +190,7 @@ const PortDemurrageData = () => {
           free_days: number;
           daily_demurrage: number;
           last_source: "excel";
+          yard_id: string;
         }
       >();
 
