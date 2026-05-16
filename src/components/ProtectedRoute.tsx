@@ -7,13 +7,14 @@ import { toast } from "sonner";
 interface ProtectedRouteProps {
   children: React.ReactNode;
   adminOnly?: boolean;
+  superAdminOnly?: boolean;
 }
 
-const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) => {
-  const { user, isAdmin, loading } = useAuth();
+const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false }: ProtectedRouteProps) => {
+  const { user, isAdmin, isSuperAdmin, loading } = useAuth();
   const notified = useRef(false);
 
-  const denied = !loading && user && adminOnly && !isAdmin();
+  const denied = !loading && user && ((superAdminOnly && !isSuperAdmin()) || (adminOnly && !isAdmin()));
 
   useEffect(() => {
     if (denied && !notified.current) {
