@@ -261,6 +261,12 @@ const GateIn = () => {
       }
 
       // Upsert port data for demurrage tracking
+      const yardIdForPort = currentYardId();
+      if (!yardIdForPort) {
+        toast({ title: "Error", description: "No yard assigned", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
       await supabase
         .from('container_port_data')
         .upsert({
@@ -270,6 +276,7 @@ const GateIn = () => {
           free_days: parseInt(formData.freeDays),
           daily_demurrage: parseFloat(formData.dailyDemurrage),
           last_source: portDataFound ? 'gate-in' : 'gate-in-manual',
+          yard_id: yardIdForPort,
         }, { onConflict: 'container_number' });
 
       // No demurrage (or already paid) — proceed directly
