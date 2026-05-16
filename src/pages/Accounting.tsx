@@ -46,7 +46,7 @@ interface TransferRow {
 }
 
 const Accounting = () => {
-  const { user } = useAuth();
+  const { user, currentYardId } = useAuth();
   const { toast } = useToast();
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [transfers, setTransfers] = useState<TransferRow[]>([]);
