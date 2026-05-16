@@ -24,7 +24,7 @@ export default function Bookings() {
     customer_name: "",
     total_containers: 1,
   });
-  const { user } = useAuth();
+  const { user, currentYardId } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
