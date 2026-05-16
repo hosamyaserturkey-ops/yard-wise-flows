@@ -32,7 +32,7 @@ interface InsertedContainerRow {
 }
 
 const GateIn = () => {
-  const { user } = useAuth();
+  const { user, currentYardId } = useAuth();
   const { toast } = useToast();
   const [formData, setFormData] = useState<GateInData>({
     containerNumber: "",
@@ -261,6 +261,12 @@ const GateIn = () => {
       }
 
       // Upsert port data for demurrage tracking
+      const yardIdForPort = currentYardId();
+      if (!yardIdForPort) {
+        toast({ title: "Error", description: "No yard assigned", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
       await supabase
         .from('container_port_data')
         .upsert({
@@ -270,6 +276,7 @@ const GateIn = () => {
           free_days: parseInt(formData.freeDays),
           daily_demurrage: parseFloat(formData.dailyDemurrage),
           last_source: portDataFound ? 'gate-in' : 'gate-in-manual',
+          yard_id: yardIdForPort,
         }, { onConflict: 'container_number' });
 
       // No demurrage (or already paid) — proceed directly
@@ -304,6 +311,8 @@ const GateIn = () => {
       return;
     }
 
+    const yardId = currentYardId();
+    if (!yardId) throw new Error("No yard assigned to your account");
     const { data, error } = await supabase
       .from('containers')
       .insert({
@@ -313,6 +322,7 @@ const GateIn = () => {
         driver_name: formData.driverName,
         truck_number: formData.truckNumber,
         created_by: user!.id,
+        yard_id: yardId,
       })
       .select()
       .single();
@@ -726,6 +736,8 @@ const GateIn = () => {
           setDemurrageDialog(prev => ({ ...prev, open: false }));
           setIsSubmitting(true);
           try {
+            const yardIdPay = currentYardId();
+            if (!yardIdPay) throw new Error("No yard assigned to your account");
             const { data: paymentRecord, error: paymentError } = await supabase
               .from('demurrage_payments')
               .insert({
@@ -740,6 +752,7 @@ const GateIn = () => {
                 yard_share: YARD_SHARE,
                 shipping_line_share: SHIPPING_LINE_SHARE,
                 payment_method: paymentMethod,
+                yard_id: yardIdPay,
               })
               .select()
               .single();

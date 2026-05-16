@@ -24,7 +24,7 @@ export default function Bookings() {
     customer_name: "",
     total_containers: 1,
   });
-  const { user } = useAuth();
+  const { user, currentYardId } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -76,11 +76,18 @@ export default function Bookings() {
 
     setCreating(true);
     try {
+      const yardId = currentYardId();
+      if (!yardId) {
+        toast({ title: "Error", description: "No yard assigned to your account", variant: "destructive" });
+        setCreating(false);
+        return;
+      }
       const { error } = await supabase
         .from("bookings")
         .insert({
           ...formData,
           created_by: user.id,
+          yard_id: yardId,
         });
 
       if (error) throw error;

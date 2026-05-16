@@ -3,12 +3,16 @@ import type { AuthError } from "@supabase/supabase-js";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+type AppRole = 'super_admin' | 'admin' | 'user';
+
 interface Profile {
   id: string;
   user_id: string;
   full_name: string | null;
   username: string | null;
-  role: 'admin' | 'user';
+  role: AppRole;
+  yard_id: string | null;
+  yard_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,21 +23,19 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   signIn: (username: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (username: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   isAdmin: () => boolean;
+  isSuperAdmin: () => boolean;
+  currentYardId: () => string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Convert username to a deterministic internal email
 const usernameToEmail = (username: string) => `${username.toLowerCase()}@containeryard.app`;
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
 
@@ -47,54 +49,63 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, user_id, full_name, username, created_at, updated_at')
+        .select('id, user_id, full_name, username, yard_id, created_at, updated_at')
         .eq('user_id', userId)
         .single();
-
       if (error) throw error;
 
-      const { data: roleData, error: roleError } = await supabase
+      const { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
+        .order('role', { ascending: true })
         .limit(1)
         .maybeSingle();
 
-      if (roleError) throw roleError;
+      // If user has multiple roles, prefer super_admin > admin > user
+      const { data: allRoles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
+      const roles = (allRoles || []).map((r) => r.role as AppRole);
+      let role: AppRole = 'user';
+      if (roles.includes('super_admin')) role = 'super_admin';
+      else if (roles.includes('admin')) role = 'admin';
+      else if (roleData?.role) role = roleData.role as AppRole;
 
-      const role = (roleData?.role as 'admin' | 'user') || 'user';
-      setProfile({ ...data, role } as Profile);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+      let yard_name: string | null = null;
+      if (data.yard_id) {
+        const { data: yard } = await supabase
+          .from('yards')
+          .select('name')
+          .eq('id', data.yard_id)
+          .maybeSingle();
+        yard_name = yard?.name ?? null;
+      }
+
+      setProfile({ ...data, role, yard_name } as Profile);
+    } catch (e) {
+      console.error('Error fetching profile:', e);
       setProfile(null);
     }
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-        }
-        
-        setLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        setTimeout(() => fetchProfile(session.user.id), 0);
+      } else {
+        setProfile(null);
       }
-    );
+      setLoading(false);
+    });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
+      if (session?.user) fetchProfile(session.user.id);
       setLoading(false);
     });
 
@@ -102,26 +113,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signIn = async (username: string, password: string) => {
-    const email = usernameToEmail(username);
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: usernameToEmail(username),
       password,
-    });
-    return { error };
-  };
-
-  const signUp = async (username: string, password: string, fullName: string) => {
-    const email = usernameToEmail(username);
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          username: username.toLowerCase(),
-        },
-      },
     });
     return { error };
   };
@@ -130,20 +124,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await supabase.auth.signOut();
   };
 
-  const isAdmin = () => {
-    return profile?.role === 'admin';
-  };
+  const isSuperAdmin = () => profile?.role === 'super_admin';
+  const isAdmin = () => profile?.role === 'admin' || profile?.role === 'super_admin';
+  const currentYardId = () => profile?.yard_id ?? null;
 
-  const value = {
-    user,
-    session,
-    profile,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-    isAdmin,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{ user, session, profile, loading, signIn, signOut, isAdmin, isSuperAdmin, currentYardId }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };

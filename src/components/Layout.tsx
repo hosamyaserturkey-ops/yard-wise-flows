@@ -1,6 +1,5 @@
-import { ReactNode } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { Container, Ship, FileText, BarChart3, LogOut, Crown, Upload, Calendar, Anchor, Calculator, Users } from "lucide-react";
+import { Container, Ship, FileText, BarChart3, LogOut, Crown, Upload, Calendar, Anchor, Calculator, Users, Building2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -8,21 +7,28 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const Layout = () => {
   const location = useLocation();
-  const { user, profile, signOut, isAdmin } = useAuth();
+  const { user, profile, signOut, isAdmin, isSuperAdmin } = useAuth();
   const admin = isAdmin();
+  const superAdmin = isSuperAdmin();
 
   const baseItems = [
-    { href: "/", label: "Dashboard", icon: BarChart3, adminOnly: false },
-    { href: "/gate-in", label: "Gate In", icon: Container, adminOnly: false },
-    { href: "/gate-out", label: "Gate Out", icon: Ship, adminOnly: false },
-    { href: "/reports", label: "Reports", icon: FileText, adminOnly: false },
-    { href: "/bookings", label: "Bookings", icon: Calendar, adminOnly: false },
-    { href: "/import", label: "Import", icon: Upload, adminOnly: true },
-    { href: "/port-data", label: "Port Data", icon: Anchor, adminOnly: true },
-    { href: "/accounting", label: "Accounting", icon: Calculator, adminOnly: true },
-    { href: "/admin/users", label: "Users", icon: Users, adminOnly: true },
+    { href: "/", label: "Dashboard", icon: BarChart3, adminOnly: false, superOnly: false },
+    { href: "/gate-in", label: "Gate In", icon: Container, adminOnly: false, superOnly: false },
+    { href: "/gate-out", label: "Gate Out", icon: Ship, adminOnly: false, superOnly: false },
+    { href: "/reports", label: "Reports", icon: FileText, adminOnly: false, superOnly: false },
+    { href: "/bookings", label: "Bookings", icon: Calendar, adminOnly: false, superOnly: false },
+    { href: "/import", label: "Import", icon: Upload, adminOnly: true, superOnly: false },
+    { href: "/port-data", label: "Port Data", icon: Anchor, adminOnly: true, superOnly: false },
+    { href: "/accounting", label: "Accounting", icon: Calculator, adminOnly: true, superOnly: false },
+    { href: "/admin/users", label: "Users", icon: Users, adminOnly: true, superOnly: false },
+    { href: "/admin/yards", label: "Yards", icon: Building2, adminOnly: false, superOnly: true },
   ];
-  const navigationItems = baseItems.filter((i) => !i.adminOnly || admin);
+  const navigationItems = baseItems.filter((i) => {
+    if (i.superOnly) return superAdmin;
+    if (i.adminOnly) return admin;
+    // Hide operator nav items from super_admin (they have no yard context)
+    return !superAdmin;
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -64,17 +70,24 @@ const Layout = () => {
 
               {user && (
                 <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-white/80 drop-shadow-sm">
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm text-white drop-shadow-sm">
                       {profile?.full_name || user.email}
                     </span>
-                    {profile?.role === 'admin' && (
-                      <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/30 backdrop-blur-sm">
-                        <Crown className="h-3 w-3 mr-1" />
-                        Admin
-                      </Badge>
-                    )}
+                    <span className="text-xs text-white/70 drop-shadow-sm">
+                      {superAdmin ? "Super Admin" : profile?.yard_name ? `Yard: ${profile.yard_name}` : "No yard"}
+                    </span>
                   </div>
+                  {superAdmin && (
+                    <Badge variant="secondary" className="bg-warning/30 text-white border-warning/40 backdrop-blur-sm">
+                      <ShieldCheck className="h-3 w-3 mr-1" /> Super
+                    </Badge>
+                  )}
+                  {!superAdmin && profile?.role === 'admin' && (
+                    <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/30 backdrop-blur-sm">
+                      <Crown className="h-3 w-3 mr-1" /> Admin
+                    </Badge>
+                  )}
                   <Button 
                     variant="outline" 
                     size="sm"

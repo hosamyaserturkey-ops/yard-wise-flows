@@ -17,6 +17,7 @@ import BookingDetail from "./pages/BookingDetail";
 import PortDemurrageData from "./pages/PortDemurrageData";
 import Accounting from "./pages/Accounting";
 import UserManagement from "./pages/UserManagement";
+import Yards from "./pages/Yards";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -74,6 +75,11 @@ const App = () => (
               <Route path="admin/users" element={
                 <ProtectedRoute adminOnly>
                   <UserManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="admin/yards" element={
+                <ProtectedRoute superAdminOnly>
+                  <Yards />
                 </ProtectedRoute>
               } />
               <Route path="bookings/:bookingId" element={

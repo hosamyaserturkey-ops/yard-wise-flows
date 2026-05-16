@@ -91,7 +91,7 @@ const portDataSchema = z.object({
 });
 
 const PortDemurrageData = () => {
-  const { user } = useAuth();
+  const { user, currentYardId } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -130,6 +130,12 @@ const PortDemurrageData = () => {
 
     setIsSubmitting(true);
     try {
+      const yardId = currentYardId();
+      if (!yardId) {
+        toast({ title: "Error", description: "No yard assigned to your account", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
       const { error } = await supabase.from("container_port_data").upsert(
         {
           container_number: result.data.containerNumber,
@@ -138,6 +144,7 @@ const PortDemurrageData = () => {
           free_days: result.data.freeDays,
           daily_demurrage: result.data.dailyDemurrage,
           last_source: "manual",
+          yard_id: yardId,
         },
         { onConflict: "container_number" }
       );
@@ -161,6 +168,12 @@ const PortDemurrageData = () => {
     setImportResults(null);
 
     try {
+      const yardId = currentYardId();
+      if (!yardId) {
+        toast({ title: "Error", description: "No yard assigned to your account", variant: "destructive" });
+        setImporting(false);
+        return;
+      }
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -177,6 +190,7 @@ const PortDemurrageData = () => {
           free_days: number;
           daily_demurrage: number;
           last_source: "excel";
+          yard_id: string;
         }
       >();
 
@@ -221,6 +235,7 @@ const PortDemurrageData = () => {
             free_days: Number.isNaN(freeDays) ? 7 : freeDays,
             daily_demurrage: dailyDemurrage,
             last_source: "excel",
+            yard_id: yardId,
           });
         } catch (err: unknown) {
           errors.push(`${rowLabel}: ${getErrorMessage(err, "Unknown row error")}`);

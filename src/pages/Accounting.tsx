@@ -46,7 +46,7 @@ interface TransferRow {
 }
 
 const Accounting = () => {
-  const { user } = useAuth();
+  const { user, currentYardId } = useAuth();
   const { toast } = useToast();
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [transfers, setTransfers] = useState<TransferRow[]>([]);
@@ -128,6 +128,8 @@ const Accounting = () => {
         .getPublicUrl(filePath);
 
       // Insert transfer record
+      const yardId = currentYardId();
+      if (!yardId) throw new Error("No yard assigned to your account");
       const { error: insertError } = await supabase
         .from("shipping_line_transfers")
         .insert({
@@ -135,6 +137,7 @@ const Accounting = () => {
           amount_transferred: transferDialog.amount,
           transferred_by: user.id,
           receipt_url: urlData.publicUrl,
+          yard_id: yardId,
         });
 
       if (insertError) throw insertError;

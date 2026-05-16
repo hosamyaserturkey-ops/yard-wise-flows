@@ -25,6 +25,7 @@ export type Database = {
           status: string
           total_containers: number
           updated_at: string
+          yard_id: string
         }
         Insert: {
           booking_number: string
@@ -36,6 +37,7 @@ export type Database = {
           status?: string
           total_containers: number
           updated_at?: string
+          yard_id: string
         }
         Update: {
           booking_number?: string
@@ -47,8 +49,17 @@ export type Database = {
           status?: string
           total_containers?: number
           updated_at?: string
+          yard_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bookings_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       container_port_data: {
         Row: {
@@ -61,6 +72,7 @@ export type Database = {
           port_arrival_date: string
           shipping_line: string
           updated_at: string
+          yard_id: string
         }
         Insert: {
           container_number: string
@@ -72,6 +84,7 @@ export type Database = {
           port_arrival_date: string
           shipping_line: string
           updated_at?: string
+          yard_id: string
         }
         Update: {
           container_number?: string
@@ -83,8 +96,17 @@ export type Database = {
           port_arrival_date?: string
           shipping_line?: string
           updated_at?: string
+          yard_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "container_port_data_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       containers: {
         Row: {
@@ -106,6 +128,7 @@ export type Database = {
           status: Database["public"]["Enums"]["container_status"]
           truck_number: string
           updated_at: string
+          yard_id: string
         }
         Insert: {
           booking_id?: string | null
@@ -126,6 +149,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["container_status"]
           truck_number: string
           updated_at?: string
+          yard_id: string
         }
         Update: {
           booking_id?: string | null
@@ -146,6 +170,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["container_status"]
           truck_number?: string
           updated_at?: string
+          yard_id?: string
         }
         Relationships: [
           {
@@ -153,6 +178,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "containers_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
             referencedColumns: ["id"]
           },
         ]
@@ -172,6 +204,7 @@ export type Database = {
           shipping_line_share: number
           total_collected: number
           transferred: boolean
+          yard_id: string
           yard_share: number
         }
         Insert: {
@@ -188,6 +221,7 @@ export type Database = {
           shipping_line_share?: number
           total_collected: number
           transferred?: boolean
+          yard_id: string
           yard_share?: number
         }
         Update: {
@@ -204,9 +238,18 @@ export type Database = {
           shipping_line_share?: number
           total_collected?: number
           transferred?: boolean
+          yard_id?: string
           yard_share?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "demurrage_payments_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       edi_transmissions: {
         Row: {
@@ -221,6 +264,7 @@ export type Database = {
           sent_at: string | null
           status: string | null
           transaction_type: string
+          yard_id: string
         }
         Insert: {
           ack_received_at?: string | null
@@ -234,6 +278,7 @@ export type Database = {
           sent_at?: string | null
           status?: string | null
           transaction_type: string
+          yard_id: string
         }
         Update: {
           ack_received_at?: string | null
@@ -247,8 +292,17 @@ export type Database = {
           sent_at?: string | null
           status?: string | null
           transaction_type?: string
+          yard_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "edi_transmissions_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -259,6 +313,7 @@ export type Database = {
           updated_at: string
           user_id: string
           username: string | null
+          yard_id: string | null
         }
         Insert: {
           created_at?: string
@@ -268,6 +323,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           username?: string | null
+          yard_id?: string | null
         }
         Update: {
           created_at?: string
@@ -277,8 +333,17 @@ export type Database = {
           updated_at?: string
           user_id?: string
           username?: string | null
+          yard_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       shipping_line_transfers: {
         Row: {
@@ -289,6 +354,7 @@ export type Database = {
           shipping_line: string
           transferred_at: string
           transferred_by: string
+          yard_id: string
         }
         Insert: {
           amount_transferred: number
@@ -298,6 +364,7 @@ export type Database = {
           shipping_line: string
           transferred_at?: string
           transferred_by: string
+          yard_id: string
         }
         Update: {
           amount_transferred?: number
@@ -307,8 +374,17 @@ export type Database = {
           shipping_line?: string
           transferred_at?: string
           transferred_by?: string
+          yard_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shipping_line_transfers_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -325,6 +401,33 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      yards: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -365,6 +468,7 @@ export type Database = {
       }
     }
     Functions: {
+      current_yard_id: { Args: never; Returns: string }
       get_user_role: {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -380,6 +484,8 @@ export type Database = {
         Args: { booking_num: string }
         Returns: undefined
       }
+      is_super_admin: { Args: { _uid: string }; Returns: boolean }
+      is_yard_admin: { Args: { _uid: string; _yard: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user" | "super_admin"
