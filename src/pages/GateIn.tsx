@@ -204,7 +204,14 @@ const GateIn = () => {
       return;
     }
 
-    const result = gateInSchema.safeParse(formData);
+    // dailyDemurrage is no longer collected from the user — supply a placeholder
+    // so the existing schema (which still requires it) keeps passing.
+    const dataForValidation = {
+      ...formData,
+      freeDays: formData.freeDays || "0",
+      dailyDemurrage: "0",
+    };
+    const result = gateInSchema.safeParse(dataForValidation);
     if (!result.success) {
       const firstError = result.error.errors[0];
       toast({
@@ -215,10 +222,19 @@ const GateIn = () => {
       return;
     }
 
-    if (!formData.portArrivalDate || !formData.freeDays || !formData.dailyDemurrage) {
+    if (!formData.portArrivalDate) {
       toast({
-        title: "Port Data Required",
-        description: "Enter port arrival date, free days, and daily rate.",
+        title: "Port Arrival Date Required",
+        description: "Enter the port arrival date before gating in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (portArrivalIsFuture) {
+      toast({
+        title: "Invalid Port Arrival Date",
+        description: "Port arrival date cannot be in the future.",
         variant: "destructive",
       });
       return;
@@ -249,41 +265,21 @@ const GateIn = () => {
         return;
       }
 
-      // 2) Demurrage check BEFORE gate-in — but skip entirely if a payment
-      //    has already been collected for this container (since the last
-      //    gate-out, or ever if it has never been gated out).
-      if (!demurrageAlreadyPaid) {
-        const { data: demurrageRow, error: demurrageError } = await supabase
-          .from("container_demurrage")
-          .select("*")
-          .eq("container_number", containerNumber)
-          .maybeSingle();
-
-        if (demurrageError) {
-          console.error("Error checking demurrage:", demurrageError);
-          toast({
-            title: "Demurrage Check Failed",
-            description: "Could not verify demurrage. Please try again or check port data.",
-            variant: "destructive",
-          });
-          setIsSubmitting(false);
-          return;
-        }
-
-        if (demurrageRow) {
-          const { chargeable_days, demurrage_amount } = demurrageRow as DemurrageRow;
-          if (chargeable_days > 0) {
-            // Show styled dialog — pause submission until cash is collected
-            setDemurrageDialog({
-              open: true,
-              chargeableDays: chargeable_days,
-              demurrageAmount: demurrage_amount,
-              containerNumber,
-            });
-            setIsSubmitting(false);
-            return;
-          }
-        }
+      // 2) Demurrage check BEFORE gate-in using the new tiered calculation,
+      //    skipped if already paid since the last gate-out.
+      if (!demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0) {
+        const chargeableDays = Math.max(
+          0,
+          demurragePreview.daysElapsed - demurragePreview.freeDays,
+        );
+        setDemurrageDialog({
+          open: true,
+          chargeableDays,
+          demurrageAmount: demurragePreview.totalJOD,
+          containerNumber,
+        });
+        setIsSubmitting(false);
+        return;
       }
 
       // Upsert port data for demurrage tracking
@@ -299,11 +295,12 @@ const GateIn = () => {
           container_number: containerNumber,
           shipping_line: formData.shippingLine,
           port_arrival_date: formData.portArrivalDate,
-          free_days: parseInt(formData.freeDays),
-          daily_demurrage: parseFloat(formData.dailyDemurrage),
+          free_days: parseInt(formData.freeDays || "0"),
+          daily_demurrage: 0,
           last_source: portDataFound ? 'gate-in' : 'gate-in-manual',
           yard_id: yardIdForPort,
         }, { onConflict: 'container_number' });
+
 
       // No demurrage (or already paid) — proceed directly
       await insertContainer(containerNumber);
