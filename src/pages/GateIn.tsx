@@ -736,6 +736,8 @@ const GateIn = () => {
           setDemurrageDialog(prev => ({ ...prev, open: false }));
           setIsSubmitting(true);
           try {
+            const yardIdPay = currentYardId();
+            if (!yardIdPay) throw new Error("No yard assigned to your account");
             const { data: paymentRecord, error: paymentError } = await supabase
               .from('demurrage_payments')
               .insert({
@@ -750,6 +752,7 @@ const GateIn = () => {
                 yard_share: YARD_SHARE,
                 shipping_line_share: SHIPPING_LINE_SHARE,
                 payment_method: paymentMethod,
+                yard_id: yardIdPay,
               })
               .select()
               .single();
