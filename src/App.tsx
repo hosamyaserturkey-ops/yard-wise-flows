@@ -77,6 +77,11 @@ const App = () => (
                   <UserManagement />
                 </ProtectedRoute>
               } />
+              <Route path="admin/yards" element={
+                <ProtectedRoute superAdminOnly>
+                  <Yards />
+                </ProtectedRoute>
+              } />
               <Route path="bookings/:bookingId" element={
                 <ProtectedRoute>
                   <BookingDetail />
