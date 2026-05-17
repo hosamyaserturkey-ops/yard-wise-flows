@@ -8,7 +8,7 @@ import { Ship, Search } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { gateOutSchema } from "@/lib/validation";
 import bgGateOut from "@/assets/bg-gate-out.jpg";
 

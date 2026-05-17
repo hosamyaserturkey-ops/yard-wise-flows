@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 

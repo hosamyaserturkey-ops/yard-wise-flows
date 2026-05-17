@@ -1,43 +1,8 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import type { AuthError } from "@supabase/supabase-js";
-import { User, Session } from "@supabase/supabase-js";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-
-type AppRole = 'super_admin' | 'admin' | 'user';
-
-interface Profile {
-  id: string;
-  user_id: string;
-  full_name: string | null;
-  username: string | null;
-  role: AppRole;
-  yard_id: string | null;
-  yard_name: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  profile: Profile | null;
-  loading: boolean;
-  signIn: (username: string, password: string) => Promise<{ error: AuthError | null }>;
-  signOut: () => Promise<void>;
-  isAdmin: () => boolean;
-  isSuperAdmin: () => boolean;
-  currentYardId: () => string | null;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const usernameToEmail = (username: string) => `${username.toLowerCase()}@containeryard.app`;
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
-  return context;
-};
+import { AuthContext, type AppRole, type Profile } from "@/hooks/useAuth";
+import { usernameToEmail } from "@/lib/auth-utils";
+import type { User, Session } from "@supabase/supabase-js";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -62,7 +27,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .limit(1)
         .maybeSingle();
 
-      // If user has multiple roles, prefer super_admin > admin > user
       const { data: allRoles } = await supabase
         .from('user_roles')
         .select('role')
