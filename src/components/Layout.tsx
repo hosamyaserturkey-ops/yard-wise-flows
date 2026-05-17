@@ -3,7 +3,7 @@ import { Container, Ship, FileText, BarChart3, LogOut, Crown, Upload, Calendar, 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 const Layout = () => {
   const location = useLocation();

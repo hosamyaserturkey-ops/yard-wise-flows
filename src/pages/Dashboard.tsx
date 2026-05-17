@@ -7,7 +7,7 @@ import { Container, Ship, Clock, Users, Calendar } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import ReserveContainerDialog from "@/components/ReserveContainerDialog";
 import bgDashboard from "@/assets/bg-dashboard.jpg";
 

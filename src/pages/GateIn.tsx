@@ -9,7 +9,7 @@ import { Container, AlertTriangle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { GateInData } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { gateInSchema } from "@/lib/validation";
 import bgGateIn from "@/assets/bg-gate-in.jpg";
 import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,13 +21,7 @@ export default function BookingDetail() {
   const [availableContainers, setAvailableContainers] = useState<Container[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (bookingId) {
-      fetchBookingDetails();
-    }
-  }, [bookingId]);
-
-  const fetchBookingDetails = async () => {
+  const fetchBookingDetails = useCallback(async () => {
     try {
       // Fetch booking details
       const { data: bookingData, error: bookingError } = await supabase
@@ -100,7 +94,14 @@ export default function BookingDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookingId, toast]);
+
+  useEffect(() => {
+    if (bookingId) {
+      fetchBookingDetails();
+    }
+  }, [bookingId, fetchBookingDetails]);
+
 
   const handleAssignContainer = async (containerId: string) => {
     if (!booking) return;
