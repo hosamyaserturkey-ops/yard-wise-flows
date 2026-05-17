@@ -94,7 +94,14 @@ export default function BookingDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookingId, toast]);
+
+  useEffect(() => {
+    if (bookingId) {
+      fetchBookingDetails();
+    }
+  }, [bookingId, fetchBookingDetails]);
+
 
   const handleAssignContainer = async (containerId: string) => {
     if (!booking) return;
