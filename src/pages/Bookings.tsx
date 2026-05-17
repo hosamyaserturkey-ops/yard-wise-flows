@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,11 +27,7 @@ export default function Bookings() {
   const { user, currentYardId } = useAuth();
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
-
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("bookings")
@@ -56,7 +52,12 @@ export default function Bookings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchBookings();
+  }, [fetchBookings]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

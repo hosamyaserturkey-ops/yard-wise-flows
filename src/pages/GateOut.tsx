@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,11 +26,7 @@ const GateOut = () => {
   const [loading, setLoading] = useState(true);
 
   // Fetch containers in yard
-  useEffect(() => {
-    fetchContainers();
-  }, []);
-
-  const fetchContainers = async () => {
+  const fetchContainers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('containers')
@@ -65,7 +61,12 @@ const GateOut = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchContainers();
+  }, [fetchContainers]);
+
 
   const filteredContainers = containers.filter(container =>
     container.containerNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
