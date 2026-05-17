@@ -27,7 +27,7 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data: profiles, error: pErr } = await supabase
@@ -42,11 +42,11 @@ const UserManagement = () => {
       if (rErr) throw rErr;
 
       const roleMap = new Map<string, AppRole>(
-        (roles || []).map((r: any) => [r.user_id, r.role as AppRole])
+        (roles || []).map((r: { user_id: string; role: AppRole }) => [r.user_id, r.role])
       );
 
       setRows(
-        (profiles || []).map((p: any) => ({
+        (profiles || []).map((p: { user_id: string; full_name: string | null; username: string | null; created_at: string }) => ({
           user_id: p.user_id,
           full_name: p.full_name,
           username: p.username,
@@ -54,21 +54,21 @@ const UserManagement = () => {
           role: roleMap.get(p.user_id) || "user",
         }))
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       toast({
         title: "Failed to load users",
-        description: e.message || "Unknown error",
+        description: e instanceof Error ? e.message : "Unknown error",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const toggleRole = async (row: UserRow) => {
     const newRole: AppRole = row.role === "admin" ? "user" : "admin";
@@ -101,11 +101,11 @@ const UserManagement = () => {
         title: "Role updated",
         description: `${row.username || row.full_name || "User"} is now ${newRole}`,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       toast({
         title: "Failed to update role",
-        description: e.message || "Unknown error",
+        description: e instanceof Error ? e.message : "Unknown error",
         variant: "destructive",
       });
     } finally {
