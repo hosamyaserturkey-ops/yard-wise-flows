@@ -1,5 +1,5 @@
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { Container, Ship, FileText, BarChart3, LogOut, Crown, Upload, Calendar, Anchor, Calculator, Users, Building2, ShieldCheck } from "lucide-react";
+import { Container, Ship, FileText, BarChart3, LogOut, Crown, Upload, Calendar, Anchor, Calculator, Users, Building2, ShieldCheck, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -7,27 +7,30 @@ import { useAuth } from "@/hooks/useAuth";
 
 const Layout = () => {
   const location = useLocation();
-  const { user, profile, signOut, isAdmin, isSuperAdmin } = useAuth();
+  const { user, profile, signOut, isAdmin, isSuperAdmin, isInspector } = useAuth();
   const admin = isAdmin();
   const superAdmin = isSuperAdmin();
+  const inspector = isInspector();
 
   const baseItems = [
-    { href: "/", label: "Dashboard", icon: BarChart3, adminOnly: false, superOnly: false },
-    { href: "/gate-in", label: "Gate In", icon: Container, adminOnly: false, superOnly: false },
-    { href: "/gate-out", label: "Gate Out", icon: Ship, adminOnly: false, superOnly: false },
-    { href: "/reports", label: "Reports", icon: FileText, adminOnly: false, superOnly: false },
-    { href: "/bookings", label: "Bookings", icon: Calendar, adminOnly: false, superOnly: false },
-    { href: "/import", label: "Import", icon: Upload, adminOnly: true, superOnly: false },
-    { href: "/port-data", label: "Port Data", icon: Anchor, adminOnly: true, superOnly: false },
-    { href: "/accounting", label: "Accounting", icon: Calculator, adminOnly: true, superOnly: false },
-    { href: "/admin/users", label: "Users", icon: Users, adminOnly: true, superOnly: false },
-    { href: "/admin/yards", label: "Yards", icon: Building2, adminOnly: false, superOnly: true },
+    { href: "/", label: "Dashboard", icon: BarChart3, adminOnly: false, superOnly: false, inspectorLink: false },
+    { href: "/gate-in", label: "Gate In", icon: Container, adminOnly: false, superOnly: false, inspectorLink: false },
+    { href: "/gate-out", label: "Gate Out", icon: Ship, adminOnly: false, superOnly: false, inspectorLink: false },
+    { href: "/reports", label: "Reports", icon: FileText, adminOnly: false, superOnly: false, inspectorLink: false },
+    { href: "/bookings", label: "Bookings", icon: Calendar, adminOnly: false, superOnly: false, inspectorLink: false },
+    { href: "/import", label: "Import", icon: Upload, adminOnly: true, superOnly: false, inspectorLink: false },
+    { href: "/port-data", label: "Port Data", icon: Anchor, adminOnly: true, superOnly: false, inspectorLink: false },
+    { href: "/accounting", label: "Accounting", icon: Calculator, adminOnly: true, superOnly: false, inspectorLink: false },
+    { href: "/admin/users", label: "Users", icon: Users, adminOnly: true, superOnly: false, inspectorLink: false },
+    { href: "/admin/yards", label: "Yards", icon: Building2, adminOnly: false, superOnly: true, inspectorLink: false },
+    { href: "/inspector", label: "Inspect", icon: ClipboardCheck, adminOnly: false, superOnly: false, inspectorLink: true },
   ];
   const navigationItems = baseItems.filter((i) => {
     if (i.superOnly) return superAdmin;
+    if (i.inspectorLink) return inspector || admin || superAdmin;
     if (i.adminOnly) return admin;
-    // Hide operator nav items from super_admin (they have no yard context)
-    return !superAdmin;
+    // Hide operator nav items from super_admin and pure inspectors
+    return !superAdmin && !inspector;
   });
 
   return (
@@ -86,6 +89,11 @@ const Layout = () => {
                   {!superAdmin && profile?.role === 'admin' && (
                     <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/30 backdrop-blur-sm">
                       <Crown className="h-3 w-3 mr-1" /> Admin
+                    </Badge>
+                  )}
+                  {profile?.role === 'inspector' && (
+                    <Badge variant="secondary" className="bg-blue-500/20 text-blue-300 border-blue-400/30 backdrop-blur-sm">
+                      <ClipboardCheck className="h-3 w-3 mr-1" /> Inspector
                     </Badge>
                   )}
                   <Button 

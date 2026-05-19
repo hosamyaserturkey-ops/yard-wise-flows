@@ -24,11 +24,6 @@ import {
   USD_TO_JOD,
 } from "@/lib/demurrage";
 
-interface DemurrageRow {
-  chargeable_days: number;
-  demurrage_amount: number;
-}
-
 interface InsertedContainerRow {
   id: string;
   container_number: string;
@@ -37,6 +32,20 @@ interface InsertedContainerRow {
   driver_name: string;
   truck_number: string;
   gate_in_time: string;
+}
+
+interface DemurragePaymentData {
+  id: string;
+  chargeableDays: number;
+  demurrageAmount: number;
+  serviceFee: number;
+  totalCollected: number;
+  paymentMethod: string;
+}
+
+interface InspectionStatus {
+  status: "approved" | "rejected" | "pending";
+  grade: string;
 }
 
 const GateIn = () => {
@@ -63,6 +72,7 @@ const GateIn = () => {
     demurrageAmount: number;
     containerNumber: string;
   }>({ open: false, chargeableDays: 0, demurrageAmount: 0, containerNumber: "" });
+  const [inspectionStatus, setInspectionStatus] = useState<InspectionStatus | null>(null);
 
   // Debounced lookup of container_port_data when container number changes
   useEffect(() => {
@@ -72,6 +82,7 @@ const GateIn = () => {
       setLookupDone(false);
       setDemurrageAlreadyPaid(false);
       setAlreadyInYard(false);
+      setInspectionStatus(null);
       return;
     }
 
@@ -138,6 +149,20 @@ const GateIn = () => {
       const { data: paymentRow } = await paymentQuery.maybeSingle();
       setDemurrageAlreadyPaid(!!paymentRow);
 
+      // Latest inspection check for this container
+      const { data: inspectionRow } = await supabase
+        .from("inspector_checks")
+        .select("status, grade")
+        .eq("container_number", containerNum)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setInspectionStatus(
+        inspectionRow
+          ? { status: inspectionRow.status as InspectionStatus["status"], grade: inspectionRow.grade }
+          : null
+      );
+
       setLookupDone(true);
     }, 500);
 
@@ -184,6 +209,8 @@ const GateIn = () => {
     !demurrageAlreadyPaid &&
     demurragePreview != null &&
     demurragePreview.totalJOD > 0;
+
+  const isInspectionRejected = inspectionStatus?.status === "rejected";
 
   // Port data is "complete enough" to gate in as long as arrival date is set and not in the future.
   const portDataComplete =
@@ -316,7 +343,7 @@ const GateIn = () => {
     }
   };
 
-  const insertContainer = async (containerNumber: string) => {
+  const insertContainer = async (containerNumber: string, demurragePayment?: DemurragePaymentData) => {
     // Check if container already exists in yard
     const { data: existingContainer } = await supabase
       .from('containers')
@@ -357,7 +384,7 @@ const GateIn = () => {
       description: `Container ${containerNumber} gated in successfully`,
     });
 
-    printReceipt(data);
+    printReceipt(data, demurragePayment);
 
     setFormData({
       containerNumber: "",
@@ -373,9 +400,10 @@ const GateIn = () => {
     setLookupDone(false);
     setDemurrageAlreadyPaid(false);
     setAlreadyInYard(false);
+    setInspectionStatus(null);
   };
 
-  const printReceipt = (containerData: InsertedContainerRow) => {
+  const printReceipt = (containerData: InsertedContainerRow, demurragePayment?: DemurragePaymentData) => {
     const receiptWindow = window.open('', '_blank');
     if (!receiptWindow) {
       toast({
@@ -385,6 +413,20 @@ const GateIn = () => {
       });
       return;
     }
+    const demurrageSection = demurragePayment ? `
+      <div class="section-divider">
+        <span>DEMURRAGE PAYMENT</span>
+      </div>
+      <div class="content">
+        <div class="row"><span class="label">Payment Receipt #</span><span class="value">DM-${demurragePayment.id.substring(0, 8).toUpperCase()}</span></div>
+        <div class="row"><span class="label">Chargeable Days</span><span class="value">${demurragePayment.chargeableDays} day${demurragePayment.chargeableDays !== 1 ? "s" : ""}</span></div>
+        <div class="row"><span class="label">Demurrage Amount</span><span class="value">${demurragePayment.demurrageAmount.toLocaleString()} JOD</span></div>
+        <div class="row"><span class="label">Service Fee</span><span class="value">${demurragePayment.serviceFee} JOD</span></div>
+        <div class="row total"><span class="label">Total Collected</span><span class="value">${demurragePayment.totalCollected.toLocaleString()} JOD</span></div>
+        <div class="row"><span class="label">Payment Method</span><span class="value">${demurragePayment.paymentMethod === "cash" ? "Cash" : "Qlick"}</span></div>
+      </div>
+    ` : "";
+
     receiptWindow.document.write(`
       <html>
         <head>
@@ -392,16 +434,18 @@ const GateIn = () => {
           <style>
             body { font-family: Arial, sans-serif; padding: 24px; max-width: 480px; margin: 0 auto; color: #111; }
             .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 12px; }
-            .header h2 { margin: 0; }
+            .header h2 { margin: 0; font-size: 1.1em; }
             .header h3 { margin: 6px 0; letter-spacing: 1px; }
-            .meta { font-size: 0.85em; color: #555; }
-            .content { margin: 20px 0; }
-            .row { margin: 10px 0; display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding-bottom: 6px; }
-            .label { font-weight: bold; }
-            .value { font-family: 'Courier New', monospace; }
-            .footer { text-align: center; margin-top: 24px; font-size: 0.8em; color: #666; border-top: 1px solid #ccc; padding-top: 10px; }
-            .signatures { display: flex; justify-content: space-between; margin-top: 40px; font-size: 0.85em; }
+            .meta { font-size: 0.85em; color: #555; margin: 3px 0; }
+            .content { margin: 16px 0; }
+            .row { margin: 9px 0; display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding-bottom: 5px; }
+            .label { font-weight: bold; font-size: 0.9em; }
+            .value { font-family: 'Courier New', monospace; font-size: 0.9em; }
+            .total .label, .total .value { font-size: 1em; color: #111; }
+            .section-divider { text-align: center; margin: 18px 0 4px; font-size: 0.8em; font-weight: bold; letter-spacing: 1px; color: #444; border-top: 1px solid #bbb; border-bottom: 1px solid #bbb; padding: 5px 0; }
+            .signatures { display: flex; justify-content: space-between; margin-top: 36px; font-size: 0.85em; }
             .sig { width: 45%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }
+            .footer { text-align: center; margin-top: 20px; font-size: 0.78em; color: #777; border-top: 1px solid #ccc; padding-top: 10px; }
             @media print { body { padding: 0; } }
           </style>
         </head>
@@ -419,6 +463,7 @@ const GateIn = () => {
             <div class="row"><span class="label">Driver Name</span><span class="value">${containerData.driver_name}</span></div>
             <div class="row"><span class="label">Truck Number</span><span class="value">${containerData.truck_number}</span></div>
           </div>
+          ${demurrageSection}
           <div class="signatures">
             <div class="sig">Driver Signature</div>
             <div class="sig">Gate Officer</div>
@@ -437,61 +482,6 @@ const GateIn = () => {
     receiptWindow.document.close();
   };
 
-  const printDemurrageReceipt = (data: {
-    id: string;
-    containerNumber: string;
-    shippingLine: string;
-    chargeableDays: number;
-    demurrageAmount: number;
-    handlingFee: number;
-    totalCollected: number;
-  }) => {
-    const receiptWindow = window.open('', '_blank');
-    if (receiptWindow) {
-      receiptWindow.document.write(`
-        <html>
-          <head>
-            <title>Demurrage Receipt</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
-              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
-              .content { margin: 20px 0; }
-              .row { margin: 8px 0; display: flex; justify-content: space-between; }
-              .label { font-weight: bold; }
-              .total { border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; font-size: 1.2em; }
-              .footer { text-align: center; margin-top: 20px; font-size: 0.85em; color: #666; border-top: 1px solid #ccc; padding-top: 10px; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h2>Container Yard Management</h2>
-              <h3>DEMURRAGE PAYMENT RECEIPT</h3>
-              <p>Receipt #: DM-${data.id.substring(0, 8).toUpperCase()}</p>
-              <p>${new Date().toLocaleString()}</p>
-            </div>
-            <div class="content">
-              <div class="row"><span class="label">Container:</span> <span>${data.containerNumber}</span></div>
-              <div class="row"><span class="label">Shipping Line:</span> <span>${data.shippingLine}</span></div>
-              <div class="row"><span class="label">Chargeable Days:</span> <span>${data.chargeableDays} days</span></div>
-              <div class="row"><span class="label">Demurrage Amount:</span> <span>${data.demurrageAmount.toLocaleString()} JOD</span></div>
-              <div class="row"><span class="label">Handling Fee:</span> <span>${data.handlingFee} JOD</span></div>
-              <div class="row total"><span class="label">Total Collected:</span> <span>${data.totalCollected.toLocaleString()} JOD</span></div>
-            </div>
-            <div class="footer">
-              <p>Payment Method: Cash</p>
-              <p>This receipt confirms demurrage payment has been collected.</p>
-            </div>
-            <script>
-              window.onload = function() {
-                setTimeout(function() { window.print(); }, 200);
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      receiptWindow.document.close();
-    }
-  };
 
   return (
     <div 
@@ -780,6 +770,23 @@ const GateIn = () => {
                 </div>
               )}
 
+              {lookupDone && !alreadyInYard && (
+                <div className={`mt-4 p-3 rounded-md border text-sm ${
+                  inspectionStatus?.status === "approved"
+                    ? "bg-green-50 border-green-300 text-green-700"
+                    : inspectionStatus?.status === "rejected"
+                      ? "bg-red-50 border-red-300 text-red-700"
+                      : inspectionStatus?.status === "pending"
+                        ? "bg-yellow-50 border-yellow-300 text-yellow-800"
+                        : "bg-gray-50 border-gray-200 text-gray-500"
+                }`}>
+                  {!inspectionStatus && "ℹ️ No inspection record found for this container."}
+                  {inspectionStatus?.status === "approved" && `✅ Inspection Approved — Grade ${inspectionStatus.grade}`}
+                  {inspectionStatus?.status === "pending"  && "⏳ Inspection Pending — awaiting inspector decision."}
+                  {inspectionStatus?.status === "rejected" && "❌ Inspection Rejected — this container cannot be gated in."}
+                </div>
+              )}
+
               {!alreadyInYard && demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0 && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
                   ✅ Demurrage already paid for this container — no further collection required.
@@ -843,26 +850,29 @@ const GateIn = () => {
                   setLookupDone(false);
                   setDemurrageAlreadyPaid(false);
                   setAlreadyInYard(false);
+                  setInspectionStatus(null);
                 }}
               >
                 Clear Form
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !portDataComplete}
+                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !portDataComplete || isInspectionRejected}
               >
                 {isSubmitting
                   ? "Processing..."
                   : alreadyInYard
                     ? "Already In Yard — Cannot Gate In"
-                    : hasDemurrageDue
-                      ? "Demurrage Due — Collect Payment First"
-                      : !formData.portArrivalDate
-                        ? "Enter Port Arrival Date"
-                        : portArrivalIsFuture
-                          ? "Invalid Port Arrival Date"
-                          : "Gate In & Print Receipt"}
+                    : isInspectionRejected
+                      ? "Inspection Rejected — Cannot Gate In"
+                      : hasDemurrageDue
+                        ? "Demurrage Due — Collect Payment First"
+                        : !formData.portArrivalDate
+                          ? "Enter Port Arrival Date"
+                          : portArrivalIsFuture
+                            ? "Invalid Port Arrival Date"
+                            : "Gate In & Print Receipt"}
               </Button>
             </div>
           </form>
@@ -902,25 +912,17 @@ const GateIn = () => {
 
             if (paymentError) throw paymentError;
 
-            // Mark this container as paid so the dialog/banner won't reappear
-            // if the user lingers on or revisits the form before the lookup
-            // refreshes from the database.
+            // Mark paid so banner won't reappear before the next lookup refresh
             setDemurrageAlreadyPaid(true);
 
-            printDemurrageReceipt({
+            await insertContainer(containerNumber, {
               id: paymentRecord.id,
-              containerNumber,
-              shippingLine: formData.shippingLine,
               chargeableDays,
               demurrageAmount,
-              handlingFee: SERVICE_FEE,
+              serviceFee: SERVICE_FEE,
               totalCollected,
+              paymentMethod,
             });
-
-            // Small delay so the demurrage receipt window opens cleanly
-            // before the gate-in receive note pop-up is triggered.
-            await new Promise((r) => setTimeout(r, 600));
-            await insertContainer(containerNumber);
           } catch (error) {
             console.error('Error gating in container:', error);
             toast({

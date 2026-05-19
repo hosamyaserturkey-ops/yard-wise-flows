@@ -18,6 +18,7 @@ import PortDemurrageData from "./pages/PortDemurrageData";
 import Accounting from "./pages/Accounting";
 import UserManagement from "./pages/UserManagement";
 import Yards from "./pages/Yards";
+import Inspector from "./pages/Inspector";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,11 @@ const App = () => (
               <Route path="bookings/:bookingId" element={
                 <ProtectedRoute>
                   <BookingDetail />
+                </ProtectedRoute>
+              } />
+              <Route path="inspector" element={
+                <ProtectedRoute>
+                  <Inspector />
                 </ProtectedRoute>
               } />
               <Route path="*" element={<NotFound />} />
