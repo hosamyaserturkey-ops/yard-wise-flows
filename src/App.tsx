@@ -89,7 +89,7 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="inspector" element={
-                <ProtectedRoute>
+                <ProtectedRoute inspectorOnly>
                   <Inspector />
                 </ProtectedRoute>
               } />

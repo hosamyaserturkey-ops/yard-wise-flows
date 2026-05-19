@@ -8,13 +8,18 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   adminOnly?: boolean;
   superAdminOnly?: boolean;
+  inspectorOnly?: boolean;
 }
 
-const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false }: ProtectedRouteProps) => {
-  const { user, isAdmin, isSuperAdmin, loading } = useAuth();
+const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false, inspectorOnly = false }: ProtectedRouteProps) => {
+  const { user, isAdmin, isSuperAdmin, isInspector, loading } = useAuth();
   const notified = useRef(false);
 
-  const denied = !loading && user && ((superAdminOnly && !isSuperAdmin()) || (adminOnly && !isAdmin()));
+  const denied = !loading && user && (
+    (superAdminOnly && !isSuperAdmin()) ||
+    (adminOnly && !isAdmin()) ||
+    (inspectorOnly && !isInspector() && !isAdmin() && !isSuperAdmin())
+  );
 
   useEffect(() => {
     if (denied && !notified.current) {

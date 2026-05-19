@@ -77,7 +77,9 @@ const Inspector = () => {
       try {
         photoUrls = await uploadPhotos();
       } catch {
-        toast({ title: "Photo upload failed", description: "Saving without photos.", variant: "destructive" });
+        toast({ title: "Photo upload failed", description: "Please check your connection and try again.", variant: "destructive" });
+        setSubmitting(false);
+        return;
       }
 
       const { error } = await supabase.from("inspector_checks").insert({
@@ -201,7 +203,7 @@ const Inspector = () => {
             <section>
               <h2 className="text-xl font-bold mb-1">Photos</h2>
               <p className="text-gray-500 text-sm mb-3">
-                Take photos of the container — up to 6
+                Take photos of the container — at least 1 required, up to 6
               </p>
               <input
                 ref={fileInputRef}
@@ -282,7 +284,7 @@ const Inspector = () => {
 
             <Button
               className="w-full h-14 text-lg"
-              disabled={!grade}
+              disabled={!grade || photos.length === 0}
               onClick={() => setStep(3)}
             >
               Review <ChevronRight className="ml-2 h-5 w-5" />
