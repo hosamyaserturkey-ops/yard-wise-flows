@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { AuthError, User, Session } from "@supabase/supabase-js";
 
-export type AppRole = "super_admin" | "admin" | "user";
+export type AppRole = "super_admin" | "admin" | "user" | "inspector";
 
 export interface Profile {
   id: string;
@@ -24,6 +24,7 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   isAdmin: () => boolean;
   isSuperAdmin: () => boolean;
+  isInspector: () => boolean;
   currentYardId: () => string | null;
 }
 

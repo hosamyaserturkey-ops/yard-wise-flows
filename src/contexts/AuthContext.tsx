@@ -35,6 +35,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       let role: AppRole = 'user';
       if (roles.includes('super_admin')) role = 'super_admin';
       else if (roles.includes('admin')) role = 'admin';
+      else if (roles.includes('inspector')) role = 'inspector';
       else if (roleData?.role) role = roleData.role as AppRole;
 
       let yard_name: string | null = null;
@@ -90,11 +91,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const isSuperAdmin = () => profile?.role === 'super_admin';
   const isAdmin = () => profile?.role === 'admin' || profile?.role === 'super_admin';
+  const isInspector = () => profile?.role === 'inspector';
   const currentYardId = () => profile?.yard_id ?? null;
 
   return (
     <AuthContext.Provider
-      value={{ user, session, profile, loading, signIn, signOut, isAdmin, isSuperAdmin, currentYardId }}
+      value={{ user, session, profile, loading, signIn, signOut, isAdmin, isSuperAdmin, isInspector, currentYardId }}
     >
       {children}
     </AuthContext.Provider>
