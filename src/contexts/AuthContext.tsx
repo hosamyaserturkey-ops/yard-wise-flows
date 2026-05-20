@@ -19,14 +19,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .single();
       if (error) throw error;
 
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .order('role', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
       const { data: allRoles } = await supabase
         .from('user_roles')
         .select('role')
@@ -36,7 +28,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (roles.includes('super_admin')) role = 'super_admin';
       else if (roles.includes('admin')) role = 'admin';
       else if (roles.includes('inspector')) role = 'inspector';
-      else if (roleData?.role) role = roleData.role as AppRole;
 
       let yard_name: string | null = null;
       if (data.yard_id) {
@@ -52,6 +43,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (e) {
       console.error('Error fetching profile:', e);
       setProfile(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -63,15 +56,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setTimeout(() => fetchProfile(session.user.id), 0);
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      setLoading(false);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();

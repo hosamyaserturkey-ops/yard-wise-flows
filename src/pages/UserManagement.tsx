@@ -7,10 +7,10 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Users, Shield } from "lucide-react";
+import { Crown, Users, Shield, ShieldCheck, ClipboardCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
-type AppRole = "admin" | "user";
+type AppRole = "super_admin" | "admin" | "inspector" | "user";
 
 interface UserRow {
   user_id: string;
@@ -19,6 +19,15 @@ interface UserRow {
   role: AppRole;
   created_at: string;
 }
+
+const ROLE_PRIORITY: AppRole[] = ["super_admin", "admin", "inspector", "user"];
+
+const pickHighestRole = (roles: string[]): AppRole => {
+  for (const r of ROLE_PRIORITY) {
+    if (roles.includes(r)) return r;
+  }
+  return "user";
+};
 
 const UserManagement = () => {
   const { toast } = useToast();
@@ -41,9 +50,12 @@ const UserManagement = () => {
         .select("user_id, role");
       if (rErr) throw rErr;
 
-      const roleMap = new Map<string, AppRole>(
-        (roles || []).map((r: { user_id: string; role: AppRole }) => [r.user_id, r.role])
-      );
+      const rolesByUser = new Map<string, string[]>();
+      (roles || []).forEach((r: { user_id: string; role: string }) => {
+        const arr = rolesByUser.get(r.user_id) ?? [];
+        arr.push(r.role);
+        rolesByUser.set(r.user_id, arr);
+      });
 
       setRows(
         (profiles || []).map((p: { user_id: string; full_name: string | null; username: string | null; created_at: string }) => ({
@@ -51,7 +63,7 @@ const UserManagement = () => {
           full_name: p.full_name,
           username: p.username,
           created_at: p.created_at,
-          role: roleMap.get(p.user_id) || "user",
+          role: pickHighestRole(rolesByUser.get(p.user_id) ?? []),
         }))
       );
     } catch (e: unknown) {
@@ -71,13 +83,15 @@ const UserManagement = () => {
   }, [load]);
 
   const toggleRole = async (row: UserRow) => {
-    const newRole: AppRole = row.role === "admin" ? "user" : "admin";
+    if (row.role !== "admin" && row.role !== "user") return;
+    const newRole: "admin" | "user" = row.role === "admin" ? "user" : "admin";
     setUpdatingId(row.user_id);
     try {
       const { data: existing, error: selErr } = await supabase
         .from("user_roles")
         .select("id")
         .eq("user_id", row.user_id)
+        .in("role", ["admin", "user"])
         .maybeSingle();
       if (selErr) throw selErr;
 
@@ -85,7 +99,7 @@ const UserManagement = () => {
         const { error } = await supabase
           .from("user_roles")
           .update({ role: newRole })
-          .eq("user_id", row.user_id);
+          .eq("id", existing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -147,9 +161,17 @@ const UserManagement = () => {
                     <TableCell>{r.full_name || "—"}</TableCell>
                     <TableCell>{r.username || "—"}</TableCell>
                     <TableCell>
-                      {r.role === "admin" ? (
+                      {r.role === "super_admin" ? (
+                        <Badge className="bg-warning/30 text-warning border-warning/40">
+                          <ShieldCheck className="h-3 w-3 mr-1" /> Super Admin
+                        </Badge>
+                      ) : r.role === "admin" ? (
                         <Badge className="bg-warning/10 text-warning border-warning/20">
                           <Crown className="h-3 w-3 mr-1" /> Admin
+                        </Badge>
+                      ) : r.role === "inspector" ? (
+                        <Badge variant="secondary" className="bg-blue-500/20 text-blue-600 border-blue-400/30">
+                          <ClipboardCheck className="h-3 w-3 mr-1" /> Inspector
                         </Badge>
                       ) : (
                         <Badge variant="secondary">User</Badge>
@@ -162,11 +184,18 @@ const UserManagement = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={updatingId === r.user_id || r.user_id === user?.id}
+                        disabled={
+                          updatingId === r.user_id ||
+                          r.user_id === user?.id ||
+                          r.role === "super_admin" ||
+                          r.role === "inspector"
+                        }
                         onClick={() => toggleRole(r)}
                       >
                         {updatingId === r.user_id
                           ? "Updating…"
+                          : r.role === "super_admin" || r.role === "inspector"
+                          ? "Protected"
                           : r.role === "admin"
                           ? "Demote to User"
                           : "Promote to Admin"}
