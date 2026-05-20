@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid username" }, 400);
     }
     if (password.length < 6) return json({ error: "Password too short" }, 400);
-    if (!["+admin", "user", "inspector"].includes(role)) return json({ error: "Invalid role" }, 400);
+    if (!["admin", "user", "inspector"].includes(role)) return json({ error: "Invalid role" }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
