@@ -5,7 +5,7 @@ interface Payload {
   username: string;
   password: string;
   fullName: string;
-  role: "admin" | "user";
+  role: "admin" | "user" | "inspector";
   yard_id: string;
 }
 
@@ -40,14 +40,14 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid username" }, 400);
     }
     if (password.length < 6) return json({ error: "Password too short" }, 400);
-    if (role !== "admin" && role !== "user") return json({ error: "Invalid role" }, 400);
+    if (role !== "admin" && role !== "user" && role !== "inspector") return json({ error: "Invalid role" }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Authorization: super_admin can create anyone; yard admins can only create 'user' inside their own yard.
+    // Authorization: super_admin can create any role; yard admins can create 'user' or 'inspector' in their own yard.
     const { data: isSuper } = await admin.rpc("is_super_admin", { _uid: caller.id });
     if (!isSuper) {
-      if (role !== "user") return json({ error: "Only super-admins can create admins" }, 403);
+      if (role === "admin") return json({ error: "Only super-admins can create admins" }, 403);
       const { data: isYardAdmin } = await admin.rpc("is_yard_admin", {
         _uid: caller.id,
         _yard: yard_id,
