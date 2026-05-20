@@ -63,6 +63,9 @@ export default function ReserveContainerDialog({
   const handleReserve = async () => {
     if (!container || !selectedBookingId || !user) return;
 
+    const selectedBooking = bookings.find(b => b.id === selectedBookingId);
+    if (!selectedBooking) return;
+
     setLoading(true);
     try {
       const { error } = await supabase
@@ -70,6 +73,7 @@ export default function ReserveContainerDialog({
         .update({
           status: "reserved",
           booking_id: selectedBookingId,
+          booking_number: selectedBooking.booking_number,
         })
         .eq("id", container.id);
 
@@ -105,6 +109,7 @@ export default function ReserveContainerDialog({
         .update({
           status: "in-yard",
           booking_id: null,
+          booking_number: null,
         })
         .eq("id", container.id);
 
