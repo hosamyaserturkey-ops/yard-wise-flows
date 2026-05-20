@@ -21,7 +21,7 @@ const Yards = () => {
   const [createYardOpen, setCreateYardOpen] = useState(false);
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [yardForm, setYardForm] = useState({ name: "", code: "" });
-  const [userForm, setUserForm] = useState({ fullName: "", username: "", password: "", yard_id: "", role: "admin" as "admin" | "user" });
+  const [userForm, setUserForm] = useState({ fullName: "", username: "", password: "", yard_id: "", role: "user" as "admin" | "user" | "inspector" });
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -71,7 +71,7 @@ const Yards = () => {
     }
     toast({ title: "User created" });
     setCreateUserOpen(false);
-    setUserForm({ fullName: "", username: "", password: "", yard_id: "", role: "admin" });
+    setUserForm({ fullName: "", username: "", password: "", yard_id: "", role: "user" });
   };
 
   return (
@@ -147,11 +147,12 @@ const Yards = () => {
             </div>
             <div>
               <Label>Role</Label>
-              <Select value={userForm.role} onValueChange={v => setUserForm({ ...userForm, role: v as "admin" | "user" })}>
+              <Select value={userForm.role} onValueChange={v => setUserForm({ ...userForm, role: v as "admin" | "user" | "inspector" })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="user">Yard Operator</SelectItem>
+                  <SelectItem value="inspector">Inspector — mobile only</SelectItem>
                   <SelectItem value="admin">Yard Admin</SelectItem>
-                  <SelectItem value="user">User</SelectItem>
                 </SelectContent>
               </Select>
             </div>
