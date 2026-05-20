@@ -45,7 +45,7 @@ const Reports = () => {
         truckNumber: container.truck_number,
         gateInTime: new Date(container.gate_in_time),
         gateOutTime: container.gate_out_time ? new Date(container.gate_out_time) : undefined,
-        status: container.status as 'in-yard' | 'out',
+        status: container.status as 'in-yard' | 'out' | 'reserved',
         bookingNumber: container.booking_number,
         fees: container.fees ? Number(container.fees) : undefined,
       }));
@@ -227,6 +227,7 @@ const Reports = () => {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="in-yard">In Yard</SelectItem>
+                  <SelectItem value="reserved">Reserved</SelectItem>
                   <SelectItem value="out">Out</SelectItem>
                 </SelectContent>
               </Select>
@@ -261,7 +262,7 @@ const Reports = () => {
       </Card>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-maritime">{filteredContainers.length}</div>
@@ -274,6 +275,14 @@ const Reports = () => {
               {filteredContainers.filter(c => c.status === 'in-yard').length}
             </div>
             <div className="text-sm text-muted-foreground">In Yard</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-blue-600">
+              {filteredContainers.filter(c => c.status === 'reserved').length}
+            </div>
+            <div className="text-sm text-muted-foreground">Reserved</div>
           </CardContent>
         </Card>
         <Card>
@@ -342,9 +351,13 @@ const Reports = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={container.status === 'in-yard' ? 'default' : 'secondary'}>
-                      {container.status === 'in-yard' ? 'In Yard' : 'Out'}
-                    </Badge>
+                    {container.status === 'in-yard' ? (
+                      <Badge variant="default">In Yard</Badge>
+                    ) : container.status === 'reserved' ? (
+                      <Badge className="bg-blue-500/20 text-blue-600 border-blue-400/30">Reserved</Badge>
+                    ) : (
+                      <Badge variant="secondary">Out</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="font-mono">
                     {container.bookingNumber || "-"}

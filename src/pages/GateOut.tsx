@@ -201,8 +201,6 @@ const GateOut = () => {
               <div class="row"><span class="label">Container Number:</span> ${selectedContainer.containerNumber}</div>
               <div class="row"><span class="label">Container Type:</span> ${selectedContainer.containerType}</div>
               <div class="row"><span class="label">Shipping Line:</span> ${selectedContainer.shippingLine}</div>
-              <div class="row"><span class="label">Driver Name:</span> ${selectedContainer.driverName}</div>
-              <div class="row"><span class="label">Truck Number:</span> ${selectedContainer.truckNumber}</div>
               <div class="row"><span class="label">Booking Number:</span> ${selectedContainer.bookingNumber}</div>
               <div class="row"><span class="label">Driver Name:</span> ${driverName}</div>
               <div class="row"><span class="label">Truck Number:</span> ${truckNumber}</div>
