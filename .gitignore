@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Scraper output
+*.xlsx
+
+# Python
+__pycache__/
+*.pyc
