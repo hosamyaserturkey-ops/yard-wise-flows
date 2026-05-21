@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,13 +13,20 @@ import ReserveContainerDialog from "@/components/ReserveContainerDialog";
 import bgDashboard from "@/assets/bg-dashboard.jpg";
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [loading, setLoading] = useState(true);
   const [reserveDialogOpen, setReserveDialogOpen] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState<ContainerType | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'in-yard' | 'reserved' | 'out'>('all');
   const [shippingLineFilter, setShippingLineFilter] = useState<'all' | 'SLD' | 'SLG'>('all');
+
+  useEffect(() => {
+    if (profile?.role === 'inspector') {
+      navigate("/inspector", { replace: true });
+    }
+  }, [profile, navigate]);
 
   useEffect(() => {
     fetchContainers();

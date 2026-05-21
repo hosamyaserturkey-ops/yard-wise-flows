@@ -2,15 +2,22 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Users, Shield, ShieldCheck, ClipboardCheck } from "lucide-react";
+import { Crown, Users, Shield, ShieldCheck, ClipboardCheck, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type AppRole = "super_admin" | "admin" | "inspector" | "user";
+type CreatableRole = "admin" | "inspector" | "user";
 
 interface UserRow {
   user_id: string;
@@ -29,12 +36,20 @@ const pickHighestRole = (roles: string[]): AppRole => {
   return "user";
 };
 
+interface YardOption { id: string; name: string; }
+
 const UserManagement = () => {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isSuperAdmin, currentYardId } = useAuth();
   const [rows, setRows] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [yards, setYards] = useState<YardOption[]>([]);
+  const [newUser, setNewUser] = useState<{ fullName: string; username: string; password: string; role: CreatableRole; yard_id: string }>({
+    fullName: "", username: "", password: "", role: "user", yard_id: "",
+  });
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,6 +96,45 @@ const UserManagement = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (isSuperAdmin()) {
+      supabase.from("yards").select("id, name").order("name").then(({ data }) => {
+        setYards(data || []);
+      });
+    }
+  }, [isSuperAdmin]);
+
+  const createUser = async () => {
+    if (!newUser.username.trim() || !newUser.password || !newUser.fullName.trim()) {
+      toast({ title: "Missing fields", description: "Full name, username and password are required.", variant: "destructive" });
+      return;
+    }
+    const yardId = isSuperAdmin() ? newUser.yard_id : currentYardId();
+    if (!yardId) {
+      toast({ title: "No yard", description: isSuperAdmin() ? "Please select a yard." : "You are not assigned to a yard.", variant: "destructive" });
+      return;
+    }
+    setCreating(true);
+    const { data, error } = await supabase.functions.invoke("create-user", {
+      body: {
+        username: newUser.username.trim().toLowerCase(),
+        password: newUser.password,
+        fullName: newUser.fullName.trim(),
+        role: newUser.role,
+        yard_id: yardId,
+      },
+    });
+    setCreating(false);
+    if (error || (data as { error?: string })?.error) {
+      toast({ title: "Failed", description: error?.message || (data as { error?: string })?.error, variant: "destructive" });
+      return;
+    }
+    toast({ title: "User created successfully" });
+    setCreateOpen(false);
+    setNewUser({ fullName: "", username: "", password: "", role: "user", yard_id: "" });
+    load();
+  };
 
   const toggleRole = async (row: UserRow) => {
     if (row.role !== "admin" && row.role !== "user") return;
@@ -129,9 +183,14 @@ const UserManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-2">
-        <Users className="h-8 w-8 text-maritime" />
-        <h1 className="text-3xl font-bold text-industrial">User Management</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Users className="h-8 w-8 text-maritime" />
+          <h1 className="text-3xl font-bold text-industrial">User Management</h1>
+        </div>
+        <Button onClick={() => setCreateOpen(true)}>
+          <UserPlus className="h-4 w-4 mr-2" /> New User
+        </Button>
       </div>
 
       <Card>
@@ -215,6 +274,56 @@ const UserManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label>Full Name</Label>
+              <Input value={newUser.fullName} onChange={e => setNewUser({ ...newUser, fullName: e.target.value })} placeholder="First and last name" />
+            </div>
+            <div className="space-y-1">
+              <Label>Username</Label>
+              <Input value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value.toLowerCase() })} placeholder="login username" />
+            </div>
+            <div className="space-y-1">
+              <Label>Password</Label>
+              <Input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} placeholder="temporary password" />
+            </div>
+            <div className="space-y-1">
+              <Label>Role</Label>
+              <Select value={newUser.role} onValueChange={v => setNewUser({ ...newUser, role: v as CreatableRole })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {isSuperAdmin() && <SelectItem value="admin">Yard Admin</SelectItem>}
+                  <SelectItem value="inspector">Inspector</SelectItem>
+                  <SelectItem value="user">User</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {isSuperAdmin() && (
+              <div className="space-y-1">
+                <Label>Yard</Label>
+                <Select value={newUser.yard_id} onValueChange={v => setNewUser({ ...newUser, yard_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select yard" /></SelectTrigger>
+                  <SelectContent>
+                    {yards.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button onClick={createUser} disabled={creating}>
+              {creating ? "Creating..." : "Create User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
