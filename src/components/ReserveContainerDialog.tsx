@@ -68,16 +68,29 @@ export default function ReserveContainerDialog({
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      // Atomic guard: only reserve if the container is still in-yard.
+      const { data, error } = await supabase
         .from("containers")
         .update({
           status: "reserved",
           booking_id: selectedBookingId,
           booking_number: selectedBooking.booking_number,
         })
-        .eq("id", container.id);
+        .eq("id", container.id)
+        .eq("status", "in-yard")
+        .select("id");
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        toast({
+          title: "Already reserved",
+          description: "Someone else reserved this container first.",
+          variant: "destructive",
+        });
+        onReserved();
+        onOpenChange(false);
+        return;
+      }
 
       toast({
         title: "Success",

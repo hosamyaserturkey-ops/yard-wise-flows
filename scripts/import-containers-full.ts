@@ -86,19 +86,17 @@ const parseExcelData = (): ContainerData[] => {
 };
 
 const parseDate = (dateStr: string): Date => {
-  // Handle various date formats from the Excel file
+  // Use UTC so dates don't shift by ±1 day in non-zero timezones.
   if (dateStr.includes('-Jul-25')) {
     const day = dateStr.split('-')[0];
-    return new Date(2025, 6, parseInt(day)); // July is month 6
+    return new Date(Date.UTC(2025, 6, parseInt(day, 10)));
   } else if (dateStr.includes('-Aug-25')) {
     const day = dateStr.split('-')[0];
-    return new Date(2025, 7, parseInt(day)); // August is month 7
+    return new Date(Date.UTC(2025, 7, parseInt(day, 10)));
   } else if (dateStr.includes('/8/25')) {
     const parts = dateStr.split('/');
-    return new Date(2025, 7, parseInt(parts[1])); // August
+    return new Date(Date.UTC(2025, 7, parseInt(parts[1], 10)));
   }
-  
-  // Fallback - try to parse as is
   return new Date(dateStr);
 };
 
@@ -135,10 +133,16 @@ const calculateFees = (notes?: string): number => {
   return 0;
 };
 
-export const importAllContainersFromExcel = async (): Promise<{ success: number; errors: string[] }> => {
+export const importAllContainersFromExcel = async (
+  yardId: string,
+): Promise<{ success: number; errors: string[] }> => {
   const results = { success: 0, errors: [] as string[] };
-  
-  // Get current user
+
+  if (!yardId) {
+    results.errors.push('No yard selected. Import requires a target yard.');
+    return results;
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     results.errors.push('No authenticated user found');
@@ -151,7 +155,7 @@ export const importAllContainersFromExcel = async (): Promise<{ success: number;
     try {
       const gateInTime = parseDate(container.entryDate);
       const gateOutTime = container.exitDate ? parseDate(container.exitDate) : null;
-      
+
       const containerRecord = {
         container_number: container.containerNumber,
         container_type: mapContainerType(container.containerSize),
@@ -164,7 +168,7 @@ export const importAllContainersFromExcel = async (): Promise<{ success: number;
         booking_number: container.bookingNumber || null,
         fees: calculateFees(container.notes),
         created_by: user.id,
-        yard_id: process.env.YARD_ID || '',
+        yard_id: yardId,
       };
 
       const { error } = await supabase

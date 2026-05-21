@@ -3,11 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, CheckCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { importAllContainersFromExcel } from "../../scripts/import-containers-full";
 import bgImport from "@/assets/bg-import.jpg";
 
 const ImportContainers = () => {
   const { toast } = useToast();
+  const { currentYardId } = useAuth();
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState<{
     success: number;
@@ -15,11 +17,21 @@ const ImportContainers = () => {
   } | null>(null);
 
   const handleImport = async () => {
+    const yardId = currentYardId();
+    if (!yardId) {
+      toast({
+        title: "No yard selected",
+        description: "You must be assigned to a yard to import containers.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setImporting(true);
     setImportResults(null);
 
     try {
-      const results = await importAllContainersFromExcel();
+      const results = await importAllContainersFromExcel(yardId);
       setImportResults(results);
       
       if (results.success > 0) {

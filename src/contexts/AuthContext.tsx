@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthContext, type AppRole, type Profile } from "@/hooks/useAuth";
 import { usernameToEmail } from "@/lib/auth-utils";
@@ -9,8 +9,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const activeUserIdRef = useRef<string | null>(null);
 
   const fetchProfile = async (userId: string) => {
+    activeUserIdRef.current = userId;
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -39,12 +41,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         yard_name = yard?.name ?? null;
       }
 
+      // Discard if the user has signed out (or switched) while we were fetching.
+      if (activeUserIdRef.current !== userId) return;
       setProfile({ ...data, role, yard_name } as Profile);
     } catch (e) {
       console.error('Error fetching profile:', e);
-      setProfile(null);
+      if (activeUserIdRef.current === userId) setProfile(null);
     } finally {
-      setLoading(false);
+      if (activeUserIdRef.current === userId) setLoading(false);
     }
   };
 
@@ -55,6 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (session?.user) {
         setTimeout(() => fetchProfile(session.user.id), 0);
       } else {
+        activeUserIdRef.current = null;
         setProfile(null);
         setLoading(false);
       }
