@@ -106,17 +106,39 @@ export default function BookingDetail() {
   const handleAssignContainer = async (containerId: string) => {
     if (!booking) return;
 
+    if (assignedContainers.length >= booking.total_containers) {
+      toast({
+        title: "Booking full",
+        description: `This booking already has ${booking.total_containers} container(s) assigned.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const { error } = await supabase
+      // Atomic guard: only assign if the container is still free.
+      const { data, error } = await supabase
         .from("containers")
         .update({
           status: "reserved",
           booking_id: booking.id,
           booking_number: booking.booking_number,
         })
-        .eq("id", containerId);
+        .eq("id", containerId)
+        .eq("status", "in-yard")
+        .is("booking_id", null)
+        .select("id");
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        toast({
+          title: "Container unavailable",
+          description: "This container was just assigned by someone else.",
+          variant: "destructive",
+        });
+        fetchBookingDetails();
+        return;
+      }
 
       toast({
         title: "Success",

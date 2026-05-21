@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,14 @@ import bgAuth from "@/assets/bg-auth.jpg";
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { signIn } = useAuth();
+  const { signIn, user, isInspector } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      navigate(isInspector() ? "/inspector" : "/", { replace: true });
+    }
+  }, [user, isInspector, navigate]);
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -21,19 +27,29 @@ const Auth = () => {
     setError("");
 
     const formData = new FormData(e.currentTarget);
-    const username = (formData.get("username") as string).trim().toLowerCase();
+    const rawUsername = (formData.get("username") as string).trim().toLowerCase();
     const password = formData.get("password") as string;
 
-    if (!username || !password) {
+    if (!rawUsername || !password) {
       setError("Please fill in all fields.");
       setIsLoading(false);
       return;
     }
+    if (!/^[a-z0-9_.-]+$/.test(rawUsername)) {
+      setError("Username can only contain letters, digits, '_', '.', '-'.");
+      setIsLoading(false);
+      return;
+    }
 
-    const { error } = await signIn(username, password);
+    const { error } = await signIn(rawUsername, password);
 
     if (error) {
-      setError("Invalid username or password.");
+      const status = (error as { status?: number }).status ?? 0;
+      if (status === 0 || status >= 500) {
+        setError(`Sign-in failed: ${error.message}`);
+      } else {
+        setError("Invalid username or password.");
+      }
     } else {
       navigate("/");
     }
