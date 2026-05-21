@@ -59,7 +59,7 @@ const DemurrageCollectionDialog = ({
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={(o) => !o && handleCancel()}>
+    <AlertDialog open={open} onOpenChange={(o) => !o && step !== "confirmed" && handleCancel()}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <div className="flex items-center gap-2 text-destructive">
@@ -143,13 +143,22 @@ const DemurrageCollectionDialog = ({
             </Button>
           )}
           {step === "confirmed" && (
-            <Button
-              className="gap-1 bg-green-600 hover:bg-green-700"
-              onClick={handleConfirm}
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Proceed with Gate-In
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setStep("method"); setPaymentMethod(null); }}
+              >
+                Change Method
+              </Button>
+              <Button
+                className="gap-1 bg-green-600 hover:bg-green-700"
+                onClick={handleConfirm}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Proceed with Gate-In
+              </Button>
+            </>
           )}
         </AlertDialogFooter>
       </AlertDialogContent>
