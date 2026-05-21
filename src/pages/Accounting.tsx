@@ -142,18 +142,16 @@ const Accounting = () => {
 
       if (insertError) throw insertError;
 
-      // Mark all pending payments for this shipping line as transferred
-      // We need to use an edge function or RPC for bulk update, but since we have
-      // update access via RLS, let's update individually
       const pendingIds = payments
         .filter(p => p.shipping_line === transferDialog.shippingLine && !p.transferred)
         .map(p => p.id);
 
-      for (const id of pendingIds) {
-        await supabase
+      if (pendingIds.length > 0) {
+        const { error: updateError } = await supabase
           .from("demurrage_payments")
           .update({ transferred: true })
-          .eq("id", id);
+          .in("id", pendingIds);
+        if (updateError) throw updateError;
       }
 
       toast({ title: "Transfer Recorded", description: `${transferDialog.amount} JOD marked as transferred to ${transferDialog.shippingLine}.` });
