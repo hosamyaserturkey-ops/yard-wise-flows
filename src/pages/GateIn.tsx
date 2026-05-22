@@ -66,6 +66,8 @@ const GateIn = () => {
   const [lookupDone, setLookupDone] = useState(false);
   const [demurrageAlreadyPaid, setDemurrageAlreadyPaid] = useState(false);
   const [alreadyInYard, setAlreadyInYard] = useState(false);
+  // Earliest known gate-in date for this container — demurrage stops at this date.
+  const [earliestGateIn, setEarliestGateIn] = useState<Date | null>(null);
   const [demurrageDialog, setDemurrageDialog] = useState<{
     open: boolean;
     chargeableDays: number;
@@ -83,11 +85,12 @@ const GateIn = () => {
       setDemurrageAlreadyPaid(false);
       setAlreadyInYard(false);
       setInspectionStatus(null);
+      setEarliestGateIn(null);
       return;
     }
 
     const timer = setTimeout(async () => {
-      // Port data lookup
+      // Port data lookup (global — no yard filter)
       const { data } = await supabase
         .from("container_port_data")
         .select("port_arrival_date, free_days, daily_demurrage, shipping_line")
@@ -122,31 +125,26 @@ const GateIn = () => {
         .maybeSingle();
       setAlreadyInYard(!!inYardRow);
 
-      // Demurrage already paid check:
-      // a payment "covers" the next gate-in if it was made after the most
-      // recent gate-out for this container (or the container has never been
-      // gated out and any payment exists).
-      const { data: lastGateOutRow } = await supabase
+      // Fetch earliest gate-in date — demurrage stops accruing after the first pick-up.
+      const { data: firstGateInRow } = await supabase
         .from("containers")
-        .select("gate_out_time")
+        .select("gate_in_time")
         .eq("container_number", containerNum)
-        .not("gate_out_time", "is", null)
-        .order("gate_out_time", { ascending: false })
+        .order("gate_in_time", { ascending: true })
         .limit(1)
         .maybeSingle();
+      setEarliestGateIn(
+        firstGateInRow?.gate_in_time ? new Date(firstGateInRow.gate_in_time) : null
+      );
 
-      let paymentQuery = supabase
+      // Demurrage already paid: port demurrage is a one-time settlement.
+      // Any existing payment for this container means it's already settled.
+      const { data: paymentRow } = await supabase
         .from("demurrage_payments")
-        .select("id, created_at")
+        .select("id")
         .eq("container_number", containerNum)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      if (lastGateOutRow?.gate_out_time) {
-        paymentQuery = paymentQuery.gt("created_at", lastGateOutRow.gate_out_time);
-      }
-
-      const { data: paymentRow } = await paymentQuery.maybeSingle();
+        .limit(1)
+        .maybeSingle();
       setDemurrageAlreadyPaid(!!paymentRow);
 
       // Latest inspection check for this container
@@ -181,19 +179,23 @@ const GateIn = () => {
     }
   }, [formData.shippingLine]);
 
-  // New tiered demurrage calculation
+  // Tiered demurrage calculation — capped at the earliest known gate-in date so
+  // demurrage stops accruing once the container has been picked up from the port.
   const demurragePreview = useMemo(() => {
     if (!formData.portArrivalDate || !formData.containerType) return null;
+    const asOf = earliestGateIn ?? new Date();
     const result = calculateDemurrage(
       formData.shippingLine,
       formData.containerType,
       formData.portArrivalDate,
+      asOf,
     );
     return result;
   }, [
     formData.portArrivalDate,
     formData.containerType,
     formData.shippingLine,
+    earliestGateIn,
   ]);
 
   const portArrivalIsFuture = useMemo(() => {
@@ -381,6 +383,7 @@ const GateIn = () => {
     setDemurrageAlreadyPaid(false);
     setAlreadyInYard(false);
     setInspectionStatus(null);
+    setEarliestGateIn(null);
   };
 
   const printReceipt = (containerData: InsertedContainerRow, demurragePayment?: DemurragePaymentData) => {
@@ -831,6 +834,7 @@ const GateIn = () => {
                   setDemurrageAlreadyPaid(false);
                   setAlreadyInYard(false);
                   setInspectionStatus(null);
+                  setEarliestGateIn(null);
                 }}
               >
                 Clear Form

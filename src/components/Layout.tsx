@@ -19,7 +19,7 @@ const Layout = () => {
     { href: "/reports", label: "Reports", icon: FileText, adminOnly: false, superOnly: false, inspectorLink: false },
     { href: "/bookings", label: "Bookings", icon: Calendar, adminOnly: false, superOnly: false, inspectorLink: false },
     { href: "/import", label: "Import", icon: Upload, adminOnly: true, superOnly: false, inspectorLink: false },
-    { href: "/port-data", label: "Port Data", icon: Anchor, adminOnly: true, superOnly: false, inspectorLink: false },
+    { href: "/port-data", label: "Port Data", icon: Anchor, adminOnly: false, superOnly: true, inspectorLink: false },
     { href: "/accounting", label: "Accounting", icon: Calculator, adminOnly: true, superOnly: false, inspectorLink: false },
     { href: "/admin/users", label: "Users", icon: Users, adminOnly: true, superOnly: false, inspectorLink: false },
     { href: "/admin/yards", label: "Yards", icon: Building2, adminOnly: false, superOnly: true, inspectorLink: false },

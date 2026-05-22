@@ -64,7 +64,7 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="port-data" element={
-                <ProtectedRoute adminOnly>
+                <ProtectedRoute superAdminOnly>
                   <PortDemurrageData />
                 </ProtectedRoute>
               } />
