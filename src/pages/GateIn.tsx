@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Container, AlertTriangle } from "lucide-react";
+import { Container, AlertTriangle, ClipboardCheck } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { GateInData } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +24,13 @@ import {
   DEMURRAGE_RULES,
   USD_TO_JOD,
 } from "@/lib/demurrage";
+
+interface PendingGateIn {
+  container_number: string;
+  grade: string;
+  notes: string | null;
+  inspected_at: string;
+}
 
 interface InsertedContainerRow {
   id: string;
@@ -68,6 +76,7 @@ const GateIn = () => {
   const [alreadyInYard, setAlreadyInYard] = useState(false);
   // Earliest known gate-in date for this container — demurrage stops at this date.
   const [earliestGateIn, setEarliestGateIn] = useState<Date | null>(null);
+  const [pendingGateIns, setPendingGateIns] = useState<PendingGateIn[]>([]);
   const [demurrageDialog, setDemurrageDialog] = useState<{
     open: boolean;
     chargeableDays: number;
@@ -166,6 +175,57 @@ const GateIn = () => {
 
     return () => clearTimeout(timer);
   }, [formData.containerNumber]);
+
+  // Load and subscribe to approved inspections awaiting gate-in.
+  const loadPending = useCallback(async () => {
+    const yardId = currentYardId();
+    if (!yardId) return;
+
+    // Latest inspection per container
+    const { data: checks } = await supabase
+      .from("inspector_checks")
+      .select("container_number, grade, status, notes, created_at")
+      .eq("yard_id", yardId)
+      .order("created_at", { ascending: false });
+
+    // Containers currently in yard (exclude from queue)
+    const { data: inYardRows } = await supabase
+      .from("containers")
+      .select("container_number")
+      .eq("status", "in-yard")
+      .eq("yard_id", yardId);
+
+    const inYardSet = new Set((inYardRows || []).map((c) => c.container_number));
+
+    // Keep latest check per container, then filter approved + not in yard
+    const latestPerContainer = new Map<string, typeof checks extends null ? never : (typeof checks)[number]>();
+    for (const c of checks || []) {
+      if (!latestPerContainer.has(c.container_number)) {
+        latestPerContainer.set(c.container_number, c);
+      }
+    }
+
+    setPendingGateIns(
+      Array.from(latestPerContainer.values())
+        .filter((c) => c.status === "approved" && !inYardSet.has(c.container_number))
+        .map((c) => ({
+          container_number: c.container_number,
+          grade: c.grade,
+          notes: c.notes,
+          inspected_at: c.created_at,
+        }))
+    );
+  }, [currentYardId]);
+
+  useEffect(() => {
+    loadPending();
+    const channel = supabase
+      .channel("inspector_checks_pending")
+      .on("postgres_changes", { event: "*", schema: "public", table: "inspector_checks" }, loadPending)
+      .on("postgres_changes", { event: "*", schema: "public", table: "containers" }, loadPending)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [loadPending]);
 
   // Auto-fill free days when shipping line changes (if rules exist for it)
   useEffect(() => {
@@ -384,6 +444,7 @@ const GateIn = () => {
     setAlreadyInYard(false);
     setInspectionStatus(null);
     setEarliestGateIn(null);
+    loadPending();
   };
 
   const printReceipt = (containerData: InsertedContainerRow, demurragePayment?: DemurragePaymentData) => {
@@ -482,6 +543,47 @@ const GateIn = () => {
         <Container className="h-8 w-8 text-maritime" />
         <h1 className="text-3xl font-bold text-industrial">Gate In Container</h1>
       </div>
+
+      {pendingGateIns.length > 0 && (
+        <Card className="border-green-400 bg-green-50/90">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-green-800 text-base">
+              <ClipboardCheck className="h-5 w-5" />
+              Awaiting Gate-In — {pendingGateIns.length} container{pendingGateIns.length !== 1 ? "s" : ""} approved
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pendingGateIns.map((item) => {
+              const gradeColors: Record<string, string> = {
+                A: "bg-green-500", B: "bg-blue-500", C: "bg-yellow-500", D: "bg-red-500",
+              };
+              return (
+                <div
+                  key={item.container_number}
+                  className="flex items-center justify-between bg-white rounded-lg border border-green-200 px-4 py-3 cursor-pointer hover:bg-green-50 transition-colors"
+                  onClick={() => setFormData((prev) => ({ ...prev, containerNumber: item.container_number }))}
+                >
+                  <div className="flex items-center gap-3">
+                    <Badge className={`${gradeColors[item.grade] ?? "bg-gray-400"} text-white`}>
+                      {item.grade}
+                    </Badge>
+                    <div>
+                      <div className="font-mono font-semibold text-gray-900">{item.container_number}</div>
+                      {item.notes && (
+                        <div className="text-xs text-gray-500 truncate max-w-[18rem]">{item.notes}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-gray-400 whitespace-nowrap ml-2">
+                    {new Date(item.inspected_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    <div className="text-green-600 font-medium mt-0.5">Tap to select →</div>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
