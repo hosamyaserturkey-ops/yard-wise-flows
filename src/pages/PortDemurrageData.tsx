@@ -28,7 +28,9 @@ const normalizeHeader = (header: string) =>
 
 const HEADER_ALIASES = {
   containerNumber: ["containernumber", "container", "containerno", "containerid"],
-  containerType: ["containertype", "type", "containersize", "size"],
+  // "containertype" and "type" handle full codes ("40FT"); "size" handles numeric-only ("40", "20")
+  containerType: ["containertype", "type", "containersize"],
+  containerSize: ["size"],
   shippingLine: ["shippingline", "line", "shipping"],
   portArrivalDate: ["portarrivaldate", "arrivaldate", "portdate", "arrival", "vesselarrivaldate", "vesselarrival"],
   freeDays: ["freedays", "free", "daysfree"],
@@ -37,6 +39,37 @@ const HEADER_ALIASES = {
   dailyDemurrage40: ["dailydemurrage40", "demurrage40", "rate40", "40rate", "40ftdemurrage", "demurrage40ft"],
   dailyDemurrage45: ["dailydemurrage45", "demurrage45", "rate45", "45rate", "45ftdemurrage", "demurrage45ft"],
 } as const;
+
+// Maps common full carrier names (lowercase substrings) to their internal codes.
+// Used when the "Line" column contains the full company name instead of the code.
+const SHIPPING_LINE_NAME_MAP: Record<string, string> = {
+  "sea legend": "SLG",
+  "sea lead": "SLD",
+  "sealead": "SLD",
+  "swift flow": "SFS",
+  "swiftflow": "SFS",
+  "sea falcon": "SFS",
+  "seafalcon": "SFS",
+  "medkon": "MDK",
+  "baltrans": "BLT",
+  "baltic": "BLT",
+};
+
+const resolveShippingLine = (raw: string): string => {
+  const trimmed = raw.trim();
+  const upper = trimmed.toUpperCase();
+  if ((SHIPPING_LINES as readonly string[]).includes(upper)) return upper;
+  const lower = trimmed.toLowerCase();
+  for (const [name, code] of Object.entries(SHIPPING_LINE_NAME_MAP)) {
+    if (lower.includes(name)) return code;
+  }
+  // Try to find any known code as a word-boundary token inside the string
+  for (const code of SHIPPING_LINES) {
+    const re = new RegExp(`\\b${code}\\b`, "i");
+    if (re.test(trimmed)) return code;
+  }
+  return upper;
+};
 
 const getCellByAliases = (row: SpreadsheetRow, aliases: readonly string[]) => {
   const entries = Object.entries(row);
@@ -61,6 +94,30 @@ const normalizeContainerType = (value: unknown): string | null => {
   return null;
 };
 
+// Resolve container type from a row that may have separate "Size" and "Container Type" columns.
+// E.g. Size="40" + Container Type="HC" → "40HC";  Container Type="20FT" alone → "20FT".
+const resolveContainerType = (row: SpreadsheetRow): string | null => {
+  const typeVal = getCellByAliases(row, HEADER_ALIASES.containerType);
+  const sizeVal = getCellByAliases(row, HEADER_ALIASES.containerSize);
+
+  // Both present: combine size prefix + type suffix (handles "40"+"HC" → "40HC")
+  if (typeVal != null && sizeVal != null) {
+    const combined = String(sizeVal).trim() + String(typeVal).trim();
+    const result = normalizeContainerType(combined);
+    if (result) return result;
+  }
+  // Type column alone (may already be a full code like "40FT")
+  if (typeVal != null) {
+    const result = normalizeContainerType(typeVal);
+    if (result) return result;
+  }
+  // Size column alone (numeric: "40", "20")
+  if (sizeVal != null) {
+    return normalizeContainerType(sizeVal);
+  }
+  return null;
+};
+
 const parseNumberOrNull = (value: unknown): number | null => {
   if (value == null || value === "") return null;
   const parsed = Number.parseFloat(String(value));
@@ -72,13 +129,12 @@ const resolveDailyDemurrage = (row: SpreadsheetRow): number | null => {
   const rate20 = parseNumberOrNull(getCellByAliases(row, HEADER_ALIASES.dailyDemurrage20));
   const rate40 = parseNumberOrNull(getCellByAliases(row, HEADER_ALIASES.dailyDemurrage40));
   const rate45 = parseNumberOrNull(getCellByAliases(row, HEADER_ALIASES.dailyDemurrage45));
-  const containerType = normalizeContainerType(getCellByAliases(row, HEADER_ALIASES.containerType));
+  const containerType = resolveContainerType(row);
 
   if (containerType === "20FT") return rate20 ?? genericRate;
   if (containerType === "45FT") return rate45 ?? rate40 ?? genericRate;
   if (containerType === "40FT" || containerType === "40HC") return rate40 ?? genericRate;
 
-  // If container type is not present, still allow a single generic value.
   return genericRate;
 };
 
@@ -146,7 +202,7 @@ const PortDemurrageData = () => {
           last_source: "manual",
           yard_id: yardId,
         },
-        { onConflict: "container_number" }
+        { onConflict: "container_number,yard_id" }
       );
       if (error) throw error;
 
@@ -188,7 +244,7 @@ const PortDemurrageData = () => {
           shipping_line: string;
           port_arrival_date: string;
           free_days: number;
-          daily_demurrage: number;
+          daily_demurrage: number | null;
           last_source: "excel";
           yard_id: string;
         }
@@ -201,9 +257,9 @@ const PortDemurrageData = () => {
           const containerNumber = String(getCellByAliases(row, HEADER_ALIASES.containerNumber) ?? "")
             .trim()
             .toUpperCase();
-          const shippingLine = String(getCellByAliases(row, HEADER_ALIASES.shippingLine) ?? "")
-            .trim()
-            .toUpperCase();
+          const shippingLine = resolveShippingLine(
+            String(getCellByAliases(row, HEADER_ALIASES.shippingLine) ?? "")
+          );
           const portArrivalDate = parseExcelDate(
             getCellByAliases(row, HEADER_ALIASES.portArrivalDate)
           );
@@ -216,23 +272,19 @@ const PortDemurrageData = () => {
             continue;
           }
           if (!(SHIPPING_LINES as readonly string[]).includes(shippingLine)) {
-            errors.push(`${rowLabel} (${containerNumber}): invalid shipping line "${shippingLine}"`);
+            errors.push(`${rowLabel} (${containerNumber}): unrecognized shipping line "${shippingLine}" — expected one of: ${SHIPPING_LINES.join(", ")}`);
             continue;
           }
           if (!portArrivalDate) {
-            errors.push(`${rowLabel} (${containerNumber}): invalid port arrival date`);
-            continue;
-          }
-          if (dailyDemurrage == null) {
-            errors.push(`${rowLabel} (${containerNumber}): missing daily demurrage (or type-based rate)`);
+            errors.push(`${rowLabel} (${containerNumber}): invalid or missing port arrival date`);
             continue;
           }
 
-          upsertPayload.set(containerNumber, {
+          upsertPayload.set(`${containerNumber}|${yardId}`, {
             container_number: containerNumber,
             shipping_line: shippingLine,
             port_arrival_date: portArrivalDate,
-            free_days: Number.isNaN(freeDays) ? 7 : freeDays,
+            free_days: Number.isNaN(freeDays) ? 7 : Math.max(0, freeDays),
             daily_demurrage: dailyDemurrage,
             last_source: "excel",
             yard_id: yardId,
@@ -249,7 +301,7 @@ const PortDemurrageData = () => {
         const chunk = records.slice(start, start + chunkSize);
         const { error } = await supabase
           .from("container_port_data")
-          .upsert(chunk, { onConflict: "container_number" });
+          .upsert(chunk, { onConflict: "container_number,yard_id" });
 
         if (error) {
           errors.push(`Batch ${Math.floor(start / chunkSize) + 1}: ${error.message}`);
@@ -332,16 +384,16 @@ const PortDemurrageData = () => {
             <CardHeader><CardTitle className="flex items-center space-x-2"><Upload className="h-5 w-5" /><span>Import from Excel</span></CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground space-y-2">
-                <p>Upload an Excel file with the following columns:</p>
+                <p>Upload an Excel or overdue-report file. Accepted column names:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li><strong>Container Number</strong> — e.g., SEKU1157908</li>
-                  <li><strong>Container Type</strong> — e.g., 20FT, 40FT, 40HC, 45FT (needed for type-based rates)</li>
-                  <li><strong>Shipping Line</strong> — one of: {SHIPPING_LINES.join(", ")}</li>
-                  <li><strong>Port Arrival Date</strong> or <strong>Vessel Arrival Date</strong> — date format</li>
-                  <li><strong>Free Days</strong> — integer (default 7)</li>
-                  <li><strong>Daily Demurrage</strong> (single value) or type-based columns like <strong>Daily Demurrage 20</strong> / <strong>Daily Demurrage 40</strong></li>
+                  <li><strong>Container #</strong> or <strong>Container Number</strong> — e.g., CULU6254740</li>
+                  <li><strong>Size</strong> + <strong>Container Type</strong> — separate columns ("40" + "HC") or combined ("40HC")</li>
+                  <li><strong>Line</strong> or <strong>Shipping Line</strong> — full name (e.g., "Sea Lead Shipping") or code ({SHIPPING_LINES.join(", ")})</li>
+                  <li><strong>Vessel Arrival Date</strong> or <strong>Port Arrival Date</strong> — DD/MM/YYYY or YYYY-MM-DD</li>
+                  <li><strong>free days</strong> — integer (defaults to 7 if missing)</li>
+                  <li><strong>Daily Demurrage</strong> — optional; actual billing uses configured tier rules</li>
                 </ul>
-                <p className="text-xs">Column headers can also use snake_case (e.g., container_number).</p>
+                <p className="text-xs">Duplicate container numbers in the file keep the last row. Same container in different yards are stored separately.</p>
               </div>
               <div>
                 <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
@@ -402,7 +454,7 @@ const PortDemurrageData = () => {
                       <TableCell>{row.shipping_line}</TableCell>
                       <TableCell>{new Date(row.port_arrival_date).toLocaleDateString()}</TableCell>
                       <TableCell>{row.free_days}</TableCell>
-                      <TableCell>{row.daily_demurrage} JOD</TableCell>
+                      <TableCell>{row.daily_demurrage != null ? `${row.daily_demurrage} JOD` : "—"}</TableCell>
                       <TableCell>{row.last_source}</TableCell>
                     </TableRow>
                   ))}
