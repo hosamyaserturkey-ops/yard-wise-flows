@@ -147,7 +147,7 @@ const portDataSchema = z.object({
 });
 
 const PortDemurrageData = () => {
-  const { user, currentYardId } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -186,12 +186,6 @@ const PortDemurrageData = () => {
 
     setIsSubmitting(true);
     try {
-      const yardId = currentYardId();
-      if (!yardId) {
-        toast({ title: "Error", description: "No yard assigned to your account", variant: "destructive" });
-        setIsSubmitting(false);
-        return;
-      }
       const { error } = await supabase.from("container_port_data").upsert(
         {
           container_number: result.data.containerNumber,
@@ -200,9 +194,8 @@ const PortDemurrageData = () => {
           free_days: result.data.freeDays,
           daily_demurrage: result.data.dailyDemurrage,
           last_source: "manual",
-          yard_id: yardId,
         },
-        { onConflict: "container_number,yard_id" }
+        { onConflict: "container_number" }
       );
       if (error) throw error;
 
@@ -224,12 +217,6 @@ const PortDemurrageData = () => {
     setImportResults(null);
 
     try {
-      const yardId = currentYardId();
-      if (!yardId) {
-        toast({ title: "Error", description: "No yard assigned to your account", variant: "destructive" });
-        setImporting(false);
-        return;
-      }
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -237,6 +224,7 @@ const PortDemurrageData = () => {
 
       let success = 0;
       const errors: string[] = [];
+      // Keyed by container_number — one global record per container.
       const upsertPayload = new Map<
         string,
         {
@@ -246,7 +234,6 @@ const PortDemurrageData = () => {
           free_days: number;
           daily_demurrage: number | null;
           last_source: "excel";
-          yard_id: string;
         }
       >();
 
@@ -280,14 +267,13 @@ const PortDemurrageData = () => {
             continue;
           }
 
-          upsertPayload.set(`${containerNumber}|${yardId}`, {
+          upsertPayload.set(containerNumber, {
             container_number: containerNumber,
             shipping_line: shippingLine,
             port_arrival_date: portArrivalDate,
             free_days: Number.isNaN(freeDays) ? 7 : Math.max(0, freeDays),
             daily_demurrage: dailyDemurrage,
             last_source: "excel",
-            yard_id: yardId,
           });
         } catch (err: unknown) {
           errors.push(`${rowLabel}: ${getErrorMessage(err, "Unknown row error")}`);
@@ -301,7 +287,7 @@ const PortDemurrageData = () => {
         const chunk = records.slice(start, start + chunkSize);
         const { error } = await supabase
           .from("container_port_data")
-          .upsert(chunk, { onConflict: "container_number,yard_id" });
+          .upsert(chunk, { onConflict: "container_number" });
 
         if (error) {
           errors.push(`Batch ${Math.floor(start / chunkSize) + 1}: ${error.message}`);
