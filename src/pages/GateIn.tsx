@@ -309,26 +309,6 @@ const GateIn = () => {
         return;
       }
 
-      // Upsert port data for demurrage tracking
-      const yardIdForPort = currentYardId();
-      if (!yardIdForPort) {
-        toast({ title: "Error", description: "No yard assigned", variant: "destructive" });
-        setIsSubmitting(false);
-        return;
-      }
-      await supabase
-        .from('container_port_data')
-        .upsert({
-          container_number: containerNumber,
-          shipping_line: formData.shippingLine,
-          port_arrival_date: formData.portArrivalDate,
-          free_days: parseInt(formData.freeDays || "0"),
-          daily_demurrage: 0,
-          last_source: portDataFound ? 'gate-in' : 'gate-in-manual',
-          yard_id: yardIdForPort,
-        }, { onConflict: 'container_number' });
-
-
       // No demurrage (or already paid) — proceed directly
       await insertContainer(containerNumber);
     } catch (error) {
