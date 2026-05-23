@@ -88,19 +88,20 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
 
           supabase
             .from("inspector_checks")
-            .select("grade, notes, inspected_at, status")
+            .select("grade, notes, created_at, status")
             .eq("container_number", num)
-            .order("inspected_at", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
 
           supabase
             .from("demurrage_payments")
-            .select("amount_jod, paid_at")
+            .select("total_collected, created_at")
             .eq("container_number", num)
-            .order("paid_at", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
+
         ]);
 
         setPortData(portRes.data ?? null);
