@@ -251,53 +251,6 @@ export type Database = {
           },
         ]
       }
-      inspector_checks: {
-        Row: {
-          container_number: string
-          created_at: string
-          grade: string
-          id: string
-          inspector_id: string
-          notes: string | null
-          photo_urls: string[]
-          status: string
-          updated_at: string
-          yard_id: string
-        }
-        Insert: {
-          container_number: string
-          created_at?: string
-          grade: string
-          id?: string
-          inspector_id: string
-          notes?: string | null
-          photo_urls?: string[]
-          status?: string
-          updated_at?: string
-          yard_id: string
-        }
-        Update: {
-          container_number?: string
-          created_at?: string
-          grade?: string
-          id?: string
-          inspector_id?: string
-          notes?: string | null
-          photo_urls?: string[]
-          status?: string
-          updated_at?: string
-          yard_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "inspector_checks_yard_id_fkey"
-            columns: ["yard_id"]
-            isOneToOne: false
-            referencedRelation: "yards"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       edi_transmissions: {
         Row: {
           ack_received_at: string | null
@@ -344,6 +297,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "edi_transmissions_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspector_checks: {
+        Row: {
+          container_number: string
+          created_at: string
+          grade: string
+          id: string
+          inspector_id: string
+          notes: string | null
+          photo_urls: Json | null
+          status: string
+          updated_at: string
+          yard_id: string
+        }
+        Insert: {
+          container_number: string
+          created_at?: string
+          grade: string
+          id?: string
+          inspector_id: string
+          notes?: string | null
+          photo_urls?: Json | null
+          status?: string
+          updated_at?: string
+          yard_id: string
+        }
+        Update: {
+          container_number?: string
+          created_at?: string
+          grade?: string
+          id?: string
+          inspector_id?: string
+          notes?: string | null
+          photo_urls?: Json | null
+          status?: string
+          updated_at?: string
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspector_checks_yard_id_fkey"
             columns: ["yard_id"]
             isOneToOne: false
             referencedRelation: "yards"
