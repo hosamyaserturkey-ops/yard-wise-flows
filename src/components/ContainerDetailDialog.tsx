@@ -306,7 +306,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                         {inspection.status}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {fmt(new Date(inspection.inspected_at))} {fmtTime(new Date(inspection.inspected_at))}
+                        {fmt(new Date(inspection.created_at))} {fmtTime(new Date(inspection.created_at))}
                       </span>
                     </div>
                     {inspection.notes && (
