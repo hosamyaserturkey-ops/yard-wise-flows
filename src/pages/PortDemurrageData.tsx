@@ -147,7 +147,7 @@ const portDataSchema = z.object({
 });
 
 const PortDemurrageData = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
