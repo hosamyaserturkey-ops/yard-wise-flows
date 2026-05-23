@@ -33,6 +33,7 @@ interface InspectionData {
   notes: string | null;
   inspected_at: string;
   status: string;
+  photo_urls?: string[] | null;
 }
 
 interface DemurragePayment {
@@ -87,7 +88,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
 
           supabase
             .from("inspector_checks")
-            .select("grade, notes, inspected_at, status")
+            .select("grade, notes, inspected_at, status, photo_urls")
             .eq("container_number", num)
             .order("inspected_at", { ascending: false })
             .limit(1)
@@ -309,6 +310,24 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                     </div>
                     {inspection.notes && (
                       <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{inspection.notes}</p>
+                    )}
+                    {inspection.photo_urls && inspection.photo_urls.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs text-muted-foreground font-medium mb-2">
+                          INSPECTION PHOTOS ({inspection.photo_urls.length})
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {inspection.photo_urls.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                              <img
+                                src={url}
+                                alt={`Inspection photo ${i + 1}`}
+                                className="w-full aspect-square object-cover rounded-lg border hover:opacity-90 transition-opacity"
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

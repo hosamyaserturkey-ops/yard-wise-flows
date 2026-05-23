@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Container, Ship, Clock, Users, Calendar, Search, TrendingUp } from "lucide-react";
+import { Container, Ship, Clock, Users, Calendar, Search, TrendingUp, BarChart3 } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import ReserveContainerDialog from "@/components/ReserveContainerDialog";
 import ContainerDetailDialog from "@/components/ContainerDetailDialog";
 import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
-import bgDashboard from "@/assets/bg-dashboard.jpg";
+import { PageHeader } from "@/components/PageHeader";
 import {
   ChartContainer,
   ChartTooltip,
@@ -294,24 +294,10 @@ const Dashboard = () => {
   );
 
   return (
-    <div
-      className="min-h-screen relative py-6"
-      style={{
-        backgroundImage: `url(${bgDashboard})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-      }}
-    >
-      <div className="absolute inset-0 bg-black/50" />
-
-      <div className="relative z-10 space-y-6 px-4 max-w-screen-2xl mx-auto">
+    <div className="space-y-6 p-4 md:p-6 lg:p-8 animate-in fade-in-0 duration-300">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-industrial">Dashboard</h1>
-          <div className="text-sm text-white/70">
-            Last updated: {lastUpdated.toLocaleTimeString()}
-          </div>
+          <PageHeader icon={BarChart3} title="Dashboard" subtitle={`Last updated ${lastUpdated.toLocaleTimeString()}`} />
         </div>
 
         {/* Stats row */}
@@ -488,7 +474,6 @@ const Dashboard = () => {
             />
           </div>
         </div>
-      </div>
 
       {/* Dialogs */}
       <ReserveContainerDialog

@@ -75,7 +75,7 @@ const Yards = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <Building2 className="h-8 w-8 text-white drop-shadow-md" />

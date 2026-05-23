@@ -48,7 +48,7 @@ const Layout = () => {
         </header>
 
         {/* ── Page Content ────────────────────────────── */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-background">
           <Outlet />
         </main>
       </SidebarInset>

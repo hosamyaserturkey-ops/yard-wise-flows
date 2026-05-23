@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Users, CheckCircle, ArrowRight } from "lucide-react";
+import { Plus, Package, Users, CheckCircle, ArrowRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { bookingSchema } from "@/lib/validation";
 import type { Booking, CreateBookingData } from "@/types/booking";
-import bgBookings from "@/assets/bg-bookings.jpg";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function Bookings() {
   const navigate = useNavigate();
@@ -19,6 +19,7 @@ export default function Bookings() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState<CreateBookingData>({
     booking_number: "",
     customer_name: "",
@@ -42,6 +43,17 @@ export default function Bookings() {
         created_at: new Date(booking.created_at),
         updated_at: new Date(booking.updated_at),
       })));
+
+      // Auto-complete bookings where all containers are gated out
+      const toComplete = data.filter(
+        (b) => b.status === 'active' && b.total_containers > 0 && b.gated_out_containers >= b.total_containers
+      );
+      if (toComplete.length > 0) {
+        await supabase
+          .from('bookings')
+          .update({ status: 'completed' })
+          .in('id', toComplete.map((b) => b.id));
+      }
     } catch (error) {
       console.error("Error fetching bookings:", error);
       toast({
@@ -139,28 +151,28 @@ export default function Bookings() {
   }
 
   return (
-    <div 
-      className="min-h-screen relative py-6"
-      style={{
-        backgroundImage: `url(${bgBookings})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      <div className="absolute inset-0 bg-black/50"></div>
-      <div className="container mx-auto p-6 space-y-6 relative z-10">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Bookings</h1>
-          <p className="text-muted-foreground">
-            Manage container bookings and track gate-out progress
-          </p>
-        </div>
-        <Button onClick={() => setShowCreateForm(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          New Booking
-        </Button>
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
+      <PageHeader
+        icon={Package}
+        title="Bookings"
+        subtitle="Manage container bookings and track gate-out progress"
+        action={
+          <Button onClick={() => setShowCreateForm(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Booking
+          </Button>
+        }
+      />
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          className="pl-9"
+          placeholder="Search by booking number or customer…"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
       {showCreateForm && (
@@ -247,9 +259,18 @@ export default function Bookings() {
             </CardContent>
           </Card>
         ) : (
-          bookings.map((booking) => (
-            <Card 
-              key={booking.id} 
+          bookings
+            .filter(b => {
+              const q = searchTerm.trim().toLowerCase();
+              if (!q) return true;
+              return (
+                b.booking_number.toLowerCase().includes(q) ||
+                b.customer_name.toLowerCase().includes(q)
+              );
+            })
+            .map((booking) => (
+            <Card
+              key={booking.id}
               className="cursor-pointer hover:shadow-lg transition-shadow"
               onClick={() => navigate(`/bookings/${booking.id}`)}
             >
@@ -268,7 +289,7 @@ export default function Bookings() {
                     </Badge>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="flex items-center gap-2">
                     <Package className="h-4 w-4 text-muted-foreground" />
@@ -286,7 +307,7 @@ export default function Bookings() {
                     Created: {booking.created_at.toLocaleDateString()}
                   </div>
                 </div>
-                
+
                 {booking.total_containers > 0 && (
                   <div className="mt-4">
                     <div className="flex justify-between text-sm mb-1">
@@ -305,9 +326,23 @@ export default function Bookings() {
                 )}
 
                 <div className="flex justify-end mt-4">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  {booking.status === 'active' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-2 text-destructive hover:text-destructive"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', booking.id);
+                        fetchBookings();
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="gap-2"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -322,7 +357,6 @@ export default function Bookings() {
             </Card>
           ))
         )}
-      </div>
       </div>
     </div>
   );

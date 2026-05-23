@@ -10,7 +10,7 @@ import type { ShippingLine } from "@/lib/shippingLines";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { gateOutSchema } from "@/lib/validation";
-import bgGateOut from "@/assets/bg-gate-out.jpg";
+import { PageHeader } from "@/components/PageHeader";
 
 const GateOut = () => {
   const { user, profile } = useAuth();
@@ -31,7 +31,7 @@ const GateOut = () => {
       const { data, error } = await supabase
         .from('containers')
         .select('*')
-        .eq('status', 'reserved')
+        .in('status', ['reserved', 'in-yard'])
         .order('gate_in_time', { ascending: false });
 
       if (error) throw error;
@@ -398,27 +398,14 @@ const GateOut = () => {
   }
 
   return (
-    <div 
-      className="min-h-screen relative py-6"
-      style={{
-        backgroundImage: `url(${bgGateOut})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      <div className="absolute inset-0 bg-black/50"></div>
-      <div className="space-y-6 relative z-10">
-      <div className="flex items-center space-x-2">
-        <Ship className="h-8 w-8 text-maritime" />
-        <h1 className="text-3xl font-bold text-industrial">Gate Out Reserved Container</h1>
-      </div>
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
+      <PageHeader icon={Ship} title="Gate Out" subtitle="Process reserved containers for departure" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Container Selection */}
         <Card>
           <CardHeader>
-            <CardTitle>Select Reserved Container to Gate Out</CardTitle>
+            <CardTitle>Select Container to Gate Out</CardTitle>
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -464,7 +451,7 @@ const GateOut = () => {
               ))}
               {filteredContainers.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  {searchTerm ? "No reserved containers found matching your search" : "No reserved containers available for gate out"}
+                  {searchTerm ? "No containers found matching your search" : "No containers available for gate out"}
                 </div>
               )}
             </div>
@@ -556,7 +543,6 @@ const GateOut = () => {
             )}
           </CardContent>
         </Card>
-      </div>
       </div>
     </div>
   );
