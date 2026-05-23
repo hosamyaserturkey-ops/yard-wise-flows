@@ -60,12 +60,12 @@ const Reports = () => {
       if (numbers.length > 0) {
         const { data: paymentsData } = await supabase
           .from("demurrage_payments")
-          .select("container_number, amount_jod")
+          .select("container_number, total_collected")
           .in("container_number", numbers);
         const paidMap: Record<string, number> = {};
         (paymentsData ?? []).forEach((p) => {
           paidMap[p.container_number] =
-            (paidMap[p.container_number] ?? 0) + Number(p.amount_jod ?? 0);
+            (paidMap[p.container_number] ?? 0) + Number(p.total_collected ?? 0);
         });
         setDemurragePaid(paidMap);
       }
