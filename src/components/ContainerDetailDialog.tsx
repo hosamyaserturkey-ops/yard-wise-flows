@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
-import { calculateDemurrage, hasDemurrageRules, USD_TO_JOD } from "@/lib/demurrage";
+import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
 
 interface PortData {
   port_arrival_date: string | null;
@@ -190,9 +190,12 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
 
             {/* ── Port Data & Demurrage ─────────────────────────── */}
             <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-                <DollarSign className="h-4 w-4" /> Demurrage
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-2">
+                <DollarSign className="h-4 w-4" /> Demurrage at Gate-In
               </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Demurrage is settled once when the container is first gated in. It does not accrue while the container sits in the yard.
+              </p>
 
               {!portData ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 rounded-lg p-3">
@@ -259,8 +262,8 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                     </div>
                   )}
 
-                  {/* Payment status */}
-                  {payment ? (
+                  {/* Payment status — only show 'paid' badge; demurrage doesn't accrue after gate-in */}
+                  {payment && (
                     <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg p-3 border border-success/20">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
                       Demurrage paid: <strong>{payment.amount_jod.toFixed(2)} JOD</strong>
@@ -268,12 +271,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                         {fmt(new Date(payment.paid_at))}
                       </span>
                     </div>
-                  ) : demurrage.totalJOD > 0 ? (
-                    <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg p-3 border border-destructive/20">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      Demurrage <strong>not yet paid</strong>
-                    </div>
-                  ) : null}
+                  )}
                 </div>
               ) : null}
             </div>
