@@ -268,9 +268,9 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                   {payment && (
                     <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg p-3 border border-success/20">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      Demurrage paid: <strong>{payment.amount_jod.toFixed(2)} JOD</strong>
+                      Demurrage paid: <strong>{Number(payment.total_collected).toFixed(2)} JOD</strong>
                       <span className="text-muted-foreground text-xs ml-auto">
-                        {fmt(new Date(payment.paid_at))}
+                        {fmt(new Date(payment.created_at))}
                       </span>
                     </div>
                   )}
