@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, Calendar } from "lucide-react";
+import { FileText, Download, Calendar, Search } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,9 @@ const Reports = () => {
   const { toast } = useToast();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [filteredContainers, setFilteredContainers] = useState<ContainerType[]>([]);
+  const [demurragePaid, setDemurragePaid] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -52,6 +54,21 @@ const Reports = () => {
 
       setContainers(formattedContainers);
       setFilteredContainers(formattedContainers);
+
+      // Fetch demurrage payments for these containers
+      const numbers = formattedContainers.map((c) => c.containerNumber);
+      if (numbers.length > 0) {
+        const { data: paymentsData } = await supabase
+          .from("demurrage_payments")
+          .select("container_number, amount_jod")
+          .in("container_number", numbers);
+        const paidMap: Record<string, number> = {};
+        (paymentsData ?? []).forEach((p) => {
+          paidMap[p.container_number] =
+            (paidMap[p.container_number] ?? 0) + Number(p.amount_jod ?? 0);
+        });
+        setDemurragePaid(paidMap);
+      }
     } catch (error) {
       console.error('Error fetching containers:', error);
       toast({
@@ -69,7 +86,8 @@ const Reports = () => {
   }, [fetchContainers]);
 
 
-  const applyFilters = () => {
+  // Live filter — runs on every change to filters / search.
+  useEffect(() => {
     let filtered = [...containers];
 
     if (filters.dateFrom) {
@@ -79,7 +97,7 @@ const Reports = () => {
 
     if (filters.dateTo) {
       const toDate = new Date(filters.dateTo);
-      toDate.setHours(23, 59, 59, 999); // End of day
+      toDate.setHours(23, 59, 59, 999);
       filtered = filtered.filter(c => c.gateInTime <= toDate);
     }
 
@@ -95,8 +113,19 @@ const Reports = () => {
       filtered = filtered.filter(c => c.containerType === filters.containerType);
     }
 
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter(c =>
+        c.containerNumber.toLowerCase().includes(q) ||
+        c.driverName?.toLowerCase().includes(q) ||
+        c.truckNumber?.toLowerCase().includes(q) ||
+        c.bookingNumber?.toLowerCase().includes(q) ||
+        c.shippingLine?.toLowerCase().includes(q),
+      );
+    }
+
     setFilteredContainers(filtered);
-  };
+  }, [containers, filters, searchTerm]);
 
   const clearFilters = () => {
     setFilters({
@@ -106,7 +135,7 @@ const Reports = () => {
       status: "all",
       containerType: "all"
     });
-    setFilteredContainers(containers);
+    setSearchTerm("");
   };
 
   const exportToCSV = () => {
@@ -120,26 +149,37 @@ const Reports = () => {
       "Gate Out Time",
       "Status",
       "Booking Number",
-      "Fees"
+      "Gate-Out Fees (JOD)",
+      "Demurrage Paid (JOD)"
     ];
+
+    const escape = (v: unknown) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
 
     const csvContent = [
       headers.join(","),
-      ...filteredContainers.map(container => [
-        container.containerNumber,
-        container.containerType,
-        container.shippingLine,
-        container.driverName,
-        container.truckNumber,
-        container.gateInTime.toISOString(),
-        container.gateOutTime?.toISOString() || "",
-        container.status,
-        container.bookingNumber || "",
-        container.fees || ""
-      ].join(","))
+      ...filteredContainers.map(container =>
+        [
+          container.containerNumber,
+          container.containerType,
+          container.shippingLine,
+          container.driverName,
+          container.truckNumber,
+          container.gateInTime.toISOString(),
+          container.gateOutTime?.toISOString() || "",
+          container.status,
+          container.bookingNumber || "",
+          container.fees ?? "",
+          demurragePaid[container.containerNumber]?.toFixed(2) ?? "",
+        ]
+          .map(escape)
+          .join(","),
+      ),
     ].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv" });
+    const blob = new Blob(["﻿" + csvContent], { type: "text/csv;charset=utf-8" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -149,6 +189,10 @@ const Reports = () => {
   };
 
   const totalFees = filteredContainers.reduce((sum, container) => sum + (container.fees || 0), 0);
+  const totalDemurrage = filteredContainers.reduce(
+    (sum, c) => sum + (demurragePaid[c.containerNumber] || 0),
+    0,
+  );
 
   return (
     <div 
@@ -182,6 +226,15 @@ const Reports = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by container, driver, truck, booking, or line…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label htmlFor="dateFrom">From Date</Label>
@@ -250,19 +303,16 @@ const Reports = () => {
             </div>
           </div>
 
-          <div className="flex justify-end space-x-4 mt-4">
+          <div className="flex justify-end mt-4">
             <Button variant="outline" onClick={clearFilters}>
               Clear Filters
-            </Button>
-            <Button onClick={applyFilters} className="bg-maritime hover:bg-maritime/90">
-              Apply Filters
             </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-maritime">{filteredContainers.length}</div>
@@ -295,8 +345,14 @@ const Reports = () => {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-container">${totalFees.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-container">{totalFees.toFixed(2)} JOD</div>
             <div className="text-sm text-muted-foreground">Total Fees</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-success">{totalDemurrage.toFixed(2)} JOD</div>
+            <div className="text-sm text-muted-foreground">Demurrage Collected</div>
           </CardContent>
         </Card>
       </div>
@@ -320,6 +376,7 @@ const Reports = () => {
                 <TableHead>Status</TableHead>
                 <TableHead>Booking</TableHead>
                 <TableHead>Fees</TableHead>
+                <TableHead>Demurrage</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -363,7 +420,16 @@ const Reports = () => {
                     {container.bookingNumber || "-"}
                   </TableCell>
                   <TableCell>
-                    {container.fees ? `$${container.fees.toFixed(2)}` : "-"}
+                    {container.fees ? `${container.fees.toFixed(2)} JOD` : "-"}
+                  </TableCell>
+                  <TableCell>
+                    {demurragePaid[container.containerNumber] != null ? (
+                      <Badge className="bg-success/10 text-success border-success/30">
+                        {demurragePaid[container.containerNumber].toFixed(2)} JOD
+                      </Badge>
+                    ) : (
+                      "-"
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

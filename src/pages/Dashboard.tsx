@@ -12,12 +12,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import ReserveContainerDialog from "@/components/ReserveContainerDialog";
 import ContainerDetailDialog from "@/components/ContainerDetailDialog";
+import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
 import bgDashboard from "@/assets/bg-dashboard.jpg";
+
+interface DemurrageInfo {
+  paidJOD?: number;
+  owedJOD?: number;
+}
 
 const Dashboard = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [containers, setContainers] = useState<ContainerType[]>([]);
+  const [demurrageMap, setDemurrageMap] = useState<Record<string, DemurrageInfo>>({});
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
@@ -76,6 +83,62 @@ const Dashboard = () => {
   useEffect(() => {
     fetchContainers();
   }, [fetchContainers]);
+
+  // Batch-load demurrage info (port data + payments) whenever containers change.
+  // Per business rule: demurrage is collected once at gate-in and stops accruing
+  // afterwards — so we just calculate what was owed at gate-in for each container,
+  // and mark "paid" if a payment record exists.
+  useEffect(() => {
+    if (containers.length === 0) {
+      setDemurrageMap({});
+      return;
+    }
+
+    const numbers = containers.map((c) => c.containerNumber);
+
+    (async () => {
+      const [portRes, payRes] = await Promise.all([
+        supabase
+          .from("container_port_data")
+          .select("container_number, port_arrival_date, shipping_line")
+          .in("container_number", numbers),
+        supabase
+          .from("demurrage_payments")
+          .select("container_number, amount_jod")
+          .in("container_number", numbers),
+      ]);
+
+      const portByNum = new Map(
+        (portRes.data ?? []).map((r) => [r.container_number, r]),
+      );
+      const paidByNum = new Map<string, number>();
+      (payRes.data ?? []).forEach((p) =>
+        paidByNum.set(p.container_number, (paidByNum.get(p.container_number) ?? 0) + Number(p.amount_jod ?? 0)),
+      );
+
+      const map: Record<string, DemurrageInfo> = {};
+      for (const c of containers) {
+        const paid = paidByNum.get(c.containerNumber);
+        const port = portByNum.get(c.containerNumber);
+
+        let owed: number | undefined;
+        if (port?.port_arrival_date && hasDemurrageRules(c.shippingLine)) {
+          const r = calculateDemurrage(
+            c.shippingLine,
+            c.containerType,
+            port.port_arrival_date,
+            c.gateInTime,
+          );
+          owed = r.totalJOD;
+        }
+
+        if (paid != null || owed != null) {
+          map[c.containerNumber] = { paidJOD: paid, owedJOD: owed };
+        }
+      }
+      setDemurrageMap(map);
+    })();
+  }, [containers]);
 
   // Real-time subscription
   useEffect(() => {
@@ -263,6 +326,7 @@ const Dashboard = () => {
                         <ContainerRow
                           key={c.id}
                           container={c}
+                          demurrage={demurrageMap[c.containerNumber]}
                           onClick={() => openDetail(c)}
                           onReserve={(e) => {
                             e.stopPropagation();
@@ -310,14 +374,25 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "outlin
 
 const ContainerRow = ({
   container: c,
+  demurrage,
   onClick,
   onReserve,
 }: {
   container: ContainerType;
+  demurrage?: { paidJOD?: number; owedJOD?: number };
   onClick: () => void;
   onReserve: (e: React.MouseEvent) => void;
 }) => {
   const badge = STATUS_BADGE[c.status] ?? { label: c.status.toUpperCase(), variant: "secondary" as const };
+
+  // Demurrage badge: paid (green) takes precedence; otherwise show what was owed at gate-in.
+  let demurrageBadge: { label: string; tone: "paid" | "info" | "none" } | null = null;
+  if (demurrage?.paidJOD != null && demurrage.paidJOD > 0) {
+    demurrageBadge = { label: `${demurrage.paidJOD.toFixed(2)} JOD paid`, tone: "paid" };
+  } else if (demurrage?.owedJOD != null && demurrage.owedJOD > 0) {
+    demurrageBadge = { label: `${demurrage.owedJOD.toFixed(2)} JOD (gate-in)`, tone: "info" };
+  }
+
   return (
     <div
       className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors group"
@@ -339,6 +414,19 @@ const ContainerRow = ({
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
+        {demurrageBadge && (
+          <Badge
+            variant="outline"
+            className={`hidden md:inline-flex font-medium ${
+              demurrageBadge.tone === "paid"
+                ? "bg-success/10 text-success border-success/30"
+                : "bg-warning/10 text-warning border-warning/30"
+            }`}
+          >
+            {demurrageBadge.label}
+          </Badge>
+        )}
+
         <div className="text-right hidden sm:block">
           <div className="text-sm font-medium">{c.shippingLine}</div>
           <div className="text-xs text-muted-foreground">
