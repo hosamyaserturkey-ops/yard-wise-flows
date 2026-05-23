@@ -12,7 +12,7 @@ import { GateInData } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { gateInSchema } from "@/lib/validation";
-import bgGateIn from "@/assets/bg-gate-in.jpg";
+import { PageHeader } from "@/components/PageHeader";
 import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
@@ -710,21 +710,9 @@ const GateIn = () => {
 
 
   return (
-    <div 
-      className="min-h-screen relative py-6"
-      style={{
-        backgroundImage: `url(${bgGateIn})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      <div className="absolute inset-0 bg-black/50"></div>
-      <div className="max-w-2xl mx-auto space-y-6 relative z-10">
-      <div className="flex items-center space-x-2">
-        <Container className="h-8 w-8 text-maritime" />
-        <h1 className="text-3xl font-bold text-industrial">Gate In Container</h1>
-      </div>
+    <div className="p-4 md:p-6 lg:p-8 animate-in fade-in-0 duration-300">
+      <div className="max-w-2xl mx-auto space-y-6">
+      <PageHeader icon={Container} title="Gate In Container" subtitle="Record container arrivals and collect demurrage" />
 
       {pendingGateIns.length > 0 && (
         <Card className="border-green-400 bg-green-50/90">

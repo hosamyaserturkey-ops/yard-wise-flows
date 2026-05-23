@@ -323,7 +323,7 @@ const PortDemurrageData = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
       <div className="flex items-center space-x-2">
         <Anchor className="h-8 w-8 text-maritime" />
         <h1 className="text-3xl font-bold text-foreground">Port Demurrage Data</h1>

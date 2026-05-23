@@ -10,7 +10,7 @@ import { FileText, Download, Calendar, Search } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import bgReports from "@/assets/bg-reports.jpg";
+import { PageHeader } from "@/components/PageHeader";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 
@@ -195,27 +195,18 @@ const Reports = () => {
   );
 
   return (
-    <div 
-      className="min-h-screen relative py-6"
-      style={{
-        backgroundImage: `url(${bgReports})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      <div className="absolute inset-0 bg-black/50"></div>
-      <div className="space-y-6 relative z-10">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <FileText className="h-8 w-8 text-maritime" />
-          <h1 className="text-3xl font-bold text-industrial">Reports</h1>
-        </div>
-        <Button onClick={exportToCSV} className="bg-success hover:bg-success/90">
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
-      </div>
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
+      <PageHeader
+        icon={FileText}
+        title="Reports"
+        subtitle={`${filteredContainers.length} container${filteredContainers.length !== 1 ? "s" : ""} shown`}
+        action={
+          <Button onClick={exportToCSV} className="bg-success hover:bg-success/90">
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+        }
+      />
 
       {/* Filters */}
       <Card>
@@ -442,7 +433,6 @@ const Reports = () => {
           )}
         </CardContent>
       </Card>
-      </div>
     </div>
   );
 };
