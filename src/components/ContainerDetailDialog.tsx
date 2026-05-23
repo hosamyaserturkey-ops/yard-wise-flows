@@ -31,14 +31,15 @@ interface PortData {
 interface InspectionData {
   grade: string;
   notes: string | null;
-  inspected_at: string;
+  created_at: string;
   status: string;
 }
 
 interface DemurragePayment {
-  amount_jod: number;
-  paid_at: string;
+  total_collected: number;
+  created_at: string;
 }
+
 
 interface Props {
   container: ContainerType | null;
@@ -87,19 +88,20 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
 
           supabase
             .from("inspector_checks")
-            .select("grade, notes, inspected_at, status")
+            .select("grade, notes, created_at, status")
             .eq("container_number", num)
-            .order("inspected_at", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
 
           supabase
             .from("demurrage_payments")
-            .select("amount_jod, paid_at")
+            .select("total_collected, created_at")
             .eq("container_number", num)
-            .order("paid_at", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
+
         ]);
 
         setPortData(portRes.data ?? null);
@@ -266,9 +268,9 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                   {payment && (
                     <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg p-3 border border-success/20">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      Demurrage paid: <strong>{payment.amount_jod.toFixed(2)} JOD</strong>
+                      Demurrage paid: <strong>{Number(payment.total_collected).toFixed(2)} JOD</strong>
                       <span className="text-muted-foreground text-xs ml-auto">
-                        {fmt(new Date(payment.paid_at))}
+                        {fmt(new Date(payment.created_at))}
                       </span>
                     </div>
                   )}
@@ -304,7 +306,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                         {inspection.status}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {fmt(new Date(inspection.inspected_at))} {fmtTime(new Date(inspection.inspected_at))}
+                        {fmt(new Date(inspection.created_at))} {fmtTime(new Date(inspection.created_at))}
                       </span>
                     </div>
                     {inspection.notes && (
