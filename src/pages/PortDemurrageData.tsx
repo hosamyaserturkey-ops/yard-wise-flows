@@ -218,6 +218,11 @@ const PortDemurrageData = () => {
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!profile?.yard_id) {
+      toast({ title: "Error", description: "No yard assigned to your profile", variant: "destructive" });
+      return;
+    }
+    const yardId = profile.yard_id;
 
     setImporting(true);
     setImportResults(null);
