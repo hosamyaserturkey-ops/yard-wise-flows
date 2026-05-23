@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Container, Ship, Clock, Users, Calendar, Search } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Container, Ship, Clock, Users, Calendar, Search, TrendingUp } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,11 +14,77 @@ import ReserveContainerDialog from "@/components/ReserveContainerDialog";
 import ContainerDetailDialog from "@/components/ContainerDetailDialog";
 import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
 import bgDashboard from "@/assets/bg-dashboard.jpg";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Cell,
+  PieChart,
+  Pie,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface DemurrageInfo {
   paidJOD?: number;
   owedJOD?: number;
 }
+
+interface KanbanCardProps {
+  container: ContainerType;
+  demurrage?: { paidJOD?: number; owedJOD?: number };
+  onClick: () => void;
+  onReserve?: (e: React.MouseEvent) => void;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const LINE_COLORS = [
+  "#1a56db",
+  "#f59e0b",
+  "#10b981",
+  "#8b5cf6",
+  "#ef4444",
+  "#06b6d4",
+  "#ec4899",
+  "#6366f1",
+];
+
+function daysInYard(gateInTime: Date): number {
+  const ms = Date.now() - gateInTime.getTime();
+  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+}
+
+function timeAgo(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function last7DayLabels(): { date: Date; label: string }[] {
+  return Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    d.setHours(0, 0, 0, 0);
+    const label = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
+    return { date: d, label };
+  });
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
   const { profile } = useAuth();
@@ -34,9 +100,7 @@ const Dashboard = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailContainer, setDetailContainer] = useState<ContainerType | null>(null);
 
-  // filters
-  const [statusFilter, setStatusFilter] = useState<"all" | "in-yard" | "reserved" | "out">("all");
-  const [lineFilter, setLineFilter] = useState<string>("all");
+  // search
   const [search, setSearch] = useState("");
 
   // Redirect inspectors to their page
@@ -84,10 +148,7 @@ const Dashboard = () => {
     fetchContainers();
   }, [fetchContainers]);
 
-  // Batch-load demurrage info (port data + payments) whenever containers change.
-  // Per business rule: demurrage is collected once at gate-in and stops accruing
-  // afterwards — so we just calculate what was owed at gate-in for each container,
-  // and mark "paid" if a payment record exists.
+  // Batch-load demurrage info
   useEffect(() => {
     if (containers.length === 0) {
       setDemurrageMap({});
@@ -113,7 +174,10 @@ const Dashboard = () => {
       );
       const paidByNum = new Map<string, number>();
       (payRes.data ?? []).forEach((p) =>
-        paidByNum.set(p.container_number, (paidByNum.get(p.container_number) ?? 0) + Number(p.amount_jod ?? 0)),
+        paidByNum.set(
+          p.container_number,
+          (paidByNum.get(p.container_number) ?? 0) + Number(p.amount_jod ?? 0),
+        ),
       );
 
       const map: Record<string, DemurrageInfo> = {};
@@ -161,50 +225,73 @@ const Dashboard = () => {
   const reservedCount = containers.filter((c) => c.status === "reserved").length;
   const outCount = containers.filter((c) => c.status === "out").length;
 
-  // Unique shipping lines present in data (for dynamic filter buttons)
-  const shippingLines = useMemo(
-    () => Array.from(new Set(containers.map((c) => c.shippingLine))).sort(),
+  // Filtered containers for kanban search
+  const filteredContainers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return containers;
+    return containers.filter(
+      (c) =>
+        c.containerNumber.toLowerCase().includes(q) ||
+        c.driverName?.toLowerCase().includes(q) ||
+        c.truckNumber?.toLowerCase().includes(q) ||
+        c.shippingLine?.toLowerCase().includes(q),
+    );
+  }, [containers, search]);
+
+  const inYard = filteredContainers.filter((c) => c.status === "in-yard");
+  const reserved = filteredContainers.filter((c) => c.status === "reserved");
+  const out = filteredContainers.filter((c) => c.status === "out");
+
+  // Activity feed: last 10 by gate_in_time desc
+  const activityFeed = useMemo(
+    () => [...containers].sort((a, b) => b.gateInTime.getTime() - a.gateInTime.getTime()).slice(0, 10),
     [containers],
   );
 
-  // Counts per line for the currently visible status tab
-  const lineCount = (line: string) =>
-    containers.filter(
-      (c) =>
-        (statusFilter === "all" || c.status === statusFilter) &&
-        c.shippingLine === line,
-    ).length;
-
-  // Filtered list
-  const filteredContainers = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return containers.filter((c) => {
-      if (statusFilter !== "all" && c.status !== statusFilter) return false;
-      if (lineFilter !== "all" && c.shippingLine !== lineFilter) return false;
-      if (q) {
-        return (
-          c.containerNumber.toLowerCase().includes(q) ||
-          c.driverName?.toLowerCase().includes(q) ||
-          c.truckNumber?.toLowerCase().includes(q) ||
-          c.shippingLine?.toLowerCase().includes(q)
-        );
-      }
-      return true;
+  // Daily trend: last 7 days
+  const dailyTrend = useMemo(() => {
+    const days = last7DayLabels();
+    return days.map(({ date, label }) => {
+      const next = new Date(date);
+      next.setDate(next.getDate() + 1);
+      const count = containers.filter(
+        (c) => c.gateInTime >= date && c.gateInTime < next,
+      ).length;
+      return { label, count };
     });
-  }, [containers, statusFilter, lineFilter, search]);
+  }, [containers]);
+
+  // Shipping line donut
+  const lineData = useMemo(() => {
+    const map = new Map<string, number>();
+    containers.forEach((c) => {
+      map.set(c.shippingLine, (map.get(c.shippingLine) ?? 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [containers]);
 
   const openDetail = (c: ContainerType) => {
     setDetailContainer(c);
     setDetailOpen(true);
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64 text-white">
-        Loading dashboard…
-      </div>
-    );
-  }
+  const openReserve = (c: ContainerType) => {
+    setSelectedContainer(c);
+    setReserveDialogOpen(true);
+  };
+
+  const barChartConfig: ChartConfig = {
+    count: { label: "Gate-ins", color: "#1a56db" },
+  };
+
+  const pieChartConfig: ChartConfig = Object.fromEntries(
+    lineData.map((d, i) => [
+      d.name,
+      { label: d.name, color: LINE_COLORS[i % LINE_COLORS.length] },
+    ]),
+  );
 
   return (
     <div
@@ -217,7 +304,8 @@ const Dashboard = () => {
       }}
     >
       <div className="absolute inset-0 bg-black/50" />
-      <div className="space-y-6 relative z-10">
+
+      <div className="relative z-10 space-y-6 px-4 max-w-screen-2xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-industrial">Dashboard</h1>
@@ -226,122 +314,180 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Stats row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Containers In Yard"
             value={inYardCount}
             color="maritime"
             icon={<Container className="h-4 w-4 text-maritime" />}
+            loading={loading}
           />
           <StatCard
             label="Reserved"
             value={reservedCount}
             color="warning"
             icon={<Calendar className="h-4 w-4 text-warning" />}
+            loading={loading}
           />
           <StatCard
             label="Containers Out"
             value={outCount}
             color="success"
             icon={<Ship className="h-4 w-4 text-success" />}
+            loading={loading}
           />
           <StatCard
             label="Total Containers"
             value={containers.length}
             color="container"
             icon={<Users className="h-4 w-4 text-container" />}
+            loading={loading}
           />
         </div>
 
-        {/* Container Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-maritime" />
-              <span>Container Activity</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs
-              defaultValue="all"
-              onValueChange={(v) =>
-                setStatusFilter(v as "all" | "in-yard" | "reserved" | "out")
-              }
-            >
-              {/* Status tabs + search row */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
-                <TabsList>
-                  <TabsTrigger value="all">All ({containers.length})</TabsTrigger>
-                  <TabsTrigger value="in-yard">In Yard ({inYardCount})</TabsTrigger>
-                  <TabsTrigger value="reserved">Reserved ({reservedCount})</TabsTrigger>
-                  <TabsTrigger value="out">Out ({outCount})</TabsTrigger>
-                </TabsList>
-
-                {/* Search */}
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-8 h-9 text-sm"
-                    placeholder="Search container, driver…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Shipping line filter */}
-              {shippingLines.length > 0 && (
-                <div className="flex gap-2 flex-wrap mb-4">
-                  <Button
-                    size="sm"
-                    variant={lineFilter === "all" ? "default" : "outline"}
-                    onClick={() => setLineFilter("all")}
-                  >
-                    All Lines
-                  </Button>
-                  {shippingLines.map((line) => (
-                    <Button
-                      key={line}
-                      size="sm"
-                      variant={lineFilter === line ? "default" : "outline"}
-                      onClick={() => setLineFilter(line)}
-                    >
-                      {line} ({lineCount(line)})
-                    </Button>
-                  ))}
-                </div>
+        {/* Charts + Activity feed row */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* Bar chart — daily gate-in trend */}
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <TrendingUp className="h-4 w-4 text-maritime" />
+                Daily Gate-In (last 7 days)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-48 w-full" />
+              ) : (
+                <ChartContainer config={barChartConfig} className="h-48">
+                  <BarChart data={dailyTrend} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="count" name="Gate-ins" radius={[4, 4, 0, 0]} fill="#1a56db" />
+                  </BarChart>
+                </ChartContainer>
               )}
+            </CardContent>
+          </Card>
 
-              {/* Single shared content — all tabs use same filteredContainers */}
-              {(["all", "in-yard", "reserved", "out"] as const).map((tab) => (
-                <TabsContent key={tab} value={tab} className="space-y-1 mt-0">
-                  {filteredContainers.length === 0 ? (
-                    <div className="text-center py-10 text-muted-foreground">
-                      No containers match the current filters.
-                    </div>
-                  ) : (
-                    <div className="divide-y rounded-lg border overflow-hidden">
-                      {filteredContainers.map((c) => (
-                        <ContainerRow
-                          key={c.id}
-                          container={c}
-                          demurrage={demurrageMap[c.containerNumber]}
-                          onClick={() => openDetail(c)}
-                          onReserve={(e) => {
-                            e.stopPropagation();
-                            setSelectedContainer(c);
-                            setReserveDialogOpen(true);
-                          }}
+          {/* Donut — containers by shipping line */}
+          <Card className="lg:col-span-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Ship className="h-4 w-4 text-maritime" />
+                By Shipping Line
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-48 w-full" />
+              ) : lineData.length === 0 ? (
+                <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+                  No data
+                </div>
+              ) : (
+                <ChartContainer config={pieChartConfig} className="h-48">
+                  <PieChart>
+                    <Pie
+                      data={lineData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="45%"
+                      outerRadius="70%"
+                    >
+                      {lineData.map((entry, index) => (
+                        <Cell
+                          key={entry.name}
+                          fill={LINE_COLORS[index % LINE_COLORS.length]}
                         />
                       ))}
-                    </div>
-                  )}
-                </TabsContent>
-              ))}
-            </Tabs>
-          </CardContent>
-        </Card>
+                    </Pie>
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Legend
+                      iconSize={8}
+                      wrapperStyle={{ fontSize: 10, paddingTop: 8 }}
+                    />
+                  </PieChart>
+                </ChartContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Activity feed — right sidebar, hidden on mobile */}
+          <Card className="hidden lg:flex lg:col-span-1 flex-col">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Clock className="h-4 w-4 text-maritime" />
+                Recent Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-y-auto max-h-48 space-y-2 pr-2">
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))
+              ) : activityFeed.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No activity yet.</p>
+              ) : (
+                activityFeed.map((c) => (
+                  <ActivityItem key={c.id} container={c} />
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Kanban section */}
+        <div className="space-y-3">
+          {/* Search above kanban */}
+          <div className="flex items-center gap-3">
+            <div className="relative w-full max-w-xs">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-8 h-9 text-sm bg-background/80"
+                placeholder="Search container, driver…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <KanbanColumn
+              title="In Yard"
+              count={inYard.length}
+              accent="blue"
+              containers={inYard}
+              demurrageMap={demurrageMap}
+              loading={loading}
+              onCardClick={openDetail}
+              onReserve={openReserve}
+            />
+            <KanbanColumn
+              title="Reserved"
+              count={reserved.length}
+              accent="amber"
+              containers={reserved}
+              demurrageMap={demurrageMap}
+              loading={loading}
+              onCardClick={openDetail}
+              onReserve={openReserve}
+            />
+            <KanbanColumn
+              title="Out"
+              count={out.length}
+              accent="gray"
+              containers={out}
+              demurrageMap={demurrageMap}
+              loading={loading}
+              onCardClick={openDetail}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Dialogs */}
@@ -364,101 +510,212 @@ const Dashboard = () => {
   );
 };
 
-// ── Sub-components ─────────────────────────────────────────────────────────
+// ── KanbanColumn ─────────────────────────────────────────────────────────────
 
-const STATUS_BADGE: Record<string, { label: string; variant: "default" | "outline" | "secondary" }> = {
-  "in-yard": { label: "IN", variant: "default" },
-  reserved: { label: "RESERVED", variant: "outline" },
-  out: { label: "OUT", variant: "secondary" },
+const ACCENT_STYLES: Record<string, { header: string; border: string; badge: string }> = {
+  blue: {
+    header: "text-maritime",
+    border: "border-l-maritime",
+    badge: "bg-maritime/10 text-maritime border-maritime/30",
+  },
+  amber: {
+    header: "text-warning",
+    border: "border-l-warning",
+    badge: "bg-warning/10 text-warning border-warning/30",
+  },
+  gray: {
+    header: "text-muted-foreground",
+    border: "border-l-muted-foreground",
+    badge: "bg-muted text-muted-foreground border-border",
+  },
 };
 
-const ContainerRow = ({
-  container: c,
-  demurrage,
-  onClick,
+const KanbanColumn = ({
+  title,
+  count,
+  accent,
+  containers,
+  demurrageMap,
+  loading,
+  onCardClick,
   onReserve,
 }: {
-  container: ContainerType;
-  demurrage?: { paidJOD?: number; owedJOD?: number };
-  onClick: () => void;
-  onReserve: (e: React.MouseEvent) => void;
+  title: string;
+  count: number;
+  accent: "blue" | "amber" | "gray";
+  containers: ContainerType[];
+  demurrageMap: Record<string, DemurrageInfo>;
+  loading: boolean;
+  onCardClick: (c: ContainerType) => void;
+  onReserve?: (c: ContainerType) => void;
 }) => {
-  const badge = STATUS_BADGE[c.status] ?? { label: c.status.toUpperCase(), variant: "secondary" as const };
+  const styles = ACCENT_STYLES[accent];
 
-  // Demurrage badge: paid (green) takes precedence; otherwise show what was owed at gate-in.
-  let demurrageBadge: { label: string; tone: "paid" | "info" | "none" } | null = null;
+  return (
+    <Card className="flex flex-col">
+      <CardHeader className="pb-2 pt-4 px-4">
+        <div className="flex items-center justify-between">
+          <h3 className={`font-semibold text-sm ${styles.header}`}>{title}</h3>
+          <Badge variant="outline" className={`text-xs font-mono ${styles.badge}`}>
+            {count}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="px-3 pb-3 overflow-y-auto" style={{ maxHeight: "70vh" }}>
+        {loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : containers.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            No containers
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {containers.map((c) => (
+              <ContainerKanbanCard
+                key={c.id}
+                container={c}
+                demurrage={demurrageMap[c.containerNumber]}
+                onClick={() => onCardClick(c)}
+                onReserve={
+                  onReserve && (c.status === "in-yard" || c.status === "reserved")
+                    ? (e) => {
+                        e.stopPropagation();
+                        onReserve(c);
+                      }
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// ── ContainerKanbanCard ──────────────────────────────────────────────────────
+
+const STATUS_BORDER: Record<string, string> = {
+  "in-yard": "border-l-maritime",
+  reserved: "border-l-warning",
+  out: "border-l-muted-foreground",
+};
+
+const ContainerKanbanCard = ({ container: c, demurrage, onClick, onReserve }: KanbanCardProps) => {
+  const borderColor = STATUS_BORDER[c.status] ?? "border-l-border";
+  const days = daysInYard(c.gateInTime);
+
+  let demurrageBadge: { label: string; tone: "paid" | "owed" } | null = null;
   if (demurrage?.paidJOD != null && demurrage.paidJOD > 0) {
-    demurrageBadge = { label: `${demurrage.paidJOD.toFixed(2)} JOD paid`, tone: "paid" };
+    demurrageBadge = { label: `paid ${demurrage.paidJOD.toFixed(2)} JOD`, tone: "paid" };
   } else if (demurrage?.owedJOD != null && demurrage.owedJOD > 0) {
-    demurrageBadge = { label: `${demurrage.owedJOD.toFixed(2)} JOD (gate-in)`, tone: "info" };
+    demurrageBadge = { label: `${demurrage.owedJOD.toFixed(2)} JOD at gate-in`, tone: "owed" };
   }
 
   return (
     <div
-      className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors group"
+      className={`rounded-lg border border-l-4 ${borderColor} bg-card p-3 cursor-pointer
+        transition-all duration-150 hover:shadow-md hover:-translate-y-0.5`}
       onClick={onClick}
     >
-      <div className="flex items-center space-x-4 min-w-0">
-        <Badge variant={badge.variant} className="shrink-0">
-          {badge.label}
+      {/* Container number + shipping line */}
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <span className="font-mono font-semibold text-sm leading-tight hover:text-maritime transition-colors">
+          {c.containerNumber}
+        </span>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 font-normal">
+          {c.shippingLine}
         </Badge>
-        <div className="min-w-0">
-          <div className="font-medium font-mono text-sm group-hover:text-maritime transition-colors">
-            {c.containerNumber}
-          </div>
-          <div className="text-xs text-muted-foreground truncate">
-            {c.driverName} • {c.truckNumber}
-            {c.bookingNumber && ` • ${c.bookingNumber}`}
-          </div>
-        </div>
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
+      {/* Driver + truck */}
+      <div className="text-xs text-muted-foreground truncate mb-1.5">
+        {c.driverName} · {c.truckNumber}
+      </div>
+
+      {/* Days in yard */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] text-muted-foreground">
+          {c.status === "out"
+            ? c.gateOutTime
+              ? `Out ${c.gateOutTime.toLocaleDateString()}`
+              : "Out"
+            : `${days}d in yard`}
+        </span>
+
+        {/* Demurrage chip */}
         {demurrageBadge && (
-          <Badge
-            variant="outline"
-            className={`hidden md:inline-flex font-medium ${
+          <span
+            className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
               demurrageBadge.tone === "paid"
                 ? "bg-success/10 text-success border-success/30"
                 : "bg-warning/10 text-warning border-warning/30"
             }`}
           >
             {demurrageBadge.label}
-          </Badge>
+          </span>
         )}
+      </div>
 
-        <div className="text-right hidden sm:block">
-          <div className="text-sm font-medium">{c.shippingLine}</div>
-          <div className="text-xs text-muted-foreground">
-            {c.status === "out"
-              ? c.gateOutTime?.toLocaleDateString()
-              : c.gateInTime.toLocaleDateString()}
-          </div>
-          {c.fees != null && (
-            <div className="text-xs font-medium text-success">{c.fees} JOD</div>
-          )}
-        </div>
-
-        {(c.status === "in-yard" || c.status === "reserved") && (
-          <Button size="sm" variant="outline" onClick={onReserve} className="shrink-0">
+      {/* Reserve / Unreserve button */}
+      {onReserve && (
+        <div className="mt-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-[11px] px-2"
+            onClick={onReserve}
+          >
             {c.status === "reserved" ? "Unreserve" : "Reserve"}
           </Button>
-        )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── ActivityItem ─────────────────────────────────────────────────────────────
+
+const STATUS_ACTIVITY_BADGE: Record<string, { label: string; cls: string }> = {
+  "in-yard": { label: "IN", cls: "bg-maritime/10 text-maritime border-maritime/30" },
+  reserved: { label: "RES", cls: "bg-warning/10 text-warning border-warning/30" },
+  out: { label: "OUT", cls: "bg-muted text-muted-foreground border-border" },
+};
+
+const ActivityItem = ({ container: c }: { container: ContainerType }) => {
+  const badge = STATUS_ACTIVITY_BADGE[c.status] ?? STATUS_ACTIVITY_BADGE["out"];
+
+  return (
+    <div className="flex items-start gap-2 text-xs py-1 border-b last:border-0">
+      <span className={`mt-0.5 px-1.5 py-0.5 rounded border text-[10px] font-semibold shrink-0 ${badge.cls}`}>
+        {badge.label}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="font-mono font-medium truncate">{c.containerNumber}</div>
+        <div className="text-muted-foreground">Gated in {timeAgo(c.gateInTime)}</div>
       </div>
     </div>
   );
 };
+
+// ── StatCard ─────────────────────────────────────────────────────────────────
 
 const StatCard = ({
   label,
   value,
   color,
   icon,
+  loading,
 }: {
   label: string;
   value: number;
   color: string;
   icon: React.ReactNode;
+  loading?: boolean;
 }) => (
   <Card className={`border-l-4 border-l-${color}`}>
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -466,7 +723,11 @@ const StatCard = ({
       {icon}
     </CardHeader>
     <CardContent>
-      <div className={`text-2xl font-bold text-${color}`}>{value}</div>
+      {loading ? (
+        <Skeleton className="h-8 w-16" />
+      ) : (
+        <div className={`text-2xl font-bold text-${color}`}>{value}</div>
+      )}
     </CardContent>
   </Card>
 );
