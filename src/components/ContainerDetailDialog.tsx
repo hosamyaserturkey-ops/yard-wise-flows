@@ -31,14 +31,15 @@ interface PortData {
 interface InspectionData {
   grade: string;
   notes: string | null;
-  inspected_at: string;
+  created_at: string;
   status: string;
 }
 
 interface DemurragePayment {
-  amount_jod: number;
-  paid_at: string;
+  total_collected: number;
+  created_at: string;
 }
+
 
 interface Props {
   container: ContainerType | null;
