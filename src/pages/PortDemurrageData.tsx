@@ -240,6 +240,7 @@ const PortDemurrageData = () => {
           free_days: number;
           daily_demurrage: number | null;
           last_source: "excel";
+          yard_id: string;
         }
       >();
 
