@@ -176,7 +176,7 @@ const Dashboard = () => {
       (payRes.data ?? []).forEach((p) =>
         paidByNum.set(
           p.container_number,
-          (paidByNum.get(p.container_number) ?? 0) + Number(p.amount_jod ?? 0),
+          (paidByNum.get(p.container_number) ?? 0) + Number(p.total_collected ?? 0),
         ),
       );
 
