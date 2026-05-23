@@ -165,7 +165,7 @@ const Dashboard = () => {
           .in("container_number", numbers),
         supabase
           .from("demurrage_payments")
-          .select("container_number, amount_jod")
+          .select("container_number, total_collected")
           .in("container_number", numbers),
       ]);
 
