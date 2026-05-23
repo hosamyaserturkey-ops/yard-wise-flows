@@ -3,7 +3,7 @@ export const SHIPPING_LINES = [
   "SLG",
   "SLD",
   "SFS",
-  "2",
+  
   "MDK",
   "INX",
   "ICR",

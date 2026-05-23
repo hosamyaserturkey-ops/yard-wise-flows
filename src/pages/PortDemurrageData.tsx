@@ -147,7 +147,7 @@ const portDataSchema = z.object({
 });
 
 const PortDemurrageData = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -186,15 +186,21 @@ const PortDemurrageData = () => {
 
     setIsSubmitting(true);
     try {
+      if (!profile?.yard_id) {
+        toast({ title: "Error", description: "No yard assigned to your profile", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
       const { error } = await supabase.from("container_port_data").upsert(
-        {
+        [{
           container_number: result.data.containerNumber,
           shipping_line: result.data.shippingLine,
           port_arrival_date: result.data.portArrivalDate,
           free_days: result.data.freeDays,
           daily_demurrage: result.data.dailyDemurrage,
           last_source: "manual",
-        },
+          yard_id: profile.yard_id,
+        }],
         { onConflict: "container_number" }
       );
       if (error) throw error;
@@ -212,6 +218,11 @@ const PortDemurrageData = () => {
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!profile?.yard_id) {
+      toast({ title: "Error", description: "No yard assigned to your profile", variant: "destructive" });
+      return;
+    }
+    const yardId = profile.yard_id;
 
     setImporting(true);
     setImportResults(null);
@@ -234,6 +245,7 @@ const PortDemurrageData = () => {
           free_days: number;
           daily_demurrage: number | null;
           last_source: "excel";
+          yard_id: string;
         }
       >();
 
@@ -274,6 +286,7 @@ const PortDemurrageData = () => {
             free_days: Number.isNaN(freeDays) ? 7 : Math.max(0, freeDays),
             daily_demurrage: dailyDemurrage,
             last_source: "excel",
+            yard_id: yardId,
           });
         } catch (err: unknown) {
           errors.push(`${rowLabel}: ${getErrorMessage(err, "Unknown row error")}`);

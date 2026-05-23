@@ -31,15 +31,16 @@ interface PortData {
 interface InspectionData {
   grade: string;
   notes: string | null;
-  inspected_at: string;
+  created_at: string;
   status: string;
-  photo_urls?: string[] | null;
+  photo_urls: string[] | null;
 }
 
 interface DemurragePayment {
-  amount_jod: number;
-  paid_at: string;
+  total_collected: number;
+  created_at: string;
 }
+
 
 interface Props {
   container: ContainerType | null;
@@ -88,19 +89,20 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
 
           supabase
             .from("inspector_checks")
-            .select("grade, notes, inspected_at, status, photo_urls")
+            .select("grade, notes, created_at, status, photo_urls")
             .eq("container_number", num)
-            .order("inspected_at", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
 
           supabase
             .from("demurrage_payments")
-            .select("amount_jod, paid_at")
+            .select("total_collected, created_at")
             .eq("container_number", num)
-            .order("paid_at", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
+
         ]);
 
         setPortData(portRes.data ?? null);
@@ -267,9 +269,9 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                   {payment && (
                     <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg p-3 border border-success/20">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      Demurrage paid: <strong>{payment.amount_jod.toFixed(2)} JOD</strong>
+                      Demurrage paid: <strong>{Number(payment.total_collected).toFixed(2)} JOD</strong>
                       <span className="text-muted-foreground text-xs ml-auto">
-                        {fmt(new Date(payment.paid_at))}
+                        {fmt(new Date(payment.created_at))}
                       </span>
                     </div>
                   )}
@@ -305,28 +307,23 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                         {inspection.status}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {fmt(new Date(inspection.inspected_at))} {fmtTime(new Date(inspection.inspected_at))}
+                        {fmt(new Date(inspection.created_at))} {fmtTime(new Date(inspection.created_at))}
                       </span>
                     </div>
                     {inspection.notes && (
                       <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{inspection.notes}</p>
                     )}
                     {inspection.photo_urls && inspection.photo_urls.length > 0 && (
-                      <div className="mt-3">
-                        <p className="text-xs text-muted-foreground font-medium mb-2">
-                          INSPECTION PHOTOS ({inspection.photo_urls.length})
-                        </p>
-                        <div className="grid grid-cols-3 gap-2">
-                          {inspection.photo_urls.map((url, i) => (
-                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                              <img
-                                src={url}
-                                alt={`Inspection photo ${i + 1}`}
-                                className="w-full aspect-square object-cover rounded-lg border hover:opacity-90 transition-opacity"
-                              />
-                            </a>
-                          ))}
-                        </div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {inspection.photo_urls.map((url, i) => (
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={url}
+                              alt={`Inspection photo ${i + 1}`}
+                              className="h-16 w-16 object-cover rounded border border-border hover:opacity-80 transition-opacity"
+                            />
+                          </a>
+                        ))}
                       </div>
                     )}
                   </div>
