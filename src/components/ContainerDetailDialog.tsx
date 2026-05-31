@@ -83,8 +83,10 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
         const [portRes, inspRes, payRes] = await Promise.all([
           supabase
             .from("container_port_data")
-            .select("port_arrival_date, free_days, shipping_line")
+            .select("port_arrival_date, free_days, shipping_line, yard_id")
             .eq("container_number", num)
+            .order("updated_at", { ascending: false })
+            .limit(1)
             .maybeSingle(),
 
           supabase
