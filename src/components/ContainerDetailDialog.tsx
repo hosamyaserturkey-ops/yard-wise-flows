@@ -106,7 +106,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
         ]);
 
         setPortData(portRes.data ?? null);
-        setInspection(inspRes.data ?? null);
+        setInspection(inspRes.data ? { ...inspRes.data, photo_urls: Array.isArray(inspRes.data.photo_urls) ? inspRes.data.photo_urls as string[] : null } : null);
         setPayment(payRes.data ?? null);
       } finally {
         setLoading(false);
