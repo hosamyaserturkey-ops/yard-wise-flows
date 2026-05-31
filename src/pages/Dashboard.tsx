@@ -87,7 +87,7 @@ function last7DayLabels(): { date: Date; label: string }[] {
 // ── Main component ────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
-  const { profile } = useAuth();
+  const { profile, currentYardId } = useAuth();
   const navigate = useNavigate();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [demurrageMap, setDemurrageMap] = useState<Record<string, DemurrageInfo>>({});
