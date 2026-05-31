@@ -147,7 +147,22 @@ const portDataSchema = z.object({
 });
 
 const PortDemurrageData = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, isSuperAdmin } = useAuth();
+  const superAdmin = isSuperAdmin();
+
+  // For super admin without a yard, imports/inserts are fanned out across every yard.
+  const fetchTargetYardIds = async (): Promise<string[]> => {
+    if (profile?.yard_id && !superAdmin) return [profile.yard_id];
+    if (profile?.yard_id && superAdmin) {
+      // Super admin with an assigned yard: still apply to all yards.
+      const { data } = await supabase.from("yards").select("id");
+      const ids = (data ?? []).map((y) => y.id);
+      return ids.length ? ids : [profile.yard_id];
+    }
+    const { data, error } = await supabase.from("yards").select("id");
+    if (error) throw error;
+    return (data ?? []).map((y) => y.id);
+  };
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
