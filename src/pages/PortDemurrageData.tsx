@@ -237,11 +237,17 @@ const PortDemurrageData = () => {
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!profile?.yard_id) {
-      toast({ title: "Error", description: "No yard assigned to your profile", variant: "destructive" });
+    let yardIds: string[];
+    try {
+      yardIds = await fetchTargetYardIds();
+    } catch {
+      toast({ title: "Error", description: "Failed to load yards", variant: "destructive" });
       return;
     }
-    const yardId = profile.yard_id;
+    if (yardIds.length === 0) {
+      toast({ title: "Error", description: "No yard available to write port data", variant: "destructive" });
+      return;
+    }
 
     setImporting(true);
     setImportResults(null);
@@ -254,19 +260,16 @@ const PortDemurrageData = () => {
 
       let success = 0;
       const errors: string[] = [];
-      // Keyed by container_number — one global record per container.
-      const upsertPayload = new Map<
-        string,
-        {
-          container_number: string;
-          shipping_line: string;
-          port_arrival_date: string;
-          free_days: number;
-          daily_demurrage: number | null;
-          last_source: "excel";
-          yard_id: string;
-        }
-      >();
+      type ParsedRecord = {
+        container_number: string;
+        shipping_line: string;
+        port_arrival_date: string;
+        free_days: number;
+        daily_demurrage: number | null;
+        last_source: "excel";
+      };
+      // Keyed by container_number — last row wins. Yard fan-out happens at write time.
+      const parsedByContainer = new Map<string, ParsedRecord>();
 
       for (let i = 0; i < rows.length; i += 1) {
         const row = rows[i];
@@ -298,28 +301,30 @@ const PortDemurrageData = () => {
             continue;
           }
 
-          upsertPayload.set(containerNumber, {
+          parsedByContainer.set(containerNumber, {
             container_number: containerNumber,
             shipping_line: shippingLine,
             port_arrival_date: portArrivalDate,
             free_days: Number.isNaN(freeDays) ? 7 : Math.max(0, freeDays),
             daily_demurrage: dailyDemurrage,
             last_source: "excel",
-            yard_id: yardId,
           });
         } catch (err: unknown) {
           errors.push(`${rowLabel}: ${getErrorMessage(err, "Unknown row error")}`);
         }
       }
 
-      const records = Array.from(upsertPayload.values());
+      // Fan out one row per yard per container.
+      const records = Array.from(parsedByContainer.values()).flatMap((rec) =>
+        yardIds.map((yid) => ({ ...rec, yard_id: yid }))
+      );
       const chunkSize = 100;
 
       for (let start = 0; start < records.length; start += chunkSize) {
         const chunk = records.slice(start, start + chunkSize);
         const { error } = await supabase
           .from("container_port_data")
-          .upsert(chunk, { onConflict: "container_number" });
+          .upsert(chunk, { onConflict: "container_number,yard_id" });
 
         if (error) {
           errors.push(`Batch ${Math.floor(start / chunkSize) + 1}: ${error.message}`);
@@ -327,6 +332,7 @@ const PortDemurrageData = () => {
           success += chunk.length;
         }
       }
+
 
       setImportResults({ success, errors });
       if (success > 0) {
