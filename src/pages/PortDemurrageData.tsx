@@ -147,7 +147,22 @@ const portDataSchema = z.object({
 });
 
 const PortDemurrageData = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, isSuperAdmin } = useAuth();
+  const superAdmin = isSuperAdmin();
+
+  // For super admin without a yard, imports/inserts are fanned out across every yard.
+  const fetchTargetYardIds = async (): Promise<string[]> => {
+    if (profile?.yard_id && !superAdmin) return [profile.yard_id];
+    if (profile?.yard_id && superAdmin) {
+      // Super admin with an assigned yard: still apply to all yards.
+      const { data } = await supabase.from("yards").select("id");
+      const ids = (data ?? []).map((y) => y.id);
+      return ids.length ? ids : [profile.yard_id];
+    }
+    const { data, error } = await supabase.from("yards").select("id");
+    if (error) throw error;
+    return (data ?? []).map((y) => y.id);
+  };
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -186,26 +201,30 @@ const PortDemurrageData = () => {
 
     setIsSubmitting(true);
     try {
-      if (!profile?.yard_id) {
-        toast({ title: "Error", description: "No yard assigned to your profile", variant: "destructive" });
+      const yardIds = await fetchTargetYardIds();
+      if (yardIds.length === 0) {
+        toast({ title: "Error", description: "No yard available to write port data", variant: "destructive" });
         setIsSubmitting(false);
         return;
       }
-      const { error } = await supabase.from("container_port_data").upsert(
-        [{
-          container_number: result.data.containerNumber,
-          shipping_line: result.data.shippingLine,
-          port_arrival_date: result.data.portArrivalDate,
-          free_days: result.data.freeDays,
-          daily_demurrage: result.data.dailyDemurrage,
-          last_source: "manual",
-          yard_id: profile.yard_id,
-        }],
-        { onConflict: "container_number" }
-      );
+      const rows = yardIds.map((yid) => ({
+        container_number: result.data.containerNumber,
+        shipping_line: result.data.shippingLine,
+        port_arrival_date: result.data.portArrivalDate,
+        free_days: result.data.freeDays,
+        daily_demurrage: result.data.dailyDemurrage,
+        last_source: "manual",
+        yard_id: yid,
+      }));
+      const { error } = await supabase
+        .from("container_port_data")
+        .upsert(rows, { onConflict: "container_number,yard_id" });
       if (error) throw error;
 
-      toast({ title: "Success", description: `Port data saved for ${result.data.containerNumber}` });
+      toast({
+        title: "Success",
+        description: `Port data saved for ${result.data.containerNumber}${yardIds.length > 1 ? ` across ${yardIds.length} yards` : ""}`,
+      });
       queryClient.invalidateQueries({ queryKey: ["container_port_data"] });
       setFormData({ containerNumber: "", shippingLine: "SLD", portArrivalDate: "", freeDays: "7", dailyDemurrage: "15" });
     } catch (error: unknown) {
@@ -218,11 +237,17 @@ const PortDemurrageData = () => {
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!profile?.yard_id) {
-      toast({ title: "Error", description: "No yard assigned to your profile", variant: "destructive" });
+    let yardIds: string[];
+    try {
+      yardIds = await fetchTargetYardIds();
+    } catch {
+      toast({ title: "Error", description: "Failed to load yards", variant: "destructive" });
       return;
     }
-    const yardId = profile.yard_id;
+    if (yardIds.length === 0) {
+      toast({ title: "Error", description: "No yard available to write port data", variant: "destructive" });
+      return;
+    }
 
     setImporting(true);
     setImportResults(null);
@@ -235,19 +260,16 @@ const PortDemurrageData = () => {
 
       let success = 0;
       const errors: string[] = [];
-      // Keyed by container_number — one global record per container.
-      const upsertPayload = new Map<
-        string,
-        {
-          container_number: string;
-          shipping_line: string;
-          port_arrival_date: string;
-          free_days: number;
-          daily_demurrage: number | null;
-          last_source: "excel";
-          yard_id: string;
-        }
-      >();
+      type ParsedRecord = {
+        container_number: string;
+        shipping_line: string;
+        port_arrival_date: string;
+        free_days: number;
+        daily_demurrage: number | null;
+        last_source: "excel";
+      };
+      // Keyed by container_number — last row wins. Yard fan-out happens at write time.
+      const parsedByContainer = new Map<string, ParsedRecord>();
 
       for (let i = 0; i < rows.length; i += 1) {
         const row = rows[i];
@@ -279,28 +301,30 @@ const PortDemurrageData = () => {
             continue;
           }
 
-          upsertPayload.set(containerNumber, {
+          parsedByContainer.set(containerNumber, {
             container_number: containerNumber,
             shipping_line: shippingLine,
             port_arrival_date: portArrivalDate,
             free_days: Number.isNaN(freeDays) ? 7 : Math.max(0, freeDays),
             daily_demurrage: dailyDemurrage,
             last_source: "excel",
-            yard_id: yardId,
           });
         } catch (err: unknown) {
           errors.push(`${rowLabel}: ${getErrorMessage(err, "Unknown row error")}`);
         }
       }
 
-      const records = Array.from(upsertPayload.values());
+      // Fan out one row per yard per container.
+      const records = Array.from(parsedByContainer.values()).flatMap((rec) =>
+        yardIds.map((yid) => ({ ...rec, yard_id: yid }))
+      );
       const chunkSize = 100;
 
       for (let start = 0; start < records.length; start += chunkSize) {
         const chunk = records.slice(start, start + chunkSize);
         const { error } = await supabase
           .from("container_port_data")
-          .upsert(chunk, { onConflict: "container_number" });
+          .upsert(chunk, { onConflict: "container_number,yard_id" });
 
         if (error) {
           errors.push(`Batch ${Math.floor(start / chunkSize) + 1}: ${error.message}`);
@@ -308,6 +332,7 @@ const PortDemurrageData = () => {
           success += chunk.length;
         }
       }
+
 
       setImportResults({ success, errors });
       if (success > 0) {

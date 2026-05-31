@@ -87,7 +87,7 @@ function last7DayLabels(): { date: Date; label: string }[] {
 // ── Main component ────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
-  const { profile } = useAuth();
+  const { profile, currentYardId } = useAuth();
   const navigate = useNavigate();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [demurrageMap, setDemurrageMap] = useState<Record<string, DemurrageInfo>>({});
@@ -158,11 +158,15 @@ const Dashboard = () => {
     const numbers = containers.map((c) => c.containerNumber);
 
     (async () => {
+      const yardId = currentYardId();
+      let portQuery = supabase
+        .from("container_port_data")
+        .select("container_number, port_arrival_date, shipping_line, yard_id")
+        .in("container_number", numbers);
+      if (yardId) portQuery = portQuery.eq("yard_id", yardId);
+
       const [portRes, payRes] = await Promise.all([
-        supabase
-          .from("container_port_data")
-          .select("container_number, port_arrival_date, shipping_line")
-          .in("container_number", numbers),
+        portQuery,
         supabase
           .from("demurrage_payments")
           .select("container_number, total_collected")
@@ -202,7 +206,7 @@ const Dashboard = () => {
       }
       setDemurrageMap(map);
     })();
-  }, [containers]);
+  }, [containers, currentYardId]);
 
   // Real-time subscription
   useEffect(() => {
