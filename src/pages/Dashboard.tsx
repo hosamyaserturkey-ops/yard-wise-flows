@@ -206,7 +206,7 @@ const Dashboard = () => {
       }
       setDemurrageMap(map);
     })();
-  }, [containers]);
+  }, [containers, currentYardId]);
 
   // Real-time subscription
   useEffect(() => {
