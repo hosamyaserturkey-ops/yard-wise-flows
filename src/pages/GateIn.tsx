@@ -99,11 +99,16 @@ const GateIn = () => {
     }
 
     const timer = setTimeout(async () => {
-      // Port data lookup (global — no yard filter)
-      const { data } = await supabase
+      // Port data lookup — scoped to the current yard so each yard sees its own row.
+      const yardId = currentYardId();
+      let query = supabase
         .from("container_port_data")
         .select("port_arrival_date, free_days, daily_demurrage, shipping_line")
-        .eq("container_number", containerNum)
+        .eq("container_number", containerNum);
+      if (yardId) query = query.eq("yard_id", yardId);
+      const { data } = await query
+        .order("updated_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (data) {
