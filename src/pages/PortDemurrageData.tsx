@@ -201,26 +201,30 @@ const PortDemurrageData = () => {
 
     setIsSubmitting(true);
     try {
-      if (!profile?.yard_id) {
-        toast({ title: "Error", description: "No yard assigned to your profile", variant: "destructive" });
+      const yardIds = await fetchTargetYardIds();
+      if (yardIds.length === 0) {
+        toast({ title: "Error", description: "No yard available to write port data", variant: "destructive" });
         setIsSubmitting(false);
         return;
       }
-      const { error } = await supabase.from("container_port_data").upsert(
-        [{
-          container_number: result.data.containerNumber,
-          shipping_line: result.data.shippingLine,
-          port_arrival_date: result.data.portArrivalDate,
-          free_days: result.data.freeDays,
-          daily_demurrage: result.data.dailyDemurrage,
-          last_source: "manual",
-          yard_id: profile.yard_id,
-        }],
-        { onConflict: "container_number" }
-      );
+      const rows = yardIds.map((yid) => ({
+        container_number: result.data.containerNumber,
+        shipping_line: result.data.shippingLine,
+        port_arrival_date: result.data.portArrivalDate,
+        free_days: result.data.freeDays,
+        daily_demurrage: result.data.dailyDemurrage,
+        last_source: "manual",
+        yard_id: yid,
+      }));
+      const { error } = await supabase
+        .from("container_port_data")
+        .upsert(rows, { onConflict: "container_number,yard_id" });
       if (error) throw error;
 
-      toast({ title: "Success", description: `Port data saved for ${result.data.containerNumber}` });
+      toast({
+        title: "Success",
+        description: `Port data saved for ${result.data.containerNumber}${yardIds.length > 1 ? ` across ${yardIds.length} yards` : ""}`,
+      });
       queryClient.invalidateQueries({ queryKey: ["container_port_data"] });
       setFormData({ containerNumber: "", shippingLine: "SLD", portArrivalDate: "", freeDays: "7", dailyDemurrage: "15" });
     } catch (error: unknown) {
