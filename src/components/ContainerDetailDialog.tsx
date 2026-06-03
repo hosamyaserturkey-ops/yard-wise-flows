@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
 
 interface PortData {
@@ -62,6 +63,7 @@ const STATUS_LABEL: Record<string, { label: string; variant: "default" | "outlin
 };
 
 const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
+  const { currentYardId } = useAuth();
   const [portData, setPortData] = useState<PortData | null>(null);
   const [inspection, setInspection] = useState<InspectionData | null>(null);
   const [payment, setPayment] = useState<DemurragePayment | null>(null);
@@ -80,11 +82,15 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
       try {
         const num = container.containerNumber;
 
+        const yardId = currentYardId();
+        let portQuery = supabase
+          .from("container_port_data")
+          .select("port_arrival_date, free_days, shipping_line, yard_id")
+          .eq("container_number", num);
+        if (yardId) portQuery = portQuery.eq("yard_id", yardId);
+
         const [portRes, inspRes, payRes] = await Promise.all([
-          supabase
-            .from("container_port_data")
-            .select("port_arrival_date, free_days, shipping_line, yard_id")
-            .eq("container_number", num)
+          portQuery
             .order("updated_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
