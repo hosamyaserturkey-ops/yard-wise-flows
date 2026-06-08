@@ -22,6 +22,7 @@ import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
+import { resolveSignedUrl } from "@/lib/storage";
 
 interface PortData {
   port_arrival_date: string | null;
@@ -67,6 +68,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
   const [portData, setPortData] = useState<PortData | null>(null);
   const [inspection, setInspection] = useState<InspectionData | null>(null);
   const [payment, setPayment] = useState<DemurragePayment | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -74,6 +76,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
       setPortData(null);
       setInspection(null);
       setPayment(null);
+      setPhotoUrls([]);
       return;
     }
 
@@ -114,8 +117,17 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
         ]);
 
         setPortData(portRes.data ?? null);
-        setInspection(inspRes.data ? { ...inspRes.data, photo_urls: Array.isArray(inspRes.data.photo_urls) ? inspRes.data.photo_urls as string[] : null } : null);
+        const insp = inspRes.data ? { ...inspRes.data, photo_urls: Array.isArray(inspRes.data.photo_urls) ? inspRes.data.photo_urls as string[] : null } : null;
+        setInspection(insp);
         setPayment(payRes.data ?? null);
+        if (insp?.photo_urls?.length) {
+          const signed = await Promise.all(
+            insp.photo_urls.map((p) => resolveSignedUrl("inspection-photos", p)),
+          );
+          setPhotoUrls(signed.filter((u): u is string => !!u));
+        } else {
+          setPhotoUrls([]);
+        }
       } finally {
         setLoading(false);
       }
