@@ -18,6 +18,7 @@ import {
   DollarSign, TrendingUp, Clock, CheckCircle2, Upload, ExternalLink, Calculator,
 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { resolveSignedUrl } from "@/lib/storage";
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart";
@@ -155,14 +156,13 @@ const Accounting = () => {
       const filePath = `${transferDialog.shippingLine}/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage.from("transfer-receipts").upload(filePath, receiptFile);
       if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from("transfer-receipts").getPublicUrl(filePath);
       const yardId = currentYardId();
       if (!yardId) throw new Error("No yard assigned to your account");
       const { error: insertError } = await supabase.from("shipping_line_transfers").insert({
         shipping_line: transferDialog.shippingLine,
         amount_transferred: transferDialog.amount,
         transferred_by: user.id,
-        receipt_url: urlData.publicUrl,
+        receipt_url: filePath,
         yard_id: yardId,
       });
       if (insertError) throw insertError;
@@ -302,11 +302,18 @@ const Accounting = () => {
                         </Button>
                       ) : (
                         (() => {
-                          const url = getTransferReceipt(row.shipping_line);
-                          return url ? (
-                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 text-sm">
+                          const value = getTransferReceipt(row.shipping_line);
+                          return value ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const signed = await resolveSignedUrl("transfer-receipts", value);
+                                if (signed) window.open(signed, "_blank", "noopener,noreferrer");
+                              }}
+                              className="text-primary hover:underline flex items-center gap-1 text-sm"
+                            >
                               <ExternalLink className="h-3 w-3" /> View Receipt
-                            </a>
+                            </button>
                           ) : null;
                         })()
                       )}
