@@ -155,14 +155,13 @@ const Accounting = () => {
       const filePath = `${transferDialog.shippingLine}/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage.from("transfer-receipts").upload(filePath, receiptFile);
       if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from("transfer-receipts").getPublicUrl(filePath);
       const yardId = currentYardId();
       if (!yardId) throw new Error("No yard assigned to your account");
       const { error: insertError } = await supabase.from("shipping_line_transfers").insert({
         shipping_line: transferDialog.shippingLine,
         amount_transferred: transferDialog.amount,
         transferred_by: user.id,
-        receipt_url: urlData.publicUrl,
+        receipt_url: filePath,
         yard_id: yardId,
       });
       if (insertError) throw insertError;

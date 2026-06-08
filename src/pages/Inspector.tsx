@@ -77,7 +77,7 @@ const Inspector = () => {
   };
 
   const uploadPhotos = async (): Promise<string[]> => {
-    const urls: string[] = [];
+    const paths: string[] = [];
     for (const photo of photos) {
       const compressed = await compressImage(photo.file);
       const ext = compressed.name.split(".").pop() || "jpg";
@@ -86,10 +86,9 @@ const Inspector = () => {
         .from("inspection-photos")
         .upload(path, compressed, { contentType: compressed.type });
       if (error) throw error;
-      const { data } = supabase.storage.from("inspection-photos").getPublicUrl(path);
-      urls.push(data.publicUrl);
+      paths.push(path);
     }
-    return urls;
+    return paths;
   };
 
   const handleSubmit = async (decision: Decision) => {
