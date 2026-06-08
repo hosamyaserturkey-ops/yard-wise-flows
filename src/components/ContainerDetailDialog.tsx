@@ -333,9 +333,9 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                     {inspection.notes && (
                       <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{inspection.notes}</p>
                     )}
-                    {inspection.photo_urls && inspection.photo_urls.length > 0 && (
+                    {photoUrls.length > 0 && (
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {inspection.photo_urls.map((url, i) => (
+                        {photoUrls.map((url, i) => (
                           <a key={i} href={url} target="_blank" rel="noopener noreferrer">
                             <img
                               src={url}
