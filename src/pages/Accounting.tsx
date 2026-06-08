@@ -18,6 +18,7 @@ import {
   DollarSign, TrendingUp, Clock, CheckCircle2, Upload, ExternalLink, Calculator,
 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { resolveSignedUrl } from "@/lib/storage";
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart";
@@ -301,11 +302,18 @@ const Accounting = () => {
                         </Button>
                       ) : (
                         (() => {
-                          const url = getTransferReceipt(row.shipping_line);
-                          return url ? (
-                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 text-sm">
+                          const value = getTransferReceipt(row.shipping_line);
+                          return value ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const signed = await resolveSignedUrl("transfer-receipts", value);
+                                if (signed) window.open(signed, "_blank", "noopener,noreferrer");
+                              }}
+                              className="text-primary hover:underline flex items-center gap-1 text-sm"
+                            >
                               <ExternalLink className="h-3 w-3" /> View Receipt
-                            </a>
+                            </button>
                           ) : null;
                         })()
                       )}
