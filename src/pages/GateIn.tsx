@@ -468,14 +468,18 @@ const GateIn = () => {
       return;
     }
 
-    const gateInDate = new Date(containerData.gate_in_time);
-    const dateStr = gateInDate.toLocaleDateString("en-GB").replace(/\//g, "/");
-    const timeStr = gateInDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    const gateInDateRaw = new Date(containerData.gate_in_time);
+    const dateStr = escapeHtml(gateInDateRaw.toLocaleDateString("en-GB").replace(/\//g, "/"));
+    const timeStr = escapeHtml(gateInDateRaw.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
     const ticketNum = String(parseInt(containerData.id.replace(/-/g, "").slice(0, 8), 16) % 1000000).padStart(6, "0");
-    const yardName = profile?.yard_name || "YARD";
-    const supervisorName = profile?.full_name || profile?.username || "—";
-    const printedBy = profile?.username || profile?.full_name || "system";
-    const printedAt = new Date().toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).replace(",", "");
+    const yardName = escapeHtml(profile?.yard_name || "YARD");
+    const supervisorName = escapeHtml(profile?.full_name || profile?.username || "—");
+    const printedBy = escapeHtml(profile?.username || profile?.full_name || "system");
+    const printedAt = escapeHtml(new Date().toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).replace(",", ""));
+    const containerNumberSafe = escapeHtml(containerData.container_number);
+    const shippingLineSafe = escapeHtml(containerData.shipping_line);
+    const truckNumberSafe = escapeHtml(containerData.truck_number);
+    const driverNameSafe = escapeHtml(containerData.driver_name);
 
     const ISO_DESCRIPTIONS: Record<string, string> = {
       "20FT": "20FT — 20ft Standard dry container",
@@ -485,9 +489,9 @@ const GateIn = () => {
       "20FR": "20FR — 20ft Reefer container",
       "40FR": "40FR — 40ft Reefer container",
     };
-    const isoLabel = ISO_DESCRIPTIONS[containerData.container_type] || containerData.container_type;
-    const grade = inspection?.grade || "—";
-    const notes = inspection?.grade ? `Condition: ${inspection.grade}.` : "";
+    const isoLabel = escapeHtml(ISO_DESCRIPTIONS[containerData.container_type] || containerData.container_type);
+    const grade = escapeHtml(inspection?.grade || "—");
+    const notes = inspection?.grade ? `Condition: ${escapeHtml(inspection.grade)}.` : "";
 
     const financialSection = demurragePayment ? `
       <div class="section">
