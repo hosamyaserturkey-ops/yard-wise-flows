@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from "react";
+import { escapeHtml } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -187,17 +188,17 @@ const GateOut = () => {
     }
 
     const now = new Date();
-    const dateStr = now.toLocaleDateString("en-GB");
-    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    const dateStr = escapeHtml(now.toLocaleDateString("en-GB"));
+    const timeStr = escapeHtml(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
     const ticketNum = String(
       parseInt(selectedContainer.id.replace(/-/g, "").slice(0, 8), 16) % 1000000,
     ).padStart(6, "0");
-    const yardName = profile?.yard_name || "YARD";
-    const supervisorName = profile?.full_name || profile?.username || "—";
-    const printedBy = profile?.username || profile?.full_name || "system";
-    const printedAt = now
+    const yardName = escapeHtml(profile?.yard_name || "YARD");
+    const supervisorName = escapeHtml(profile?.full_name || profile?.username || "—");
+    const printedBy = escapeHtml(profile?.username || profile?.full_name || "system");
+    const printedAt = escapeHtml(now
       .toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
-      .replace(",", "");
+      .replace(",", ""));
 
     const ISO_DESCRIPTIONS: Record<string, string> = {
       "20FT": "20FT — 20ft Standard dry container",
@@ -207,15 +208,20 @@ const GateOut = () => {
       "20FR": "20FR — 20ft Reefer container",
       "40FR": "40FR — 40ft Reefer container",
     };
-    const isoLabel = ISO_DESCRIPTIONS[selectedContainer.containerType] || selectedContainer.containerType;
-    const gateInStr = `${selectedContainer.gateInTime.toLocaleDateString("en-GB")} ${selectedContainer.gateInTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+    const isoLabel = escapeHtml(ISO_DESCRIPTIONS[selectedContainer.containerType] || selectedContainer.containerType);
+    const gateInStr = escapeHtml(`${selectedContainer.gateInTime.toLocaleDateString("en-GB")} ${selectedContainer.gateInTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`);
     const feeStr = Number(fees || 0).toLocaleString("en", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    const containerNumberSafe = escapeHtml(selectedContainer.containerNumber);
+    const shippingLineSafe = escapeHtml(selectedContainer.shippingLine);
+    const bookingNumberSafe = escapeHtml(selectedContainer.bookingNumber || "—");
+    const truckNumberSafe = escapeHtml(truckNumber);
+    const driverNameSafe = escapeHtml(driverName);
 
     receiptWindow.document.write(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>Gate-Out Ticket — ${selectedContainer.containerNumber}</title>
+  <title>Gate-Out Ticket — ${containerNumberSafe}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #1e293b; }
@@ -284,7 +290,7 @@ const GateOut = () => {
       </div>
       <div class="right-col">
         <div class="ticket-num-box"># ${ticketNum}</div>
-        <div class="sl-box"><span class="sl-badge">${selectedContainer.shippingLine}</span></div>
+        <div class="sl-box"><span class="sl-badge">${shippingLineSafe}</span></div>
       </div>
     </div>
   </div>
@@ -299,7 +305,7 @@ const GateOut = () => {
       <div class="fields">
         <div class="field field-wide">
           <div class="field-label">CONTAINER NUMBER</div>
-          <div class="field-value mono">${selectedContainer.containerNumber}</div>
+          <div class="field-value mono">${containerNumberSafe}</div>
         </div>
         <div class="field field-wide">
           <div class="field-label">ISO TYPE / SIZE</div>
@@ -307,11 +313,11 @@ const GateOut = () => {
         </div>
         <div class="field">
           <div class="field-label">SHIPPING LINE</div>
-          <div class="field-value">${selectedContainer.shippingLine}</div>
+          <div class="field-value">${shippingLineSafe}</div>
         </div>
         <div class="field">
           <div class="field-label">BOOKING NUMBER</div>
-          <div class="field-value mono">${selectedContainer.bookingNumber || "—"}</div>
+          <div class="field-value mono">${bookingNumberSafe}</div>
         </div>
       </div>
     </div>
@@ -324,11 +330,11 @@ const GateOut = () => {
       <div class="fields">
         <div class="field">
           <div class="field-label">TRUCK NUMBER</div>
-          <div class="field-value">${truckNumber}</div>
+          <div class="field-value">${truckNumberSafe}</div>
         </div>
         <div class="field">
           <div class="field-label">DRIVER NAME</div>
-          <div class="field-value">${driverName}</div>
+          <div class="field-value">${driverNameSafe}</div>
         </div>
         <div class="field">
           <div class="field-label">GATE-IN</div>
