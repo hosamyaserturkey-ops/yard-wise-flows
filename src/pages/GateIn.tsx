@@ -529,7 +529,7 @@ const GateIn = () => {
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>Reception Ticket — ${containerData.container_number}</title>
+  <title>Reception Ticket — ${containerNumberSafe}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #1e293b; }
@@ -613,7 +613,7 @@ const GateIn = () => {
       </div>
       <div class="right-col">
         <div class="ticket-num-box"># ${ticketNum}</div>
-        <div class="sl-box"><span class="sl-badge">${containerData.shipping_line}</span></div>
+        <div class="sl-box"><span class="sl-badge">${shippingLineSafe}</span></div>
       </div>
     </div>
   </div>
@@ -630,7 +630,7 @@ const GateIn = () => {
       <div class="fields">
         <div class="field field-wide">
           <div class="field-label">CONTAINER NUMBER</div>
-          <div class="field-value mono">${containerData.container_number}</div>
+          <div class="field-value mono">${containerNumberSafe}</div>
         </div>
         <div class="field field-wide">
           <div class="field-label">ISO TYPE / SIZE</div>
@@ -638,7 +638,7 @@ const GateIn = () => {
         </div>
         <div class="field">
           <div class="field-label">SHIPPING LINE</div>
-          <div class="field-value">${containerData.shipping_line}</div>
+          <div class="field-value">${shippingLineSafe}</div>
         </div>
         <div class="field">
           <div class="field-label">CONDITION / GRADE</div>
@@ -660,11 +660,11 @@ const GateIn = () => {
       <div class="fields">
         <div class="field">
           <div class="field-label">TRUCK NUMBER</div>
-          <div class="field-value">${containerData.truck_number}</div>
+          <div class="field-value">${truckNumberSafe}</div>
         </div>
         <div class="field">
           <div class="field-label">DRIVER NAME</div>
-          <div class="field-value">${containerData.driver_name}</div>
+          <div class="field-value">${driverNameSafe}</div>
         </div>
       </div>
     </div>
