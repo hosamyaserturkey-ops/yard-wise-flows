@@ -155,7 +155,10 @@ const Reports = () => {
 
     const escape = (v: unknown) => {
       const s = String(v ?? "");
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      // Neutralise CSV formula injection: prefix values starting with formula
+      // triggers so spreadsheet apps treat them as text, not formulas.
+      const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+      return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
     };
 
     const csvContent = [
