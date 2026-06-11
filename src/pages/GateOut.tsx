@@ -221,7 +221,7 @@ const GateOut = () => {
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>Gate-Out Ticket — ${selectedContainer.containerNumber}</title>
+  <title>Gate-Out Ticket — ${containerNumberSafe}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #1e293b; }
@@ -290,7 +290,7 @@ const GateOut = () => {
       </div>
       <div class="right-col">
         <div class="ticket-num-box"># ${ticketNum}</div>
-        <div class="sl-box"><span class="sl-badge">${selectedContainer.shippingLine}</span></div>
+        <div class="sl-box"><span class="sl-badge">${shippingLineSafe}</span></div>
       </div>
     </div>
   </div>
@@ -305,7 +305,7 @@ const GateOut = () => {
       <div class="fields">
         <div class="field field-wide">
           <div class="field-label">CONTAINER NUMBER</div>
-          <div class="field-value mono">${selectedContainer.containerNumber}</div>
+          <div class="field-value mono">${containerNumberSafe}</div>
         </div>
         <div class="field field-wide">
           <div class="field-label">ISO TYPE / SIZE</div>
@@ -313,11 +313,11 @@ const GateOut = () => {
         </div>
         <div class="field">
           <div class="field-label">SHIPPING LINE</div>
-          <div class="field-value">${selectedContainer.shippingLine}</div>
+          <div class="field-value">${shippingLineSafe}</div>
         </div>
         <div class="field">
           <div class="field-label">BOOKING NUMBER</div>
-          <div class="field-value mono">${selectedContainer.bookingNumber || "—"}</div>
+          <div class="field-value mono">${bookingNumberSafe}</div>
         </div>
       </div>
     </div>
@@ -330,11 +330,11 @@ const GateOut = () => {
       <div class="fields">
         <div class="field">
           <div class="field-label">TRUCK NUMBER</div>
-          <div class="field-value">${truckNumber}</div>
+          <div class="field-value">${truckNumberSafe}</div>
         </div>
         <div class="field">
           <div class="field-label">DRIVER NAME</div>
-          <div class="field-value">${driverName}</div>
+          <div class="field-value">${driverNameSafe}</div>
         </div>
         <div class="field">
           <div class="field-label">GATE-IN</div>
