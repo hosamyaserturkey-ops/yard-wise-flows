@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from "react";
+import { escapeHtml } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -187,17 +188,17 @@ const GateOut = () => {
     }
 
     const now = new Date();
-    const dateStr = now.toLocaleDateString("en-GB");
-    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    const dateStr = escapeHtml(now.toLocaleDateString("en-GB"));
+    const timeStr = escapeHtml(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
     const ticketNum = String(
       parseInt(selectedContainer.id.replace(/-/g, "").slice(0, 8), 16) % 1000000,
     ).padStart(6, "0");
-    const yardName = profile?.yard_name || "YARD";
-    const supervisorName = profile?.full_name || profile?.username || "—";
-    const printedBy = profile?.username || profile?.full_name || "system";
-    const printedAt = now
+    const yardName = escapeHtml(profile?.yard_name || "YARD");
+    const supervisorName = escapeHtml(profile?.full_name || profile?.username || "—");
+    const printedBy = escapeHtml(profile?.username || profile?.full_name || "system");
+    const printedAt = escapeHtml(now
       .toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
-      .replace(",", "");
+      .replace(",", ""));
 
     const ISO_DESCRIPTIONS: Record<string, string> = {
       "20FT": "20FT — 20ft Standard dry container",
@@ -207,9 +208,14 @@ const GateOut = () => {
       "20FR": "20FR — 20ft Reefer container",
       "40FR": "40FR — 40ft Reefer container",
     };
-    const isoLabel = ISO_DESCRIPTIONS[selectedContainer.containerType] || selectedContainer.containerType;
-    const gateInStr = `${selectedContainer.gateInTime.toLocaleDateString("en-GB")} ${selectedContainer.gateInTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+    const isoLabel = escapeHtml(ISO_DESCRIPTIONS[selectedContainer.containerType] || selectedContainer.containerType);
+    const gateInStr = escapeHtml(`${selectedContainer.gateInTime.toLocaleDateString("en-GB")} ${selectedContainer.gateInTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`);
     const feeStr = Number(fees || 0).toLocaleString("en", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    const containerNumberSafe = escapeHtml(selectedContainer.containerNumber);
+    const shippingLineSafe = escapeHtml(selectedContainer.shippingLine);
+    const bookingNumberSafe = escapeHtml(selectedContainer.bookingNumber || "—");
+    const truckNumberSafe = escapeHtml(truckNumber);
+    const driverNameSafe = escapeHtml(driverName);
 
     receiptWindow.document.write(`<!DOCTYPE html>
 <html lang="en">
