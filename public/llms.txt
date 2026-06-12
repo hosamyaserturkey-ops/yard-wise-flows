@@ -1,0 +1,7 @@
+# Container Yard
+
+> Container Yard is a multi-tenant yard management workspace for container depots, covering gate-in, gate-out, demurrage collection, bookings, port data and shipping-line accounting. The application is access-controlled; most surfaces require an authenticated yard account.
+
+## Pages
+
+- [Sign in](/auth): Sign-in entry point for yard staff, inspectors, and administrators.
