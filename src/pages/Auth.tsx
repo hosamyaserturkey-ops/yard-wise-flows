@@ -72,7 +72,7 @@ const Auth = () => {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Anchor className="h-10 w-10 text-white" />
-            <h1 className="text-3xl font-bold text-white drop-shadow-md">Container Yard</h1>
+            <h1 className="text-3xl font-bold text-white drop-shadow-md">Container Yard — Secure Yard Management</h1>
           </div>
           <p className="text-white/80 drop-shadow-sm">Secure access to yard management</p>
         </div>
