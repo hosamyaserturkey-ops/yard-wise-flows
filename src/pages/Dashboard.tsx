@@ -333,9 +333,6 @@ const Dashboard = () => {
       .slice(0, 10);
   }, [containers]);
 
-  // dummy to preserve chained useMemo — reuse existing containers memo pattern
-  const _dashboardExtras = null;
-  void _dashboardExtras;
 
   const openDetail = (c: ContainerType) => {
     setDetailContainer(c);
