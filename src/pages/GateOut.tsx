@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { gateOutSchema } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
+import { logActivity } from "@/lib/activityLog";
 
 const GateOut = () => {
   const { user, profile } = useAuth();
