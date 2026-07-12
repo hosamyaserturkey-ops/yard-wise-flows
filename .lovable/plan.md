@@ -1,88 +1,119 @@
-# Plan: Operations Visibility Upgrade
+# Container Schema Refactor
 
-Four focused additions built on the existing Supabase schema. All scoped per yard via existing RLS patterns (`current_yard_id()`).
+All container-related tables are currently empty, so this is a pure schema + code change with no data migration.
 
----
+## 1. Database migration
 
-## 1. Shift-aware activity log
+Runs as a single migration. Approximate order:
 
-**Data**
-- New table `activity_log`: `user_id`, `yard_id`, `action` (`gate_in` | `gate_out` | `reserve` | `demurrage_collected`), `container_id`, `container_number`, `shift` (`day` | `night`), `occurred_at`, `metadata jsonb`.
-- Shift computed from `occurred_at` hour: **Day 06:00–18:00**, **Night 18:00–06:00** (adjustable constant).
-- Attribution comes automatically from `auth.uid()` (logged-in user) → joined to `profiles.full_name`.
+**Drop old constraints and dependencies**
+- Drop RLS policies, FKs, and the composite PK on `public.containers`.
+- Drop the `shipping_line IN ('SLD','SLG')` CHECK from every table that has it (containers, bookings, container_port_data, shipping_line_transfers, demurrage_payments, edi_transmissions — whichever apply).
+- Drop any FKs from `inspector_checks`, `demurrage_payments`, `activity_log`, `edi_transmissions`, `container_port_data` that point at `containers.id` (composite). They'll be recreated to point at `container_visits(id)` where appropriate, or kept referencing `containers(id)` for master-data links (see below).
 
-**Write path**
-- Insert a row from `GateIn.tsx`, `GateOut.tsx`, `ReserveContainerDialog.tsx`, and `DemurrageCollectionDialog.tsx` after each successful action.
+**Rebuild `containers` as master data**
+- Keep only: `id uuid PK`, `container_number text UNIQUE NOT NULL`, `container_type text NOT NULL`, `shipping_line text NOT NULL`, `created_at`, `updated_at`.
+- Drop all other columns (driver_name, truck_number, gate_in_time, gate_out_time, status, booking_number, fees, port_arrival_date, free_days, daily_demurrage, yard_block, yard_row, yard_id, created_by, booking_id, etc.).
+- Primary key becomes `(id)` only.
+- Recreate RLS: authenticated users can read; insert/update by authenticated (a container is master data shared across yards).
 
-**Read path**
-- New page `/activity` (admin + super_admin): filterable table by date range, operator, shift, action. Summary tiles: moves per operator, per shift, per day.
+**Create `container_visits`**
+```
+id uuid PK
+container_id uuid NOT NULL REFERENCES containers(id) ON DELETE CASCADE
+yard_id uuid NOT NULL REFERENCES yards(id)
+gate_in_time timestamptz NOT NULL DEFAULT now()
+gate_out_time timestamptz NULL
+status text NOT NULL CHECK (status IN ('in-yard','out','reserved'))
+driver_name text
+truck_number text
+booking_id uuid NULL REFERENCES bookings(id)
+booking_number text
+fees numeric
+port_arrival_date date
+free_days int DEFAULT 7
+daily_demurrage numeric
+yard_block text
+yard_row text
+created_by uuid REFERENCES auth.users(id)
+created_at, updated_at
+```
+- Partial unique index: `UNIQUE (container_id) WHERE gate_out_time IS NULL`.
+- Grants: `SELECT/INSERT/UPDATE/DELETE` to authenticated, `ALL` to service_role.
+- RLS mirrors current containers policies (yard-scoped via `current_yard_id()` / role checks).
+- `updated_at` trigger.
 
----
+**Repoint dependent tables**
+- `inspector_checks.container_id` → `container_visits(id)`.
+- `demurrage_payments.container_id` → `container_visits(id)` (visit-scoped charge).
+- `activity_log.container_id` → `container_visits(id)`.
+- `edi_transmissions.container_id` → `container_visits(id)`.
+- `container_port_data` stays keyed to the master `containers(id)` (port arrival data is per physical container).
 
-## 2. Yard map (Block + Row)
+**Create `shipping_lines`**
+```
+id uuid PK
+code text UNIQUE NOT NULL
+name text NOT NULL
+contact_email text NULL
+default_free_days int NOT NULL DEFAULT 7
+default_daily_demurrage numeric NULL
+active boolean NOT NULL DEFAULT true
+created_at timestamptz
+```
+- Seed rows: `SLD` / `Shipping Line D`, `SLG` / `Shipping Line G`.
+- Grants: SELECT to authenticated, ALL to service_role.
+- RLS: authenticated read; only `is_super_admin(auth.uid())` may insert/update/delete.
 
-**Data**
-- Add `yard_block text` and `yard_row text` columns to `containers`.
-- Admin-configurable list of blocks/rows per yard via a small `yard_layout` table (`yard_id`, `blocks text[]`, `rows_per_block int`), or free text if the user prefers.
-- On Gate In: two dropdowns (Block, Row) — required.
-- On Gate Out: slot is cleared.
+## 2. App code updates
 
-**View**
-- New page `/yard-map`: grid of blocks × rows; each cell shows count and expands to list containers (number, line, size, days in yard). Search box jumps to a container's cell.
+Every file that reads/writes containers is updated to use `container_visits` for visit state and `containers` for identity.
 
----
+- `src/types/container.ts` — split into `Container` (master) and `ContainerVisit`; keep a combined view type for UI.
+- `src/pages/GateIn.tsx` — upsert into `containers` by `container_number`, then insert a `container_visits` row (status `in-yard`).
+- `src/pages/GateOut.tsx` — update the open visit (`gate_out_time`, `fees`, status `out`); read demurrage from the visit; log activity + EDI referencing the visit id.
+- `src/pages/Dashboard.tsx`, `src/pages/Reports.tsx`, `src/pages/Accounting.tsx`, `src/pages/YardMap.tsx`, `src/components/CommandPalette.tsx`, `src/components/ReserveContainerDialog.tsx` — query `container_visits` joined to `containers` for stock, status, and search.
+- `src/components/ContainerDetailDialog.tsx` — load the container master row + list all its visits (history).
+- `src/pages/BookingDetail.tsx` — list visits assigned to a booking; assignment writes `container_visits.booking_id/booking_number`.
+- `src/pages/PortDemurrageData.tsx` — still keyed on master container.
+- `src/lib/activityLog.ts` — accepts a `visitId`; no shape change beyond that.
+- `src/lib/shippingLines.ts` — becomes a runtime loader that fetches `shipping_lines` (falls back to `[]` before load). All dropdowns (`GateIn`, filters, port data, transfers) use the fetched list. Zod validation checks against the loaded set.
+- `scripts/import-containers.ts` — rewritten to insert master + visit rows (kept but not run; tables are empty).
 
-## 3. Photo evidence archive (inspector gate-in photos)
+## 3. `create-user` edge function
 
-**Approach**
-- No new upload flow. Reuse existing `inspector_checks` + `inspection-photos` bucket.
-- New page `/photos`: search by container number → shows all inspector photos for that container with timestamp, inspector name, and check notes. Thumbnails + lightbox.
-- Add a "View photos" link from the container detail dialog and from Gate Out (so operators can review gate-in condition before releasing).
+- `supabase/functions/create-user/index.ts`: change `if (password.length < 6)` to `if (password.length < 10)` and update the error message. Nothing else — `verify_jwt` untouched.
 
----
+## 4. Verification
 
-## 4. Live stock dashboard (extends existing Dashboard)
+After migration + code changes:
+- Run `tsgo` to confirm the type surface compiles.
+- Spot-check Dashboard/GateIn/GateOut queries against the new schema types.
 
-Extend `src/pages/Dashboard.tsx` with:
+## 5. Files to be modified (for GitHub review)
 
-- **Per-line stock table**: rows = shipping line, columns = 20FT / 40FT / 40HC / Reefer / Total (in-yard only).
-- **Today's activity**: gate-in count, gate-out count, reservations, demurrage collected (JOD) — all filtered to today in the current yard.
-- **Aging buckets**: containers in-yard grouped by 0–7, 8–14, 15–21, 22+ days. Click a bucket → filtered list.
-- **Top aging units**: table of 10 oldest in-yard containers with days-in-yard, line, size, block/row.
+Migration (new):
+- `supabase/migrations/<timestamp>_containers_refactor.sql`
 
-All widgets query `containers` + `demurrage_payments` + new `activity_log`; scoped to `current_yard_id()`.
+Edge function:
+- `supabase/functions/create-user/index.ts`
 
----
-
-## Technical details
-
-**Migrations (one migration)**
-- `CREATE TABLE public.activity_log (...)` + GRANTs + RLS (yard-scoped read for members, insert for authenticated users in own yard, full access for super_admin).
-- `ALTER TABLE public.containers ADD COLUMN yard_block text, ADD COLUMN yard_row text;`
-- Optional `yard_layout` table for admin-configured blocks/rows.
-
-**Files added**
-- `src/pages/ActivityLog.tsx`
+Frontend:
+- `src/types/container.ts`
+- `src/lib/shippingLines.ts`
+- `src/lib/validation.ts`
+- `src/lib/activityLog.ts`
+- `src/pages/GateIn.tsx`
+- `src/pages/GateOut.tsx`
+- `src/pages/Dashboard.tsx`
+- `src/pages/Reports.tsx`
+- `src/pages/Accounting.tsx`
 - `src/pages/YardMap.tsx`
-- `src/pages/PhotoArchive.tsx`
-- `src/lib/shifts.ts` (shift calc helper)
-- `src/lib/activityLog.ts` (single `logActivity()` helper called from write paths)
+- `src/pages/BookingDetail.tsx`
+- `src/pages/PortDemurrageData.tsx`
+- `src/components/CommandPalette.tsx`
+- `src/components/ReserveContainerDialog.tsx`
+- `src/components/ContainerDetailDialog.tsx`
+- `scripts/import-containers.ts` (and `scripts/import-containers-full.ts` if it has the same shape)
 
-**Files edited**
-- `src/pages/Dashboard.tsx` — new widgets
-- `src/pages/GateIn.tsx` — Block/Row inputs + `logActivity()`
-- `src/pages/GateOut.tsx` — clear slot + `logActivity()` + photos link
-- `src/components/ReserveContainerDialog.tsx` — `logActivity()`
-- `src/components/DemurrageCollectionDialog.tsx` — `logActivity()`
-- `src/components/ContainerDetailDialog.tsx` — show block/row + photos link
-- `src/components/AppSidebar.tsx` — nav entries for Activity, Yard Map, Photos
-- `src/App.tsx` — routes
-
-**Access**
-- Dashboard, Yard Map, Photos: any signed-in user in the yard.
-- Activity Log: admin + super_admin.
-
-**Out of scope (say if you want them)**
-- Manual shift roster / operator picker (you chose auto-from-user).
-- New photo uploads at gate-in (you chose inspector-only).
-- Slot-level (3rd) granularity.
+The final "files modified" list in the closing message will match what actually changes on disk.
