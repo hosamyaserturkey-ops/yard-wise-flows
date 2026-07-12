@@ -99,7 +99,7 @@ const DemurrageCollectionDialog = ({
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Service Fee</span>
-                  <span className="font-semibold">{SERVICE_FEE} JOD</span>
+                  <span className="font-semibold">{serviceFee} JOD</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between items-center">
                   <span className="text-muted-foreground text-sm font-medium">Total to Collect</span>
