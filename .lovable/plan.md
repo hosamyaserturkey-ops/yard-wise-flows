@@ -1,78 +1,88 @@
-# Multi-Yard (Multi-Tenant) Architecture
+# Plan: Operations Visibility Upgrade
 
-Convert the app so each yard is an isolated tenant with its own admin, users, containers, bookings, port data, payments, and accounting. A platform super-admin sits above all yards.
+Four focused additions built on the existing Supabase schema. All scoped per yard via existing RLS patterns (`current_yard_id()`).
 
-## Roles
+---
 
-- **super_admin** — you. Creates yards, creates the first admin of each yard, can view/manage anything across all yards. Not bound to a single yard.
-- **admin** (yard admin) — manages users and all data inside one yard. Can create yard users, edit/delete any record in their yard.
-- **user** — operator inside one yard. Standard gate-in / gate-out / bookings work, scoped to their yard.
+## 1. Shift-aware activity log
 
-Each non-super user belongs to exactly **one** yard.
+**Data**
+- New table `activity_log`: `user_id`, `yard_id`, `action` (`gate_in` | `gate_out` | `reserve` | `demurrage_collected`), `container_id`, `container_number`, `shift` (`day` | `night`), `occurred_at`, `metadata jsonb`.
+- Shift computed from `occurred_at` hour: **Day 06:00–18:00**, **Night 18:00–06:00** (adjustable constant).
+- Attribution comes automatically from `auth.uid()` (logged-in user) → joined to `profiles.full_name`.
 
-## Existing data
+**Write path**
+- Insert a row from `GateIn.tsx`, `GateOut.tsx`, `ReserveContainerDialog.tsx`, and `DemurrageCollectionDialog.tsx` after each successful action.
 
-Wipe: all containers, bookings, container_port_data, demurrage_payments, shipping_line_transfers, edi_transmissions, all profiles/user_roles, and all auth users. Start clean. After migration we re-create one super-admin account.
+**Read path**
+- New page `/activity` (admin + super_admin): filterable table by date range, operator, shift, action. Summary tiles: moves per operator, per shift, per day.
 
-## Database changes
+---
 
-New table:
-- `yards` — `id`, `name`, `code` (short unique slug), `created_by`, `created_at`
+## 2. Yard map (Block + Row)
 
-Extend enum `app_role` with `super_admin`.
+**Data**
+- Add `yard_block text` and `yard_row text` columns to `containers`.
+- Admin-configurable list of blocks/rows per yard via a small `yard_layout` table (`yard_id`, `blocks text[]`, `rows_per_block int`), or free text if the user prefers.
+- On Gate In: two dropdowns (Block, Row) — required.
+- On Gate Out: slot is cleared.
 
-Add `yard_id uuid references yards(id)` to:
-- `profiles` (nullable — super_admin has no yard)
-- `containers`, `bookings`, `container_port_data`, `demurrage_payments`, `shipping_line_transfers`, `edi_transmissions` (NOT NULL)
+**View**
+- New page `/yard-map`: grid of blocks × rows; each cell shows count and expands to list containers (number, line, size, days in yard). Search box jumps to a container's cell.
 
-New helper functions (SECURITY DEFINER, search_path=public):
-- `is_super_admin(uid)`
-- `current_yard_id()` — returns the caller's `profiles.yard_id`
-- `is_yard_admin(uid, yard_id)` — true if user is admin of that yard
+---
 
-### RLS pattern (applied to every data table)
+## 3. Photo evidence archive (inspector gate-in photos)
 
-- **SELECT**: `is_super_admin(auth.uid()) OR yard_id = current_yard_id()`
-- **INSERT**: `yard_id = current_yard_id() AND created_by = auth.uid()` (super-admin can insert anywhere)
-- **UPDATE**: `is_super_admin(...) OR (yard_id = current_yard_id() AND (owner OR is_yard_admin(...)))`
-- **DELETE**: `is_super_admin(...) OR is_yard_admin(auth.uid(), yard_id)`
+**Approach**
+- No new upload flow. Reuse existing `inspector_checks` + `inspection-photos` bucket.
+- New page `/photos`: search by container number → shows all inspector photos for that container with timestamp, inspector name, and check notes. Thumbnails + lightbox.
+- Add a "View photos" link from the container detail dialog and from Gate Out (so operators can review gate-in condition before releasing).
 
-`yards` table:
-- SELECT: super_admin sees all; everyone else sees only their own yard.
-- INSERT/UPDATE/DELETE: super_admin only.
+---
 
-`profiles` and `user_roles`:
-- super_admin: full access.
-- yard admin: can view/update/delete profiles and user_roles for users whose `profiles.yard_id` matches theirs (cannot promote to super_admin).
-- user: own row only.
+## 4. Live stock dashboard (extends existing Dashboard)
 
-`handle_new_user` trigger reads `raw_user_meta_data.yard_id` and `raw_user_meta_data.role` (defaults to 'user') to provision the new profile + user_roles row in one shot. The `prevent_role_change` trigger stays in place.
+Extend `src/pages/Dashboard.tsx` with:
 
-## Frontend changes
+- **Per-line stock table**: rows = shipping line, columns = 20FT / 40FT / 40HC / Reefer / Total (in-yard only).
+- **Today's activity**: gate-in count, gate-out count, reservations, demurrage collected (JOD) — all filtered to today in the current yard.
+- **Aging buckets**: containers in-yard grouped by 0–7, 8–14, 15–21, 22+ days. Click a bucket → filtered list.
+- **Top aging units**: table of 10 oldest in-yard containers with days-in-yard, line, size, block/row.
 
-- **AuthContext**: load `profile.yard_id`, `profile.yard_name`, `role` (`super_admin | admin | user`). Expose `isSuperAdmin()`, `isAdmin()`, `currentYardId`.
-- **Layout header**: show current yard name next to the user. Super-admin sees "All Yards" plus a yard switcher dropdown that filters their view.
-- **Routing / nav**:
-  - Super-admin only: `/admin/yards` (create yards, list yards, create yard's first admin).
-  - Yard admin: existing admin pages (Import, Port Data, Accounting, Users) — scoped to their yard automatically by RLS.
-  - User: existing operator pages.
-- **Auth page**: remove public sign-up. Login only. Account creation is done by super-admin (creates yard admins) and yard admins (create users in their yard).
-- **New page `Yards` (super-admin)**: create yard (name + code), list yards, "Create yard admin" button (username, password, full name → calls signup with `yard_id` + role=admin in metadata).
-- **UserManagement**: yard admins see only users in their yard, and the "Create user" form auto-assigns the new user to their yard. Super-admin sees everyone.
-- **All data queries** stay the same — RLS does the filtering. We just remove any client-side role checks that don't account for super_admin and add `yard_id` to all `INSERT` payloads.
+All widgets query `containers` + `demurrage_payments` + new `activity_log`; scoped to `current_yard_id()`.
 
-## Out of scope (this pass)
+---
 
-- Per-yard branding / theming.
-- Cross-yard reporting dashboards for super-admin (basic list only for now).
-- Billing / subscription per yard.
+## Technical details
 
-## Order of execution
+**Migrations (one migration)**
+- `CREATE TABLE public.activity_log (...)` + GRANTs + RLS (yard-scoped read for members, insert for authenticated users in own yard, full access for super_admin).
+- `ALTER TABLE public.containers ADD COLUMN yard_block text, ADD COLUMN yard_row text;`
+- Optional `yard_layout` table for admin-configured blocks/rows.
 
-1. SQL migration (wipe + schema + RLS + trigger update).
-2. Update `AuthContext`, `ProtectedRoute`, `Layout` for super_admin + yard awareness.
-3. Add `Yards` page + super-admin nav.
-4. Update `UserManagement` for yard-scoped user creation.
-5. Update every data-insert call site to include `yard_id`.
-6. Remove sign-up UI from `Auth` page.
-7. Manually create the first super-admin account (instructions provided).
+**Files added**
+- `src/pages/ActivityLog.tsx`
+- `src/pages/YardMap.tsx`
+- `src/pages/PhotoArchive.tsx`
+- `src/lib/shifts.ts` (shift calc helper)
+- `src/lib/activityLog.ts` (single `logActivity()` helper called from write paths)
+
+**Files edited**
+- `src/pages/Dashboard.tsx` — new widgets
+- `src/pages/GateIn.tsx` — Block/Row inputs + `logActivity()`
+- `src/pages/GateOut.tsx` — clear slot + `logActivity()` + photos link
+- `src/components/ReserveContainerDialog.tsx` — `logActivity()`
+- `src/components/DemurrageCollectionDialog.tsx` — `logActivity()`
+- `src/components/ContainerDetailDialog.tsx` — show block/row + photos link
+- `src/components/AppSidebar.tsx` — nav entries for Activity, Yard Map, Photos
+- `src/App.tsx` — routes
+
+**Access**
+- Dashboard, Yard Map, Photos: any signed-in user in the yard.
+- Activity Log: admin + super_admin.
+
+**Out of scope (say if you want them)**
+- Manual shift roster / operator picker (you chose auto-from-user).
+- New photo uploads at gate-in (you chose inspector-only).
+- Slot-level (3rd) granularity.
