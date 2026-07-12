@@ -155,25 +155,23 @@ export type Database = {
           },
         ]
       }
-      containers: {
+      container_visits: {
         Row: {
           booking_id: string | null
           booking_number: string | null
-          container_number: string
-          container_type: string
+          container_id: string
           created_at: string
           created_by: string
           daily_demurrage: number | null
-          driver_name: string
+          driver_name: string | null
           fees: number | null
-          free_days: number | null
+          free_days: number
           gate_in_time: string
           gate_out_time: string | null
           id: string
           port_arrival_date: string | null
-          shipping_line: string
-          status: Database["public"]["Enums"]["container_status"]
-          truck_number: string
+          status: string
+          truck_number: string | null
           updated_at: string
           yard_block: string | null
           yard_id: string
@@ -182,21 +180,19 @@ export type Database = {
         Insert: {
           booking_id?: string | null
           booking_number?: string | null
-          container_number: string
-          container_type: string
+          container_id: string
           created_at?: string
           created_by: string
           daily_demurrage?: number | null
-          driver_name: string
+          driver_name?: string | null
           fees?: number | null
-          free_days?: number | null
+          free_days?: number
           gate_in_time?: string
           gate_out_time?: string | null
           id?: string
           port_arrival_date?: string | null
-          shipping_line: string
-          status?: Database["public"]["Enums"]["container_status"]
-          truck_number: string
+          status?: string
+          truck_number?: string | null
           updated_at?: string
           yard_block?: string | null
           yard_id: string
@@ -205,21 +201,19 @@ export type Database = {
         Update: {
           booking_id?: string | null
           booking_number?: string | null
-          container_number?: string
-          container_type?: string
+          container_id?: string
           created_at?: string
           created_by?: string
           daily_demurrage?: number | null
-          driver_name?: string
+          driver_name?: string | null
           fees?: number | null
-          free_days?: number | null
+          free_days?: number
           gate_in_time?: string
           gate_out_time?: string | null
           id?: string
           port_arrival_date?: string | null
-          shipping_line?: string
-          status?: Database["public"]["Enums"]["container_status"]
-          truck_number?: string
+          status?: string
+          truck_number?: string | null
           updated_at?: string
           yard_block?: string | null
           yard_id?: string
@@ -227,20 +221,54 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "containers_booking_id_fkey"
+            foreignKeyName: "container_visits_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "containers_yard_id_fkey"
+            foreignKeyName: "container_visits_container_id_fkey"
+            columns: ["container_id"]
+            isOneToOne: false
+            referencedRelation: "containers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "container_visits_yard_id_fkey"
             columns: ["yard_id"]
             isOneToOne: false
             referencedRelation: "yards"
             referencedColumns: ["id"]
           },
         ]
+      }
+      containers: {
+        Row: {
+          container_number: string
+          container_type: string
+          created_at: string
+          id: string
+          shipping_line: string
+          updated_at: string
+        }
+        Insert: {
+          container_number: string
+          container_type: string
+          created_at?: string
+          id?: string
+          shipping_line: string
+          updated_at?: string
+        }
+        Update: {
+          container_number?: string
+          container_type?: string
+          created_at?: string
+          id?: string
+          shipping_line?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       demurrage_payments: {
         Row: {
@@ -485,6 +513,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shipping_lines: {
+        Row: {
+          active: boolean
+          code: string
+          contact_email: string | null
+          created_at: string
+          default_daily_demurrage: number | null
+          default_free_days: number
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          contact_email?: string | null
+          created_at?: string
+          default_daily_demurrage?: number | null
+          default_free_days?: number
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          contact_email?: string | null
+          created_at?: string
+          default_daily_demurrage?: number | null
+          default_free_days?: number
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
