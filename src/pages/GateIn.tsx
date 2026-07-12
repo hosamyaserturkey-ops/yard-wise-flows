@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { gateInSchema } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
-import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";
+import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE, getServiceFeeConfig } from "@/components/DemurrageCollectionDialog";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
