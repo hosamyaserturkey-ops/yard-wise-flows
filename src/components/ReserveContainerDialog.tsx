@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { logActivity } from "@/lib/activityLog";
 import type { Booking } from "@/types/booking";
 import type { Container } from "@/types/container";
 
@@ -25,7 +26,7 @@ export default function ReserveContainerDialog({
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedBookingId, setSelectedBookingId] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, currentYardId } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -92,6 +93,18 @@ export default function ReserveContainerDialog({
         return;
       }
 
+      const yardId = currentYardId();
+      if (user && yardId) {
+        await logActivity({
+          userId: user.id,
+          yardId,
+          action: "reserve",
+          containerId: container.id,
+          containerNumber: container.containerNumber,
+          metadata: { booking_number: selectedBooking.booking_number },
+        });
+      }
+
       toast({
         title: "Success",
         description: "Container reserved successfully",
@@ -127,6 +140,17 @@ export default function ReserveContainerDialog({
         .eq("id", container.id);
 
       if (error) throw error;
+
+      const yardId = currentYardId();
+      if (user && yardId) {
+        await logActivity({
+          userId: user.id,
+          yardId,
+          action: "unreserve",
+          containerId: container.id,
+          containerNumber: container.containerNumber,
+        });
+      }
 
       toast({
         title: "Success",
