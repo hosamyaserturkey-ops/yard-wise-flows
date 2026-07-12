@@ -1249,6 +1249,19 @@ const GateIn = () => {
 
             if (paymentError) throw paymentError;
 
+            // Activity log: demurrage collected
+            await logActivity({
+              userId: user!.id,
+              yardId: yardIdPay,
+              action: "demurrage_collected",
+              containerNumber,
+              metadata: {
+                total_collected_jod: totalCollected,
+                payment_method: paymentMethod,
+                chargeable_days: chargeableDays,
+              },
+            });
+
             // Mark paid so banner won't reappear before the next lookup refresh
             setDemurrageAlreadyPaid(true);
 
