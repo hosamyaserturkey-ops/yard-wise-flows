@@ -1068,13 +1068,15 @@ const GateIn = () => {
                 </div>
               )}
 
-              {!demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0 && (
+              {!demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0 && (() => {
+                const feeCfg = getServiceFeeConfig(formData.shippingLine);
+                return (
                 <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm space-y-3">
                   <p className="font-medium">⚠️ Demurrage Due — Collect payment before gate-in</p>
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between"><span>Demurrage Total</span><strong>{demurragePreview.totalJOD.toLocaleString()} JOD</strong></div>
-                    <div className="flex justify-between"><span>Service Fee</span><strong>{SERVICE_FEE} JOD</strong></div>
-                    <div className="flex justify-between border-t border-red-200 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.totalJOD + SERVICE_FEE).toLocaleString()} JOD</strong></div>
+                    <div className="flex justify-between"><span>Service Fee</span><strong>{feeCfg.total} JOD</strong></div>
+                    <div className="flex justify-between border-t border-red-200 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.totalJOD + feeCfg.total).toLocaleString()} JOD</strong></div>
                   </div>
                   <Button
                     type="button"
