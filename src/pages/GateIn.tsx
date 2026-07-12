@@ -1161,10 +1161,12 @@ const GateIn = () => {
 
       <DemurrageCollectionDialog
         open={demurrageDialog.open}
+        shippingLine={formData.shippingLine}
         onClose={() => setDemurrageDialog(prev => ({ ...prev, open: false }))}
         onCollected={async (paymentMethod: "cash" | "qlick") => {
           const { containerNumber, chargeableDays, demurrageAmount } = demurrageDialog;
-          const totalCollected = demurrageAmount + SERVICE_FEE;
+          const feeCfg = getServiceFeeConfig(formData.shippingLine);
+          const totalCollected = demurrageAmount + feeCfg.total;
           setDemurrageDialog(prev => ({ ...prev, open: false }));
           setIsSubmitting(true);
           try {
@@ -1177,12 +1179,12 @@ const GateIn = () => {
                 shipping_line: formData.shippingLine,
                 chargeable_days: chargeableDays,
                 demurrage_amount: demurrageAmount,
-                handling_fee: SERVICE_FEE,
+                handling_fee: feeCfg.total,
                 total_collected: totalCollected,
                 collected_by: user!.id,
-                service_fee: SERVICE_FEE,
-                yard_share: YARD_SHARE,
-                shipping_line_share: SHIPPING_LINE_SHARE,
+                service_fee: feeCfg.total,
+                yard_share: feeCfg.yard,
+                shipping_line_share: feeCfg.shippingLine,
                 payment_method: paymentMethod,
                 yard_id: yardIdPay,
               })
@@ -1198,7 +1200,7 @@ const GateIn = () => {
               id: paymentRecord.id,
               chargeableDays,
               demurrageAmount,
-              serviceFee: SERVICE_FEE,
+              serviceFee: feeCfg.total,
               totalCollected,
               paymentMethod,
             });
