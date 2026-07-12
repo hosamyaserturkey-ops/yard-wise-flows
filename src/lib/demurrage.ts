@@ -54,6 +54,13 @@ export const DEMURRAGE_RULES: Record<
       { fromDay: 21, toDay: null, rate20: 45, rate40: 55, label: "Day 21+" },
     ],
   },
+  WOM: {
+    freeDays: 21,
+    tiers: [
+      { fromDay: 1, toDay: 21, rate20: 0, rate40: 0, label: "Days 1-21 (Free)" },
+      { fromDay: 22, toDay: null, rate20: 50, rate40: 100, label: "Day 22+" },
+    ],
+  },
 };
 
 // Maps a full container type code to the demurrage size bucket.
