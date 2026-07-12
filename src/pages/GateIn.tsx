@@ -69,6 +69,8 @@ const GateIn = () => {
     portArrivalDate: "",
     freeDays: "",
     dailyDemurrage: "",
+    yardBlock: "",
+    yardRow: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [portDataFound, setPortDataFound] = useState(false);
@@ -443,6 +445,8 @@ const GateIn = () => {
       portArrivalDate: "",
       freeDays: "",
       dailyDemurrage: "",
+      yardBlock: "",
+      yardRow: "",
     });
     setPortDataFound(false);
     setLookupDone(false);
@@ -1123,6 +1127,8 @@ const GateIn = () => {
                     portArrivalDate: "",
                     freeDays: "",
                     dailyDemurrage: "",
+                    yardBlock: "",
+                    yardRow: "",
                   });
                   setPortDataFound(false);
                   setLookupDone(false);
