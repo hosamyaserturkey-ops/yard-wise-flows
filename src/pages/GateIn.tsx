@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { gateInSchema } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
 import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE, getServiceFeeConfig } from "@/components/DemurrageCollectionDialog";
+import { logActivity } from "@/lib/activityLog";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -421,6 +422,8 @@ const GateIn = () => {
         shipping_line: formData.shippingLine,
         driver_name: formData.driverName,
         truck_number: formData.truckNumber,
+        yard_block: formData.yardBlock || null,
+        yard_row: formData.yardRow || null,
         created_by: user!.id,
         yard_id: yardId,
       })
@@ -428,6 +431,20 @@ const GateIn = () => {
       .single();
 
     if (error) throw error;
+
+    // Best-effort activity log
+    await logActivity({
+      userId: user!.id,
+      yardId,
+      action: "gate_in",
+      containerId: data.id,
+      containerNumber: data.container_number,
+      metadata: {
+        block: formData.yardBlock || null,
+        row: formData.yardRow || null,
+        demurrage_collected_jod: demurragePayment?.totalCollected ?? 0,
+      },
+    });
 
     toast({
       title: "Success",
@@ -852,6 +869,30 @@ const GateIn = () => {
                   onChange={(e) => setFormData({ ...formData, truckNumber: e.target.value.toUpperCase() })}
                   placeholder="e.g., TRK001"
                   className="font-mono"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="yardBlock">Yard Block *</Label>
+                <Input
+                  id="yardBlock"
+                  value={formData.yardBlock}
+                  onChange={(e) => setFormData({ ...formData, yardBlock: e.target.value.toUpperCase() })}
+                  placeholder="e.g., A"
+                  className="font-mono"
+                  maxLength={8}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="yardRow">Yard Row *</Label>
+                <Input
+                  id="yardRow"
+                  value={formData.yardRow}
+                  onChange={(e) => setFormData({ ...formData, yardRow: e.target.value.toUpperCase() })}
+                  placeholder="e.g., 03"
+                  className="font-mono"
+                  maxLength={8}
                 />
               </div>
             </div>
