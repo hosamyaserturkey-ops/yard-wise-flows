@@ -135,6 +135,8 @@ const GateOut = () => {
           fees: parseFloat(fees),
           driver_name: driverName,
           truck_number: truckNumber,
+          yard_block: null,
+          yard_row: null,
         })
         .eq('id', selectedContainer.id);
 
@@ -146,6 +148,22 @@ const GateOut = () => {
       });
 
       if (bookingError) throw bookingError;
+
+      // Activity log
+      const yardId = currentYardId();
+      if (user && yardId) {
+        await logActivity({
+          userId: user.id,
+          yardId,
+          action: "gate_out",
+          containerId: selectedContainer.id,
+          containerNumber: selectedContainer.containerNumber,
+          metadata: {
+            booking_number: selectedContainer.bookingNumber,
+            fees_jod: parseFloat(fees) || 0,
+          },
+        });
+      }
 
       toast({
         title: "Success",
