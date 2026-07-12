@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3, Container, Ship, FileText, Calendar, Upload, Anchor,
   Calculator, Users, Building2, ClipboardCheck, LogOut, ShieldCheck, Crown,
+  MapPin, Camera, Activity,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -19,6 +20,8 @@ const OPS_NAV = [
   { href: "/",           label: "Dashboard",  icon: BarChart3    },
   { href: "/gate-in",    label: "Gate In",    icon: Container    },
   { href: "/gate-out",   label: "Gate Out",   icon: Ship         },
+  { href: "/yard-map",   label: "Yard Map",   icon: MapPin       },
+  { href: "/photos",     label: "Photos",     icon: Camera       },
   { href: "/reports",    label: "Reports",    icon: FileText     },
   { href: "/bookings",   label: "Bookings",   icon: Calendar     },
 ];
@@ -27,12 +30,14 @@ const ADMIN_NAV = [
   { href: "/import",     label: "Import",     icon: Upload       },
   { href: "/port-data",  label: "Port Data",  icon: Anchor       },
   { href: "/accounting", label: "Accounting", icon: Calculator   },
+  { href: "/activity",   label: "Activity",   icon: Activity     },
   { href: "/admin/users",label: "Users",      icon: Users        },
   { href: "/inspector",  label: "Inspect",    icon: ClipboardCheck },
 ];
 
 const SUPER_NAV = [
   { href: "/port-data",  label: "Port Data",  icon: Anchor       },
+  { href: "/activity",   label: "Activity",   icon: Activity     },
   { href: "/admin/yards",label: "Yards",      icon: Building2    },
   { href: "/inspector",  label: "Inspect",    icon: ClipboardCheck },
 ];

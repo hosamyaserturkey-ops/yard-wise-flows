@@ -20,6 +20,9 @@ import Accounting from "./pages/Accounting";
 import UserManagement from "./pages/UserManagement";
 import Yards from "./pages/Yards";
 import Inspector from "./pages/Inspector";
+import ActivityLog from "./pages/ActivityLog";
+import YardMap from "./pages/YardMap";
+import PhotoArchive from "./pages/PhotoArchive";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -93,6 +96,21 @@ const App = () => (
                 <Route path="inspector" element={
                   <ProtectedRoute>
                     <Inspector />
+                  </ProtectedRoute>
+                } />
+                <Route path="activity" element={
+                  <ProtectedRoute adminOnly>
+                    <ActivityLog />
+                  </ProtectedRoute>
+                } />
+                <Route path="yard-map" element={
+                  <ProtectedRoute>
+                    <YardMap />
+                  </ProtectedRoute>
+                } />
+                <Route path="photos" element={
+                  <ProtectedRoute>
+                    <PhotoArchive />
                   </ProtectedRoute>
                 } />
                 <Route path="*" element={<NotFound />} />
