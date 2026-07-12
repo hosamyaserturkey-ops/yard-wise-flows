@@ -15,7 +15,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { logActivity } from "@/lib/activityLog";
 
 const GateOut = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, currentYardId } = useAuth();
   const { toast } = useToast();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [selectedContainer, setSelectedContainer] = useState<ContainerType | null>(null);
