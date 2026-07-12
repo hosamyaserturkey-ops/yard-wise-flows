@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { gateInSchema } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
-import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE } from "@/components/DemurrageCollectionDialog";
+import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE, getServiceFeeConfig } from "@/components/DemurrageCollectionDialog";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1068,13 +1068,15 @@ const GateIn = () => {
                 </div>
               )}
 
-              {!demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0 && (
+              {!demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0 && (() => {
+                const feeCfg = getServiceFeeConfig(formData.shippingLine);
+                return (
                 <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm space-y-3">
                   <p className="font-medium">⚠️ Demurrage Due — Collect payment before gate-in</p>
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between"><span>Demurrage Total</span><strong>{demurragePreview.totalJOD.toLocaleString()} JOD</strong></div>
-                    <div className="flex justify-between"><span>Service Fee</span><strong>{SERVICE_FEE} JOD</strong></div>
-                    <div className="flex justify-between border-t border-red-200 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.totalJOD + SERVICE_FEE).toLocaleString()} JOD</strong></div>
+                    <div className="flex justify-between"><span>Service Fee</span><strong>{feeCfg.total} JOD</strong></div>
+                    <div className="flex justify-between border-t border-red-200 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.totalJOD + feeCfg.total).toLocaleString()} JOD</strong></div>
                   </div>
                   <Button
                     type="button"
@@ -1103,7 +1105,8 @@ const GateIn = () => {
                     💵 Collect Payment & Print Receipt
                   </Button>
                 </div>
-              )}
+                );
+              })()}
             </div>
 
             <div className="flex justify-end space-x-4">
@@ -1158,10 +1161,12 @@ const GateIn = () => {
 
       <DemurrageCollectionDialog
         open={demurrageDialog.open}
+        shippingLine={formData.shippingLine}
         onClose={() => setDemurrageDialog(prev => ({ ...prev, open: false }))}
         onCollected={async (paymentMethod: "cash" | "qlick") => {
           const { containerNumber, chargeableDays, demurrageAmount } = demurrageDialog;
-          const totalCollected = demurrageAmount + SERVICE_FEE;
+          const feeCfg = getServiceFeeConfig(formData.shippingLine);
+          const totalCollected = demurrageAmount + feeCfg.total;
           setDemurrageDialog(prev => ({ ...prev, open: false }));
           setIsSubmitting(true);
           try {
@@ -1174,12 +1179,12 @@ const GateIn = () => {
                 shipping_line: formData.shippingLine,
                 chargeable_days: chargeableDays,
                 demurrage_amount: demurrageAmount,
-                handling_fee: SERVICE_FEE,
+                handling_fee: feeCfg.total,
                 total_collected: totalCollected,
                 collected_by: user!.id,
-                service_fee: SERVICE_FEE,
-                yard_share: YARD_SHARE,
-                shipping_line_share: SHIPPING_LINE_SHARE,
+                service_fee: feeCfg.total,
+                yard_share: feeCfg.yard,
+                shipping_line_share: feeCfg.shippingLine,
                 payment_method: paymentMethod,
                 yard_id: yardIdPay,
               })
@@ -1195,7 +1200,7 @@ const GateIn = () => {
               id: paymentRecord.id,
               chargeableDays,
               demurrageAmount,
-              serviceFee: SERVICE_FEE,
+              serviceFee: feeCfg.total,
               totalCollected,
               paymentMethod,
             });

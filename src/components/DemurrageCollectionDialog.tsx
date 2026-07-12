@@ -15,6 +15,18 @@ const SERVICE_FEE = 7;
 const YARD_SHARE = 5;
 const SHIPPING_LINE_SHARE = 2;
 
+// Per-shipping-line overrides. Splits keep the shipping line share and
+// give the remainder to the yard.
+const SERVICE_FEE_BY_LINE: Record<string, { total: number; yard: number; shippingLine: number }> = {
+  WOM: { total: 5, yard: 3, shippingLine: 2 },
+};
+
+export const getServiceFeeConfig = (shippingLine?: string | null) => {
+  const override = shippingLine ? SERVICE_FEE_BY_LINE[shippingLine] : undefined;
+  if (override) return override;
+  return { total: SERVICE_FEE, yard: YARD_SHARE, shippingLine: SHIPPING_LINE_SHARE };
+};
+
 interface DemurrageCollectionDialogProps {
   open: boolean;
   onClose: () => void;
@@ -22,6 +34,7 @@ interface DemurrageCollectionDialogProps {
   chargeableDays: number;
   demurrageAmount: number;
   containerNumber: string;
+  shippingLine?: string;
 }
 
 const DemurrageCollectionDialog = ({
@@ -31,10 +44,12 @@ const DemurrageCollectionDialog = ({
   chargeableDays,
   demurrageAmount,
   containerNumber,
+  shippingLine,
 }: DemurrageCollectionDialogProps) => {
   const [step, setStep] = useState<"info" | "method" | "confirmed">("info");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "qlick" | null>(null);
-  const totalAmount = demurrageAmount + SERVICE_FEE;
+  const serviceFee = getServiceFeeConfig(shippingLine).total;
+  const totalAmount = demurrageAmount + serviceFee;
 
   const handleSelectMethod = (method: "cash" | "qlick") => {
     setPaymentMethod(method);
@@ -84,7 +99,7 @@ const DemurrageCollectionDialog = ({
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Service Fee</span>
-                  <span className="font-semibold">{SERVICE_FEE} JOD</span>
+                  <span className="font-semibold">{serviceFee} JOD</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between items-center">
                   <span className="text-muted-foreground text-sm font-medium">Total to Collect</span>
