@@ -5,7 +5,7 @@
 export const USD_TO_JOD = 0.712;
 
 export type DemurrageContainerType = "20FT" | "40FT";
-export type DemurrageShippingLine = "SLG" | "SLD";
+export type DemurrageShippingLine = "SLG" | "SLD" | "WOM";
 
 export interface DemurrageTier {
   // Inclusive start day, inclusive end day (null = open-ended).
