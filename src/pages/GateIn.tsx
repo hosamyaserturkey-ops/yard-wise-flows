@@ -1105,7 +1105,8 @@ const GateIn = () => {
                     💵 Collect Payment & Print Receipt
                   </Button>
                 </div>
-              )}
+                );
+              })()}
             </div>
 
             <div className="flex justify-end space-x-4">
