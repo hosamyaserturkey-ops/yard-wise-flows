@@ -34,6 +34,7 @@ interface DemurrageCollectionDialogProps {
   chargeableDays: number;
   demurrageAmount: number;
   containerNumber: string;
+  shippingLine?: string;
 }
 
 const DemurrageCollectionDialog = ({
@@ -43,10 +44,12 @@ const DemurrageCollectionDialog = ({
   chargeableDays,
   demurrageAmount,
   containerNumber,
+  shippingLine,
 }: DemurrageCollectionDialogProps) => {
   const [step, setStep] = useState<"info" | "method" | "confirmed">("info");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "qlick" | null>(null);
-  const totalAmount = demurrageAmount + SERVICE_FEE;
+  const serviceFee = getServiceFeeConfig(shippingLine).total;
+  const totalAmount = demurrageAmount + serviceFee;
 
   const handleSelectMethod = (method: "cash" | "qlick") => {
     setPaymentMethod(method);
