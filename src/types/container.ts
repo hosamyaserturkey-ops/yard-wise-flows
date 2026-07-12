@@ -24,6 +24,8 @@ export interface GateInData {
   portArrivalDate: string;
   freeDays: string;
   dailyDemurrage: string;
+  yardBlock: string;
+  yardRow: string;
 }
 
 export interface GateOutData {

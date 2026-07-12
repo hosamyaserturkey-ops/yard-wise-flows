@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { gateInSchema } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
 import DemurrageCollectionDialog, { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE, getServiceFeeConfig } from "@/components/DemurrageCollectionDialog";
+import { logActivity } from "@/lib/activityLog";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -69,6 +70,8 @@ const GateIn = () => {
     portArrivalDate: "",
     freeDays: "",
     dailyDemurrage: "",
+    yardBlock: "",
+    yardRow: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [portDataFound, setPortDataFound] = useState(false);
@@ -326,6 +329,15 @@ const GateIn = () => {
       return;
     }
 
+    if (!formData.yardBlock.trim() || !formData.yardRow.trim()) {
+      toast({
+        title: "Yard Slot Required",
+        description: "Enter both the yard block and row where the container will be placed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (portArrivalIsFuture) {
       toast({
         title: "Invalid Port Arrival Date",
@@ -419,6 +431,8 @@ const GateIn = () => {
         shipping_line: formData.shippingLine,
         driver_name: formData.driverName,
         truck_number: formData.truckNumber,
+        yard_block: formData.yardBlock || null,
+        yard_row: formData.yardRow || null,
         created_by: user!.id,
         yard_id: yardId,
       })
@@ -426,6 +440,20 @@ const GateIn = () => {
       .single();
 
     if (error) throw error;
+
+    // Best-effort activity log
+    await logActivity({
+      userId: user!.id,
+      yardId,
+      action: "gate_in",
+      containerId: data.id,
+      containerNumber: data.container_number,
+      metadata: {
+        block: formData.yardBlock || null,
+        row: formData.yardRow || null,
+        demurrage_collected_jod: demurragePayment?.totalCollected ?? 0,
+      },
+    });
 
     toast({
       title: "Success",
@@ -443,6 +471,8 @@ const GateIn = () => {
       portArrivalDate: "",
       freeDays: "",
       dailyDemurrage: "",
+      yardBlock: "",
+      yardRow: "",
     });
     setPortDataFound(false);
     setLookupDone(false);
@@ -850,6 +880,30 @@ const GateIn = () => {
                   className="font-mono"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="yardBlock">Yard Block *</Label>
+                <Input
+                  id="yardBlock"
+                  value={formData.yardBlock}
+                  onChange={(e) => setFormData({ ...formData, yardBlock: e.target.value.toUpperCase() })}
+                  placeholder="e.g., A"
+                  className="font-mono"
+                  maxLength={8}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="yardRow">Yard Row *</Label>
+                <Input
+                  id="yardRow"
+                  value={formData.yardRow}
+                  onChange={(e) => setFormData({ ...formData, yardRow: e.target.value.toUpperCase() })}
+                  placeholder="e.g., 03"
+                  className="font-mono"
+                  maxLength={8}
+                />
+              </div>
             </div>
 
             <div className="border-t pt-4">
@@ -1123,6 +1177,8 @@ const GateIn = () => {
                     portArrivalDate: "",
                     freeDays: "",
                     dailyDemurrage: "",
+                    yardBlock: "",
+                    yardRow: "",
                   });
                   setPortDataFound(false);
                   setLookupDone(false);
@@ -1192,6 +1248,19 @@ const GateIn = () => {
               .single();
 
             if (paymentError) throw paymentError;
+
+            // Activity log: demurrage collected
+            await logActivity({
+              userId: user!.id,
+              yardId: yardIdPay,
+              action: "demurrage_collected",
+              containerNumber,
+              metadata: {
+                total_collected_jod: totalCollected,
+                payment_method: paymentMethod,
+                chargeable_days: chargeableDays,
+              },
+            });
 
             // Mark paid so banner won't reappear before the next lookup refresh
             setDemurrageAlreadyPaid(true);

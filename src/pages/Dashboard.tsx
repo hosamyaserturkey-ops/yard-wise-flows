@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Container, Ship, Clock, Users, Calendar, Search, TrendingUp, BarChart3 } from "lucide-react";
+import { Container, Ship, Clock, Users, Calendar, Search, TrendingUp, BarChart3, Timer, PackageCheck, LogIn, LogOut as LogOutIcon } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { supabase } from "@/integrations/supabase/client";
@@ -276,6 +276,64 @@ const Dashboard = () => {
       .sort((a, b) => b.value - a.value);
   }, [containers]);
 
+  // Live stock: per-line by container type (in-yard only)
+  const stockByLine = useMemo(() => {
+    const map = new Map<string, { small: number; large: number; hc: number; reefer: number; total: number }>();
+    containers
+      .filter((c) => c.status === "in-yard")
+      .forEach((c) => {
+        const row = map.get(c.shippingLine) ?? { small: 0, large: 0, hc: 0, reefer: 0, total: 0 };
+        const t = c.containerType.toUpperCase();
+        if (t === "20FT") row.small += 1;
+        else if (t === "40FT") row.large += 1;
+        else if (t === "40HC" || t === "45FT") row.hc += 1;
+        else if (t.endsWith("FR")) row.reefer += 1;
+        row.total += 1;
+        map.set(c.shippingLine, row);
+      });
+    return Array.from(map.entries())
+      .map(([line, v]) => ({ line, ...v }))
+      .sort((a, b) => b.total - a.total);
+  }, [containers]);
+
+  // Today activity
+  const today = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    const gateIn = containers.filter((c) => c.gateInTime >= start && c.gateInTime < end).length;
+    const gateOut = containers.filter(
+      (c) => c.gateOutTime && c.gateOutTime >= start && c.gateOutTime < end,
+    ).length;
+    const reserved = containers.filter((c) => c.status === "reserved").length;
+    return { gateIn, gateOut, reserved };
+  }, [containers]);
+
+  // Aging buckets (in-yard only)
+  const aging = useMemo(() => {
+    const buckets = { fresh: 0, week: 0, twoWeeks: 0, threeWeeks: 0, stale: 0 };
+    containers
+      .filter((c) => c.status === "in-yard")
+      .forEach((c) => {
+        const d = daysInYard(c.gateInTime);
+        if (d <= 7) buckets.fresh += 1;
+        else if (d <= 14) buckets.week += 1;
+        else if (d <= 21) buckets.twoWeeks += 1;
+        else if (d <= 30) buckets.threeWeeks += 1;
+        else buckets.stale += 1;
+      });
+    return buckets;
+  }, [containers]);
+
+  const topAging = useMemo(() => {
+    return [...containers]
+      .filter((c) => c.status === "in-yard")
+      .sort((a, b) => a.gateInTime.getTime() - b.gateInTime.getTime())
+      .slice(0, 10);
+  }, [containers]);
+
+
   const openDetail = (c: ContainerType) => {
     setDetailContainer(c);
     setDetailOpen(true);
@@ -431,6 +489,148 @@ const Dashboard = () => {
           </Card>
         </div>
 
+        {/* Today's activity */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            label="Gate-ins Today"
+            value={today.gateIn}
+            color="maritime"
+            icon={<LogIn className="h-4 w-4 text-maritime" />}
+            loading={loading}
+          />
+          <StatCard
+            label="Gate-outs Today"
+            value={today.gateOut}
+            color="success"
+            icon={<LogOutIcon className="h-4 w-4 text-success" />}
+            loading={loading}
+          />
+          <StatCard
+            label="Currently Reserved"
+            value={today.reserved}
+            color="warning"
+            icon={<PackageCheck className="h-4 w-4 text-warning" />}
+            loading={loading}
+          />
+          <StatCard
+            label="Oldest (in-yard)"
+            value={topAging.length > 0 ? daysInYard(topAging[0].gateInTime) : 0}
+            color="container"
+            icon={<Timer className="h-4 w-4 text-container" />}
+            loading={loading}
+          />
+        </div>
+
+        {/* Stock by line + Aging */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Ship className="h-4 w-4 text-maritime" />
+                Live Stock by Shipping Line (in-yard)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-32 w-full" />
+              ) : stockByLine.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No containers in yard.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="text-left py-2">Line</th>
+                        <th className="text-right py-2">20FT</th>
+                        <th className="text-right py-2">40FT</th>
+                        <th className="text-right py-2">40HC/45</th>
+                        <th className="text-right py-2">Reefer</th>
+                        <th className="text-right py-2 font-semibold">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stockByLine.map((r) => (
+                        <tr key={r.line} className="border-t">
+                          <td className="py-1.5 font-medium">{r.line}</td>
+                          <td className="text-right">{r.small}</td>
+                          <td className="text-right">{r.large}</td>
+                          <td className="text-right">{r.hc}</td>
+                          <td className="text-right">{r.reefer}</td>
+                          <td className="text-right font-semibold">{r.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Timer className="h-4 w-4 text-warning" />
+                Aging (in-yard)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-32 w-full" />
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  <AgingRow label="0–7 days" count={aging.fresh} tone="bg-green-500" />
+                  <AgingRow label="8–14 days" count={aging.week} tone="bg-blue-500" />
+                  <AgingRow label="15–21 days" count={aging.twoWeeks} tone="bg-yellow-500" />
+                  <AgingRow label="22–30 days" count={aging.threeWeeks} tone="bg-orange-500" />
+                  <AgingRow label="30+ days" count={aging.stale} tone="bg-red-500" />
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Top aging table */}
+        {topAging.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Timer className="h-4 w-4 text-warning" />
+                Oldest containers in yard
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="text-left py-2">Container</th>
+                      <th className="text-left py-2">Line</th>
+                      <th className="text-left py-2">Type</th>
+                      <th className="text-left py-2">Gate-in</th>
+                      <th className="text-right py-2">Days</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topAging.map((c) => (
+                      <tr
+                        key={c.id}
+                        className="border-t hover:bg-muted/50 cursor-pointer"
+                        onClick={() => openDetail(c)}
+                      >
+                        <td className="py-1.5 font-mono">{c.containerNumber}</td>
+                        <td className="py-1.5">{c.shippingLine}</td>
+                        <td className="py-1.5">{c.containerType}</td>
+                        <td className="py-1.5">{c.gateInTime.toLocaleDateString("en-GB")}</td>
+                        <td className="py-1.5 text-right font-semibold">{daysInYard(c.gateInTime)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Kanban section */}
         <div className="space-y-3">
           {/* Search above kanban */}
@@ -498,6 +698,16 @@ const Dashboard = () => {
     </div>
   );
 };
+
+const AgingRow = ({ label, count, tone }: { label: string; count: number; tone: string }) => (
+  <li className="flex items-center justify-between gap-2">
+    <span className="flex items-center gap-2">
+      <span className={`h-2 w-2 rounded-full ${tone}`} />
+      {label}
+    </span>
+    <span className="font-semibold">{count}</span>
+  </li>
+);
 
 // ── KanbanColumn ─────────────────────────────────────────────────────────────
 

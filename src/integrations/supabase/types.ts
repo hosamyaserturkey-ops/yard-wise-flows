@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: Database["public"]["Enums"]["activity_action"]
+          container_id: string | null
+          container_number: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          shift: Database["public"]["Enums"]["work_shift"]
+          user_id: string
+          yard_id: string
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["activity_action"]
+          container_id?: string | null
+          container_number?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          shift: Database["public"]["Enums"]["work_shift"]
+          user_id: string
+          yard_id: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["activity_action"]
+          container_id?: string | null
+          container_number?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          shift?: Database["public"]["Enums"]["work_shift"]
+          user_id?: string
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_log_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           booking_number: string
@@ -128,7 +175,9 @@ export type Database = {
           status: Database["public"]["Enums"]["container_status"]
           truck_number: string
           updated_at: string
+          yard_block: string | null
           yard_id: string
+          yard_row: string | null
         }
         Insert: {
           booking_id?: string | null
@@ -149,7 +198,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["container_status"]
           truck_number: string
           updated_at?: string
+          yard_block?: string | null
           yard_id: string
+          yard_row?: string | null
         }
         Update: {
           booking_id?: string | null
@@ -170,7 +221,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["container_status"]
           truck_number?: string
           updated_at?: string
+          yard_block?: string | null
           yard_id?: string
+          yard_row?: string | null
         }
         Relationships: [
           {
@@ -535,8 +588,15 @@ export type Database = {
       is_yard_admin: { Args: { _uid: string; _yard: string }; Returns: boolean }
     }
     Enums: {
+      activity_action:
+        | "gate_in"
+        | "gate_out"
+        | "reserve"
+        | "unreserve"
+        | "demurrage_collected"
       app_role: "admin" | "user" | "super_admin" | "inspector"
       container_status: "in-yard" | "out" | "reserved"
+      work_shift: "day" | "night"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -664,8 +724,16 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      activity_action: [
+        "gate_in",
+        "gate_out",
+        "reserve",
+        "unreserve",
+        "demurrage_collected",
+      ],
       app_role: ["admin", "user", "super_admin", "inspector"],
       container_status: ["in-yard", "out", "reserved"],
+      work_shift: ["day", "night"],
     },
   },
 } as const

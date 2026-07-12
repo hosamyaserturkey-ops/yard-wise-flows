@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  MapPin,
+  Camera,
 } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
@@ -206,6 +209,24 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
               </InfoBlock>
               <InfoBlock icon={<Truck className="h-4 w-4 text-warning" />} label="Truck">
                 <span className="font-mono">{container.truckNumber}</span>
+              </InfoBlock>
+              {(container as unknown as { yardBlock?: string; yardRow?: string }).yardBlock && (
+                <InfoBlock icon={<MapPin className="h-4 w-4 text-maritime" />} label="Yard Slot">
+                  <span className="font-mono">
+                    {(container as unknown as { yardBlock?: string }).yardBlock}
+                    {" · Row "}
+                    {(container as unknown as { yardRow?: string }).yardRow ?? "—"}
+                  </span>
+                </InfoBlock>
+              )}
+              <InfoBlock icon={<Camera className="h-4 w-4 text-maritime" />} label="Photos">
+                <Link
+                  to={`/photos?q=${encodeURIComponent(container.containerNumber)}`}
+                  className="text-maritime underline underline-offset-2 text-sm"
+                  onClick={() => onOpenChange(false)}
+                >
+                  View gate-in photos →
+                </Link>
               </InfoBlock>
             </div>
 
