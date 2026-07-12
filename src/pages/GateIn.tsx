@@ -329,6 +329,15 @@ const GateIn = () => {
       return;
     }
 
+    if (!formData.yardBlock.trim() || !formData.yardRow.trim()) {
+      toast({
+        title: "Yard Slot Required",
+        description: "Enter both the yard block and row where the container will be placed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (portArrivalIsFuture) {
       toast({
         title: "Invalid Port Arrival Date",
