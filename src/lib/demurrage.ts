@@ -75,7 +75,7 @@ export const toDemurrageContainerType = (
 export const hasDemurrageRules = (
   shippingLine: string,
 ): shippingLine is DemurrageShippingLine =>
-  shippingLine === "SLG" || shippingLine === "SLD";
+  shippingLine === "SLG" || shippingLine === "SLD" || shippingLine === "WOM";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
