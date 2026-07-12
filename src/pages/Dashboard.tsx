@@ -276,6 +276,67 @@ const Dashboard = () => {
       .sort((a, b) => b.value - a.value);
   }, [containers]);
 
+  // Live stock: per-line by container type (in-yard only)
+  const stockByLine = useMemo(() => {
+    const map = new Map<string, { small: number; large: number; hc: number; reefer: number; total: number }>();
+    containers
+      .filter((c) => c.status === "in-yard")
+      .forEach((c) => {
+        const row = map.get(c.shippingLine) ?? { small: 0, large: 0, hc: 0, reefer: 0, total: 0 };
+        const t = c.containerType.toUpperCase();
+        if (t === "20FT") row.small += 1;
+        else if (t === "40FT") row.large += 1;
+        else if (t === "40HC" || t === "45FT") row.hc += 1;
+        else if (t.endsWith("FR")) row.reefer += 1;
+        row.total += 1;
+        map.set(c.shippingLine, row);
+      });
+    return Array.from(map.entries())
+      .map(([line, v]) => ({ line, ...v }))
+      .sort((a, b) => b.total - a.total);
+  }, [containers]);
+
+  // Today activity
+  const today = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    const gateIn = containers.filter((c) => c.gateInTime >= start && c.gateInTime < end).length;
+    const gateOut = containers.filter(
+      (c) => c.gateOutTime && c.gateOutTime >= start && c.gateOutTime < end,
+    ).length;
+    const reserved = containers.filter((c) => c.status === "reserved").length;
+    return { gateIn, gateOut, reserved };
+  }, [containers]);
+
+  // Aging buckets (in-yard only)
+  const aging = useMemo(() => {
+    const buckets = { fresh: 0, week: 0, twoWeeks: 0, threeWeeks: 0, stale: 0 };
+    containers
+      .filter((c) => c.status === "in-yard")
+      .forEach((c) => {
+        const d = daysInYard(c.gateInTime);
+        if (d <= 7) buckets.fresh += 1;
+        else if (d <= 14) buckets.week += 1;
+        else if (d <= 21) buckets.twoWeeks += 1;
+        else if (d <= 30) buckets.threeWeeks += 1;
+        else buckets.stale += 1;
+      });
+    return buckets;
+  }, [containers]);
+
+  const topAging = useMemo(() => {
+    return [...containers]
+      .filter((c) => c.status === "in-yard")
+      .sort((a, b) => a.gateInTime.getTime() - b.gateInTime.getTime())
+      .slice(0, 10);
+  }, [containers]);
+
+  // dummy to preserve chained useMemo — reuse existing containers memo pattern
+  const _dashboardExtras = null;
+  void _dashboardExtras;
+
   const openDetail = (c: ContainerType) => {
     setDetailContainer(c);
     setDetailOpen(true);
