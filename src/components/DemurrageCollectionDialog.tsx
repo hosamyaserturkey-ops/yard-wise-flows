@@ -15,6 +15,18 @@ const SERVICE_FEE = 7;
 const YARD_SHARE = 5;
 const SHIPPING_LINE_SHARE = 2;
 
+// Per-shipping-line overrides. Splits keep the shipping line share and
+// give the remainder to the yard.
+const SERVICE_FEE_BY_LINE: Record<string, { total: number; yard: number; shippingLine: number }> = {
+  WOM: { total: 5, yard: 3, shippingLine: 2 },
+};
+
+export const getServiceFeeConfig = (shippingLine?: string | null) => {
+  const override = shippingLine ? SERVICE_FEE_BY_LINE[shippingLine] : undefined;
+  if (override) return override;
+  return { total: SERVICE_FEE, yard: YARD_SHARE, shippingLine: SHIPPING_LINE_SHARE };
+};
+
 interface DemurrageCollectionDialogProps {
   open: boolean;
   onClose: () => void;
