@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Container, Ship, Clock, Users, Calendar, Search, TrendingUp, BarChart3 } from "lucide-react";
+import { Container, Ship, Clock, Users, Calendar, Search, TrendingUp, BarChart3, Timer, PackageCheck, LogIn, LogOut as LogOutIcon } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { supabase } from "@/integrations/supabase/client";
