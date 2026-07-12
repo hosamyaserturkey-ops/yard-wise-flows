@@ -5,7 +5,7 @@
 export const USD_TO_JOD = 0.712;
 
 export type DemurrageContainerType = "20FT" | "40FT";
-export type DemurrageShippingLine = "SLG" | "SLD";
+export type DemurrageShippingLine = "SLG" | "SLD" | "WOM";
 
 export interface DemurrageTier {
   // Inclusive start day, inclusive end day (null = open-ended).
@@ -54,6 +54,13 @@ export const DEMURRAGE_RULES: Record<
       { fromDay: 21, toDay: null, rate20: 45, rate40: 55, label: "Day 21+" },
     ],
   },
+  WOM: {
+    freeDays: 21,
+    tiers: [
+      { fromDay: 1, toDay: 21, rate20: 0, rate40: 0, label: "Days 1-21 (Free)" },
+      { fromDay: 22, toDay: null, rate20: 50, rate40: 100, label: "Day 22+" },
+    ],
+  },
 };
 
 // Maps a full container type code to the demurrage size bucket.
@@ -68,7 +75,7 @@ export const toDemurrageContainerType = (
 export const hasDemurrageRules = (
   shippingLine: string,
 ): shippingLine is DemurrageShippingLine =>
-  shippingLine === "SLG" || shippingLine === "SLD";
+  shippingLine === "SLG" || shippingLine === "SLD" || shippingLine === "WOM";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
