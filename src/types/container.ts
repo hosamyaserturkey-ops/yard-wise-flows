@@ -1,7 +1,13 @@
 import type { ShippingLine } from "@/lib/shippingLines";
 
+/**
+ * UI-facing container view. Backed by a `container_visits` row joined to its
+ * master `containers` row. `id` is the visit id — use it for gate-out /
+ * reserve / unreserve updates. `containerId` is the master container id.
+ */
 export interface Container {
   id: string;
+  containerId?: string;
   containerNumber: string;
   containerType: string;
   shippingLine: ShippingLine;
@@ -9,10 +15,12 @@ export interface Container {
   truckNumber: string;
   gateInTime: Date;
   gateOutTime?: Date;
-  status: 'in-yard' | 'out' | 'reserved';
+  status: "in-yard" | "out" | "reserved";
   bookingNumber?: string;
   bookingId?: string;
   fees?: number;
+  yardBlock?: string;
+  yardRow?: string;
 }
 
 export interface GateInData {
@@ -36,7 +44,7 @@ export interface GateOutData {
 
 export interface Receipt {
   id: string;
-  type: 'gate-in' | 'gate-out';
+  type: "gate-in" | "gate-out";
   containerNumber: string;
   driverName: string;
   truckNumber: string;
