@@ -32,12 +32,28 @@ const YardMap = () => {
       setLoading(true);
       const yardId = currentYardId();
       let q = supabase
-        .from("containers")
-        .select("id, container_number, container_type, shipping_line, yard_block, yard_row, gate_in_time")
-        .in("status", ["in-yard", "reserved"]);
+        .from("container_visits")
+        .select("id, yard_block, yard_row, gate_in_time, containers!inner(container_number, container_type, shipping_line)")
+        .in("status", ["in-yard", "reserved"])
+        .is("gate_out_time", null);
       if (yardId) q = q.eq("yard_id", yardId);
       const { data } = await q;
-      setRows((data ?? []) as Row[]);
+      const mapped: Row[] = (data ?? []).map((r: {
+        id: string;
+        yard_block: string | null;
+        yard_row: string | null;
+        gate_in_time: string;
+        containers: { container_number: string; container_type: string; shipping_line: string } | null;
+      }) => ({
+        id: r.id,
+        container_number: r.containers?.container_number ?? "",
+        container_type: r.containers?.container_type ?? "",
+        shipping_line: r.containers?.shipping_line ?? "",
+        yard_block: r.yard_block,
+        yard_row: r.yard_row,
+        gate_in_time: r.gate_in_time,
+      }));
+      setRows(mapped);
       setLoading(false);
     })();
   }, [currentYardId]);

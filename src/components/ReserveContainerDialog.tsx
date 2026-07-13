@@ -69,9 +69,9 @@ export default function ReserveContainerDialog({
 
     setLoading(true);
     try {
-      // Atomic guard: only reserve if the container is still in-yard.
+      // Atomic guard: only reserve if the visit is still in-yard.
       const { data, error } = await supabase
-        .from("containers")
+        .from("container_visits")
         .update({
           status: "reserved",
           booking_id: selectedBookingId,
@@ -131,7 +131,7 @@ export default function ReserveContainerDialog({
     setLoading(true);
     try {
       const { error } = await supabase
-        .from("containers")
+        .from("container_visits")
         .update({
           status: "in-yard",
           booking_id: null,

@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking } from "@/types/booking";
 import type { Container } from "@/types/container";
-import type { ShippingLine } from "@/lib/shippingLines";
+import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
 
 
 export default function BookingDetail() {
@@ -39,51 +39,34 @@ export default function BookingDetail() {
         updated_at: new Date(bookingData.updated_at),
       });
 
-      // Fetch assigned containers (reserved or gated out)
+      // Fetch assigned visits (reserved or gated out)
       const { data: assignedData, error: assignedError } = await supabase
-        .from("containers")
-        .select("*")
+        .from("container_visits")
+        .select(VISIT_WITH_CONTAINER)
         .eq("booking_id", bookingId)
         .in("status", ["reserved", "out"])
         .order("created_at", { ascending: false });
 
       if (assignedError) throw assignedError;
 
-      setAssignedContainers(assignedData.map(container => ({
-        id: container.id,
-        containerNumber: container.container_number,
-        containerType: container.container_type,
-        shippingLine: container.shipping_line as ShippingLine,
-        driverName: container.driver_name,
-        truckNumber: container.truck_number,
-        gateInTime: new Date(container.gate_in_time),
-        gateOutTime: container.gate_out_time ? new Date(container.gate_out_time) : undefined,
-        status: container.status as 'in-yard' | 'out' | 'reserved',
-        bookingNumber: container.booking_number,
-        bookingId: container.booking_id,
-        fees: container.fees,
-      })));
+      setAssignedContainers(
+        (assignedData ?? []).map((row) => mapVisit(row as unknown as VisitJoinRow))
+      );
 
-      // Fetch available containers (in-yard with no booking)
+      // Fetch available visits (in-yard with no booking)
       const { data: availableData, error: availableError } = await supabase
-        .from("containers")
-        .select("*")
+        .from("container_visits")
+        .select(VISIT_WITH_CONTAINER)
         .eq("status", "in-yard")
         .is("booking_id", null)
+        .is("gate_out_time", null)
         .order("gate_in_time", { ascending: false });
 
       if (availableError) throw availableError;
 
-      setAvailableContainers(availableData.map(container => ({
-        id: container.id,
-        containerNumber: container.container_number,
-        containerType: container.container_type,
-        shippingLine: container.shipping_line as ShippingLine,
-        driverName: container.driver_name,
-        truckNumber: container.truck_number,
-        gateInTime: new Date(container.gate_in_time),
-        status: container.status as 'in-yard' | 'out' | 'reserved',
-      })));
+      setAvailableContainers(
+        (availableData ?? []).map((row) => mapVisit(row as unknown as VisitJoinRow))
+      );
     } catch (error) {
       console.error("Error fetching booking details:", error);
       toast({
@@ -116,9 +99,9 @@ export default function BookingDetail() {
     }
 
     try {
-      // Atomic guard: only assign if the container is still free.
+      // Atomic guard: only assign if the visit is still free.
       const { data, error } = await supabase
-        .from("containers")
+        .from("container_visits")
         .update({
           status: "reserved",
           booking_id: booking.id,
@@ -159,7 +142,7 @@ export default function BookingDetail() {
   const handleUnassignContainer = async (containerId: string) => {
     try {
       const { error } = await supabase
-        .from("containers")
+        .from("container_visits")
         .update({
           status: "in-yard",
           booking_id: null,
