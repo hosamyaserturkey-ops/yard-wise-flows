@@ -247,7 +247,7 @@ const GateIn = () => {
     const channel = supabase
       .channel("inspector_checks_pending")
       .on("postgres_changes", { event: "*", schema: "public", table: "inspector_checks" }, loadPending)
-      .on("postgres_changes", { event: "*", schema: "public", table: "containers" }, loadPending)
+      .on("postgres_changes", { event: "*", schema: "public", table: "container_visits" }, loadPending)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [loadPending]);
