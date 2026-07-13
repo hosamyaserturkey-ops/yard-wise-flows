@@ -134,25 +134,37 @@ const GateIn = () => {
         setPortDataFound(false);
       }
 
-      // Already-in-yard check
-      const { data: inYardRow } = await supabase
+      // Already-in-yard check: is there an open visit for this container?
+      const { data: masterRow } = await supabase
         .from("containers")
         .select("id")
         .eq("container_number", containerNum)
-        .eq("status", "in-yard")
         .maybeSingle();
-      setAlreadyInYard(!!inYardRow);
 
-      // Fetch earliest gate-in date — demurrage stops accruing after the first pick-up.
-      const { data: firstGateInRow } = await supabase
-        .from("containers")
-        .select("gate_in_time")
-        .eq("container_number", containerNum)
-        .order("gate_in_time", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      let openVisit: { id: string } | null = null;
+      let firstGateIn: { gate_in_time: string } | null = null;
+      if (masterRow?.id) {
+        const { data: openRow } = await supabase
+          .from("container_visits")
+          .select("id")
+          .eq("container_id", masterRow.id)
+          .is("gate_out_time", null)
+          .maybeSingle();
+        openVisit = openRow ?? null;
+
+        const { data: firstRow } = await supabase
+          .from("container_visits")
+          .select("gate_in_time")
+          .eq("container_id", masterRow.id)
+          .order("gate_in_time", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        firstGateIn = firstRow ?? null;
+      }
+      setAlreadyInYard(!!openVisit);
+
       setEarliestGateIn(
-        firstGateInRow?.gate_in_time ? new Date(firstGateInRow.gate_in_time) : null
+        firstGateIn?.gate_in_time ? new Date(firstGateIn.gate_in_time) : null
       );
 
       // Demurrage already paid: port demurrage is a one-time settlement.
@@ -197,14 +209,18 @@ const GateIn = () => {
       .eq("yard_id", yardId)
       .order("created_at", { ascending: false });
 
-    // Containers currently in yard (exclude from queue)
+    // Containers currently in yard (open visits) — used to exclude from queue.
     const { data: inYardRows } = await supabase
-      .from("containers")
-      .select("container_number")
-      .eq("status", "in-yard")
-      .eq("yard_id", yardId);
+      .from("container_visits")
+      .select("containers!inner(container_number)")
+      .eq("yard_id", yardId)
+      .is("gate_out_time", null);
 
-    const inYardSet = new Set((inYardRows || []).map((c) => c.container_number));
+    const inYardSet = new Set(
+      (inYardRows ?? []).map((r: { containers: { container_number: string } | null }) =>
+        r.containers?.container_number ?? ""
+      )
+    );
 
     // Keep latest check per container, then filter approved + not in yard
     const latestPerContainer = new Map<string, typeof checks extends null ? never : (typeof checks)[number]>();
@@ -231,7 +247,7 @@ const GateIn = () => {
     const channel = supabase
       .channel("inspector_checks_pending")
       .on("postgres_changes", { event: "*", schema: "public", table: "inspector_checks" }, loadPending)
-      .on("postgres_changes", { event: "*", schema: "public", table: "containers" }, loadPending)
+      .on("postgres_changes", { event: "*", schema: "public", table: "container_visits" }, loadPending)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [loadPending]);
@@ -352,24 +368,31 @@ const GateIn = () => {
     try {
       const containerNumber = formData.containerNumber.trim().toUpperCase();
 
-      // 1) Block double gate-in: if this container is currently in the yard,
+      // 1) Block double gate-in: if this container has an open visit anywhere,
       //    refuse before doing anything else (so we never re-prompt for payment).
-      const { data: inYardRow } = await supabase
+      const { data: masterCheck } = await supabase
         .from("containers")
         .select("id")
         .eq("container_number", containerNumber)
-        .eq("status", "in-yard")
         .maybeSingle();
 
-      if (inYardRow) {
-        toast({
-          title: "Container Already In Yard",
-          description: "This container is already gated in. Gate it out before gating in again.",
-          variant: "destructive",
-        });
-        setAlreadyInYard(true);
-        setIsSubmitting(false);
-        return;
+      if (masterCheck?.id) {
+        const { data: openVisit } = await supabase
+          .from("container_visits")
+          .select("id")
+          .eq("container_id", masterCheck.id)
+          .is("gate_out_time", null)
+          .maybeSingle();
+        if (openVisit) {
+          toast({
+            title: "Container Already In Yard",
+            description: "This container is already gated in. Gate it out before gating in again.",
+            variant: "destructive",
+          });
+          setAlreadyInYard(true);
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // 2) Demurrage check BEFORE gate-in using the new tiered calculation,
@@ -404,15 +427,49 @@ const GateIn = () => {
   };
 
   const insertContainer = async (containerNumber: string, demurragePayment?: DemurragePaymentData) => {
-    // Check if container already exists in yard
-    const { data: existingContainer } = await supabase
-      .from('containers')
-      .select('id')
-      .eq('container_number', containerNumber)
-      .eq('status', 'in-yard')
+    const yardId = currentYardId();
+    if (!yardId) throw new Error("No yard assigned to your account");
+
+    // 1) Upsert master container row (unique on container_number).
+    let masterId: string | null = null;
+    const { data: existingMaster } = await supabase
+      .from("containers")
+      .select("id")
+      .eq("container_number", containerNumber)
       .maybeSingle();
 
-    if (existingContainer) {
+    if (existingMaster?.id) {
+      masterId = existingMaster.id;
+      // Keep type/line current in case they've changed.
+      await supabase
+        .from("containers")
+        .update({
+          container_type: formData.containerType,
+          shipping_line: formData.shippingLine,
+        })
+        .eq("id", masterId);
+    } else {
+      const { data: newMaster, error: masterErr } = await supabase
+        .from("containers")
+        .insert({
+          container_number: containerNumber,
+          container_type: formData.containerType,
+          shipping_line: formData.shippingLine,
+        })
+        .select("id")
+        .single();
+      if (masterErr) throw masterErr;
+      masterId = newMaster.id;
+    }
+
+    // 2) Guard against a concurrent open visit.
+    const { data: openVisit } = await supabase
+      .from("container_visits")
+      .select("id")
+      .eq("container_id", masterId!)
+      .is("gate_out_time", null)
+      .maybeSingle();
+    if (openVisit) {
       toast({
         title: "Container Already In Yard",
         description: "This container is already gated in.",
@@ -421,20 +478,23 @@ const GateIn = () => {
       return;
     }
 
-    const yardId = currentYardId();
-    if (!yardId) throw new Error("No yard assigned to your account");
-    const { data, error } = await supabase
-      .from('containers')
+    // 3) Insert a new visit.
+    const { data: visit, error } = await supabase
+      .from("container_visits")
       .insert({
-        container_number: containerNumber,
-        container_type: formData.containerType,
-        shipping_line: formData.shippingLine,
+        container_id: masterId!,
+        yard_id: yardId,
+        status: "in-yard",
         driver_name: formData.driverName,
         truck_number: formData.truckNumber,
         yard_block: formData.yardBlock || null,
         yard_row: formData.yardRow || null,
+        port_arrival_date: formData.portArrivalDate || null,
+        free_days: formData.freeDays ? parseInt(formData.freeDays, 10) : 7,
+        daily_demurrage: formData.dailyDemurrage
+          ? parseFloat(formData.dailyDemurrage)
+          : null,
         created_by: user!.id,
-        yard_id: yardId,
       })
       .select()
       .single();
@@ -446,8 +506,8 @@ const GateIn = () => {
       userId: user!.id,
       yardId,
       action: "gate_in",
-      containerId: data.id,
-      containerNumber: data.container_number,
+      containerId: visit.id,
+      containerNumber,
       metadata: {
         block: formData.yardBlock || null,
         row: formData.yardRow || null,
@@ -460,7 +520,19 @@ const GateIn = () => {
       description: `Container ${containerNumber} gated in successfully`,
     });
 
-    printReceipt(data, demurragePayment, inspectionStatus);
+    printReceipt(
+      {
+        id: visit.id,
+        container_number: containerNumber,
+        container_type: formData.containerType,
+        shipping_line: formData.shippingLine,
+        driver_name: formData.driverName,
+        truck_number: formData.truckNumber,
+        gate_in_time: visit.gate_in_time,
+      },
+      demurragePayment,
+      inspectionStatus,
+    );
 
     setFormData({
       containerNumber: "",

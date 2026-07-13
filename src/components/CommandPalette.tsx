@@ -63,16 +63,25 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  // Search containers
+  // Search containers (open visits)
   const searchContainers = useCallback(async (q: string) => {
     if (q.length < 2) { setResults([]); return; }
     setSearching(true);
     const { data } = await supabase
-      .from("containers")
-      .select("container_number, status, shipping_line")
-      .ilike("container_number", `%${q}%`)
+      .from("container_visits")
+      .select("status, containers!inner(container_number, shipping_line)")
+      .ilike("containers.container_number", `%${q}%`)
+      .is("gate_out_time", null)
       .limit(6);
-    setResults(data ?? []);
+    const mapped: ContainerResult[] = (data ?? []).map((r: {
+      status: string;
+      containers: { container_number: string; shipping_line: string } | null;
+    }) => ({
+      container_number: r.containers?.container_number ?? "",
+      status: r.status,
+      shipping_line: r.containers?.shipping_line ?? "",
+    }));
+    setResults(mapped);
     setSearching(false);
   }, []);
 

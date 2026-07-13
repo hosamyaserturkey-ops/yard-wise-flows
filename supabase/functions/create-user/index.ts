@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     if (!/^[a-z0-9_]+$/.test(username) || username.length < 3) {
       return json({ error: "Invalid username" }, 400);
     }
-    if (password.length < 6) return json({ error: "Password too short" }, 400);
+    if (password.length < 10) return json({ error: "Password must be at least 10 characters" }, 400);
     if (role !== "admin" && role !== "user" && role !== "inspector") {
       return json({ error: "Invalid role" }, 400);
     }
