@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { gateOutSchema } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
 import { logActivity } from "@/lib/activityLog";
+import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
 
 const GateOut = () => {
   const { user, profile, currentYardId } = useAuth();
@@ -31,26 +32,17 @@ const GateOut = () => {
   const fetchContainers = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('containers')
-        .select('*')
+        .from('container_visits')
+        .select(VISIT_WITH_CONTAINER)
         .in('status', ['reserved', 'in-yard'])
+        .is('gate_out_time', null)
         .order('gate_in_time', { ascending: false });
 
       if (error) throw error;
 
-      const formattedContainers: ContainerType[] = data.map(container => ({
-        id: container.id,
-        containerNumber: container.container_number,
-        containerType: container.container_type,
-        shippingLine: container.shipping_line as ShippingLine,
-        driverName: container.driver_name,
-        truckNumber: container.truck_number,
-        gateInTime: new Date(container.gate_in_time),
-        gateOutTime: container.gate_out_time ? new Date(container.gate_out_time) : undefined,
-        status: container.status as 'in-yard' | 'out' | 'reserved',
-        bookingNumber: container.booking_number,
-        fees: container.fees ? Number(container.fees) : undefined,
-      }));
+      const formattedContainers: ContainerType[] = (data ?? []).map((row) =>
+        mapVisit(row as unknown as VisitJoinRow)
+      );
 
       setContainers(formattedContainers);
     } catch (error) {
@@ -126,9 +118,9 @@ const GateOut = () => {
     setIsSubmitting(true);
 
     try {
-      // Update container to 'out' status and set gate out details
+      // Close the open visit for this container.
       const { error: containerError } = await supabase
-        .from('containers')
+        .from('container_visits')
         .update({
           status: 'out',
           gate_out_time: new Date().toISOString(),

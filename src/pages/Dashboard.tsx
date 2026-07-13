@@ -14,6 +14,7 @@ import ReserveContainerDialog from "@/components/ReserveContainerDialog";
 import ContainerDetailDialog from "@/components/ContainerDetailDialog";
 import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
 import { PageHeader } from "@/components/PageHeader";
+import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
 import {
   ChartContainer,
   ChartTooltip,
@@ -113,26 +114,15 @@ const Dashboard = () => {
   const fetchContainers = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from("containers")
-        .select("*")
+        .from("container_visits")
+        .select(VISIT_WITH_CONTAINER)
         .order("gate_in_time", { ascending: false });
 
       if (error) throw error;
 
-      const formatted: ContainerType[] = (data ?? []).map((c) => ({
-        id: c.id,
-        containerNumber: c.container_number,
-        containerType: c.container_type,
-        shippingLine: c.shipping_line as ShippingLine,
-        driverName: c.driver_name,
-        truckNumber: c.truck_number,
-        gateInTime: new Date(c.gate_in_time),
-        gateOutTime: c.gate_out_time ? new Date(c.gate_out_time) : undefined,
-        status: c.status as "in-yard" | "out" | "reserved",
-        bookingNumber: c.booking_number,
-        bookingId: c.booking_id,
-        fees: c.fees ? Number(c.fees) : undefined,
-      }));
+      const formatted: ContainerType[] = (data ?? []).map((row) =>
+        mapVisit(row as unknown as VisitJoinRow),
+      );
 
       setContainers(formatted);
       setLastUpdated(new Date());
@@ -214,7 +204,7 @@ const Dashboard = () => {
       .channel("dashboard_containers")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "containers" },
+        { event: "*", schema: "public", table: "container_visits" },
         () => fetchContainers(),
       )
       .subscribe();

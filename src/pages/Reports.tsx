@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
+import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
 
 const Reports = () => {
   const { toast } = useToast();
@@ -32,25 +33,15 @@ const Reports = () => {
   const fetchContainers = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('containers')
-        .select('*')
+        .from('container_visits')
+        .select(VISIT_WITH_CONTAINER)
         .order('gate_in_time', { ascending: false });
 
       if (error) throw error;
 
-      const formattedContainers: ContainerType[] = data.map(container => ({
-        id: container.id,
-        containerNumber: container.container_number,
-        containerType: container.container_type,
-        shippingLine: container.shipping_line as ShippingLine,
-        driverName: container.driver_name,
-        truckNumber: container.truck_number,
-        gateInTime: new Date(container.gate_in_time),
-        gateOutTime: container.gate_out_time ? new Date(container.gate_out_time) : undefined,
-        status: container.status as 'in-yard' | 'out' | 'reserved',
-        bookingNumber: container.booking_number,
-        fees: container.fees ? Number(container.fees) : undefined,
-      }));
+      const formattedContainers: ContainerType[] = (data ?? []).map((row) =>
+        mapVisit(row as unknown as VisitJoinRow)
+      );
 
       setContainers(formattedContainers);
       setFilteredContainers(formattedContainers);
