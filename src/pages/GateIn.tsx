@@ -134,25 +134,37 @@ const GateIn = () => {
         setPortDataFound(false);
       }
 
-      // Already-in-yard check
-      const { data: inYardRow } = await supabase
+      // Already-in-yard check: is there an open visit for this container?
+      const { data: masterRow } = await supabase
         .from("containers")
         .select("id")
         .eq("container_number", containerNum)
-        .eq("status", "in-yard")
         .maybeSingle();
-      setAlreadyInYard(!!inYardRow);
 
-      // Fetch earliest gate-in date — demurrage stops accruing after the first pick-up.
-      const { data: firstGateInRow } = await supabase
-        .from("containers")
-        .select("gate_in_time")
-        .eq("container_number", containerNum)
-        .order("gate_in_time", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      let openVisit: { id: string } | null = null;
+      let firstGateIn: { gate_in_time: string } | null = null;
+      if (masterRow?.id) {
+        const { data: openRow } = await supabase
+          .from("container_visits")
+          .select("id")
+          .eq("container_id", masterRow.id)
+          .is("gate_out_time", null)
+          .maybeSingle();
+        openVisit = openRow ?? null;
+
+        const { data: firstRow } = await supabase
+          .from("container_visits")
+          .select("gate_in_time")
+          .eq("container_id", masterRow.id)
+          .order("gate_in_time", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        firstGateIn = firstRow ?? null;
+      }
+      setAlreadyInYard(!!openVisit);
+
       setEarliestGateIn(
-        firstGateInRow?.gate_in_time ? new Date(firstGateInRow.gate_in_time) : null
+        firstGateIn?.gate_in_time ? new Date(firstGateIn.gate_in_time) : null
       );
 
       // Demurrage already paid: port demurrage is a one-time settlement.
@@ -197,14 +209,18 @@ const GateIn = () => {
       .eq("yard_id", yardId)
       .order("created_at", { ascending: false });
 
-    // Containers currently in yard (exclude from queue)
+    // Containers currently in yard (open visits) — used to exclude from queue.
     const { data: inYardRows } = await supabase
-      .from("containers")
-      .select("container_number")
-      .eq("status", "in-yard")
-      .eq("yard_id", yardId);
+      .from("container_visits")
+      .select("containers!inner(container_number)")
+      .eq("yard_id", yardId)
+      .is("gate_out_time", null);
 
-    const inYardSet = new Set((inYardRows || []).map((c) => c.container_number));
+    const inYardSet = new Set(
+      (inYardRows ?? []).map((r: { containers: { container_number: string } | null }) =>
+        r.containers?.container_number ?? ""
+      )
+    );
 
     // Keep latest check per container, then filter approved + not in yard
     const latestPerContainer = new Map<string, typeof checks extends null ? never : (typeof checks)[number]>();
