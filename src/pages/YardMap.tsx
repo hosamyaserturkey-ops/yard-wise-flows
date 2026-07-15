@@ -67,7 +67,7 @@ const YardMap = () => {
   const grid = useMemo(() => {
     // group by block → row → container list
     const byBlock = new Map<string, Map<string, Row[]>>();
-    let unassigned: Row[] = [];
+    const unassigned: Row[] = [];
     rows.forEach((r) => {
       if (!r.yard_block) {
         unassigned.push(r);
