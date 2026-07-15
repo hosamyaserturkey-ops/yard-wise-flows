@@ -1,20 +1,27 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Container, Ship, Clock, Users, Calendar, Search, TrendingUp, BarChart3, Timer, PackageCheck, LogIn, LogOut as LogOutIcon } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
-import type { ShippingLine } from "@/lib/shippingLines";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import ReserveContainerDialog from "@/components/ReserveContainerDialog";
 import ContainerDetailDialog from "@/components/ContainerDetailDialog";
-import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
 import { PageHeader } from "@/components/PageHeader";
-import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
+import { StatCard } from "@/components/dashboard/StatCard";
+import { KanbanColumn } from "@/components/dashboard/KanbanColumn";
+import { ActivityItem } from "@/components/dashboard/ActivityItem";
+import { AgingRow } from "@/components/dashboard/AgingRow";
+import { useDashboardData } from "@/hooks/useDashboardData";
+import {
+  computeAgingBuckets,
+  computeDailyTrend,
+  computeLineDistribution,
+  computeStockByLine,
+  computeTodayActivity,
+  daysInYard,
+} from "@/lib/dashboardStats";
 import {
   ChartContainer,
   ChartTooltip,
@@ -30,24 +37,7 @@ import {
   PieChart,
   Pie,
   Legend,
-  ResponsiveContainer,
 } from "recharts";
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface DemurrageInfo {
-  paidJOD?: number;
-  owedJOD?: number;
-}
-
-interface KanbanCardProps {
-  container: ContainerType;
-  demurrage?: { paidJOD?: number; owedJOD?: number };
-  onClick: () => void;
-  onReserve?: (e: React.MouseEvent) => void;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const LINE_COLORS = [
   "#1a56db",
@@ -60,40 +50,11 @@ const LINE_COLORS = [
   "#6366f1",
 ];
 
-function daysInYard(gateInTime: Date): number {
-  const ms = Date.now() - gateInTime.getTime();
-  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
-}
-
-function timeAgo(date: Date): string {
-  const diff = Date.now() - date.getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function last7DayLabels(): { date: Date; label: string }[] {
-  return Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    d.setHours(0, 0, 0, 0);
-    const label = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
-    return { date: d, label };
-  });
-}
-
-// ── Main component ────────────────────────────────────────────────────────────
-
 const Dashboard = () => {
   const { profile, currentYardId } = useAuth();
   const navigate = useNavigate();
-  const [containers, setContainers] = useState<ContainerType[]>([]);
-  const [demurrageMap, setDemurrageMap] = useState<Record<string, DemurrageInfo>>({});
-  const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const { containers, demurrageMap, loading, lastUpdated, fetchContainers } =
+    useDashboardData(currentYardId);
 
   // dialogs
   const [reserveDialogOpen, setReserveDialogOpen] = useState(false);
@@ -110,109 +71,6 @@ const Dashboard = () => {
       navigate("/inspector", { replace: true });
     }
   }, [profile, navigate]);
-
-  const fetchContainers = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from("container_visits")
-        .select(VISIT_WITH_CONTAINER)
-        .order("gate_in_time", { ascending: false });
-
-      if (error) throw error;
-
-      const formatted: ContainerType[] = (data ?? []).map((row) =>
-        mapVisit(row as unknown as VisitJoinRow),
-      );
-
-      setContainers(formatted);
-      setLastUpdated(new Date());
-    } catch (err) {
-      console.error("Error fetching containers:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Initial load
-  useEffect(() => {
-    fetchContainers();
-  }, [fetchContainers]);
-
-  // Batch-load demurrage info
-  useEffect(() => {
-    if (containers.length === 0) {
-      setDemurrageMap({});
-      return;
-    }
-
-    const numbers = containers.map((c) => c.containerNumber);
-
-    (async () => {
-      const yardId = currentYardId();
-      let portQuery = supabase
-        .from("container_port_data")
-        .select("container_number, port_arrival_date, shipping_line, yard_id")
-        .in("container_number", numbers);
-      if (yardId) portQuery = portQuery.eq("yard_id", yardId);
-
-      const [portRes, payRes] = await Promise.all([
-        portQuery,
-        supabase
-          .from("demurrage_payments")
-          .select("container_number, total_collected")
-          .in("container_number", numbers),
-      ]);
-
-      const portByNum = new Map(
-        (portRes.data ?? []).map((r) => [r.container_number, r]),
-      );
-      const paidByNum = new Map<string, number>();
-      (payRes.data ?? []).forEach((p) =>
-        paidByNum.set(
-          p.container_number,
-          (paidByNum.get(p.container_number) ?? 0) + Number(p.total_collected ?? 0),
-        ),
-      );
-
-      const map: Record<string, DemurrageInfo> = {};
-      for (const c of containers) {
-        const paid = paidByNum.get(c.containerNumber);
-        const port = portByNum.get(c.containerNumber);
-
-        let owed: number | undefined;
-        if (port?.port_arrival_date && hasDemurrageRules(c.shippingLine)) {
-          const r = calculateDemurrage(
-            c.shippingLine,
-            c.containerType,
-            port.port_arrival_date,
-            c.gateInTime,
-          );
-          owed = r.totalJOD;
-        }
-
-        if (paid != null || owed != null) {
-          map[c.containerNumber] = { paidJOD: paid, owedJOD: owed };
-        }
-      }
-      setDemurrageMap(map);
-    })();
-  }, [containers, currentYardId]);
-
-  // Real-time subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel("dashboard_containers")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "container_visits" },
-        () => fetchContainers(),
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchContainers]);
 
   // Counts
   const inYardCount = containers.filter((c) => c.status === "in-yard").length;
@@ -242,79 +100,11 @@ const Dashboard = () => {
     [containers],
   );
 
-  // Daily trend: last 7 days
-  const dailyTrend = useMemo(() => {
-    const days = last7DayLabels();
-    return days.map(({ date, label }) => {
-      const next = new Date(date);
-      next.setDate(next.getDate() + 1);
-      const count = containers.filter(
-        (c) => c.gateInTime >= date && c.gateInTime < next,
-      ).length;
-      return { label, count };
-    });
-  }, [containers]);
-
-  // Shipping line donut
-  const lineData = useMemo(() => {
-    const map = new Map<string, number>();
-    containers.forEach((c) => {
-      map.set(c.shippingLine, (map.get(c.shippingLine) ?? 0) + 1);
-    });
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [containers]);
-
-  // Live stock: per-line by container type (in-yard only)
-  const stockByLine = useMemo(() => {
-    const map = new Map<string, { small: number; large: number; hc: number; reefer: number; total: number }>();
-    containers
-      .filter((c) => c.status === "in-yard")
-      .forEach((c) => {
-        const row = map.get(c.shippingLine) ?? { small: 0, large: 0, hc: 0, reefer: 0, total: 0 };
-        const t = c.containerType.toUpperCase();
-        if (t === "20FT") row.small += 1;
-        else if (t === "40FT") row.large += 1;
-        else if (t === "40HC" || t === "45FT") row.hc += 1;
-        else if (t.endsWith("FR")) row.reefer += 1;
-        row.total += 1;
-        map.set(c.shippingLine, row);
-      });
-    return Array.from(map.entries())
-      .map(([line, v]) => ({ line, ...v }))
-      .sort((a, b) => b.total - a.total);
-  }, [containers]);
-
-  // Today activity
-  const today = useMemo(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
-    const gateIn = containers.filter((c) => c.gateInTime >= start && c.gateInTime < end).length;
-    const gateOut = containers.filter(
-      (c) => c.gateOutTime && c.gateOutTime >= start && c.gateOutTime < end,
-    ).length;
-    const reserved = containers.filter((c) => c.status === "reserved").length;
-    return { gateIn, gateOut, reserved };
-  }, [containers]);
-
-  // Aging buckets (in-yard only)
-  const aging = useMemo(() => {
-    const buckets = { fresh: 0, week: 0, twoWeeks: 0, threeWeeks: 0, stale: 0 };
-    containers
-      .filter((c) => c.status === "in-yard")
-      .forEach((c) => {
-        const d = daysInYard(c.gateInTime);
-        if (d <= 7) buckets.fresh += 1;
-        else if (d <= 14) buckets.week += 1;
-        else if (d <= 21) buckets.twoWeeks += 1;
-        else if (d <= 30) buckets.threeWeeks += 1;
-        else buckets.stale += 1;
-      });
-    return buckets;
-  }, [containers]);
+  const dailyTrend = useMemo(() => computeDailyTrend(containers), [containers]);
+  const lineData = useMemo(() => computeLineDistribution(containers), [containers]);
+  const stockByLine = useMemo(() => computeStockByLine(containers), [containers]);
+  const today = useMemo(() => computeTodayActivity(containers), [containers]);
+  const aging = useMemo(() => computeAgingBuckets(containers), [containers]);
 
   const topAging = useMemo(() => {
     return [...containers]
@@ -322,7 +112,6 @@ const Dashboard = () => {
       .sort((a, b) => a.gateInTime.getTime() - b.gateInTime.getTime())
       .slice(0, 10);
   }, [containers]);
-
 
   const openDetail = (c: ContainerType) => {
     setDetailContainer(c);
@@ -688,237 +477,5 @@ const Dashboard = () => {
     </div>
   );
 };
-
-const AgingRow = ({ label, count, tone }: { label: string; count: number; tone: string }) => (
-  <li className="flex items-center justify-between gap-2">
-    <span className="flex items-center gap-2">
-      <span className={`h-2 w-2 rounded-full ${tone}`} />
-      {label}
-    </span>
-    <span className="font-semibold">{count}</span>
-  </li>
-);
-
-// ── KanbanColumn ─────────────────────────────────────────────────────────────
-
-const ACCENT_STYLES: Record<string, { header: string; border: string; badge: string }> = {
-  blue: {
-    header: "text-maritime",
-    border: "border-l-maritime",
-    badge: "bg-maritime/10 text-maritime border-maritime/30",
-  },
-  amber: {
-    header: "text-warning",
-    border: "border-l-warning",
-    badge: "bg-warning/10 text-warning border-warning/30",
-  },
-  gray: {
-    header: "text-muted-foreground",
-    border: "border-l-muted-foreground",
-    badge: "bg-muted text-muted-foreground border-border",
-  },
-};
-
-const KanbanColumn = ({
-  title,
-  count,
-  accent,
-  containers,
-  demurrageMap,
-  loading,
-  onCardClick,
-  onReserve,
-}: {
-  title: string;
-  count: number;
-  accent: "blue" | "amber" | "gray";
-  containers: ContainerType[];
-  demurrageMap: Record<string, DemurrageInfo>;
-  loading: boolean;
-  onCardClick: (c: ContainerType) => void;
-  onReserve?: (c: ContainerType) => void;
-}) => {
-  const styles = ACCENT_STYLES[accent];
-
-  return (
-    <Card className="flex flex-col">
-      <CardHeader className="pb-2 pt-4 px-4">
-        <div className="flex items-center justify-between">
-          <h3 className={`font-semibold text-sm ${styles.header}`}>{title}</h3>
-          <Badge variant="outline" className={`text-xs font-mono ${styles.badge}`}>
-            {count}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="px-3 pb-3 overflow-y-auto" style={{ maxHeight: "70vh" }}>
-        {loading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 w-full rounded-lg" />
-            ))}
-          </div>
-        ) : containers.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            No containers
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {containers.map((c) => (
-              <ContainerKanbanCard
-                key={c.id}
-                container={c}
-                demurrage={demurrageMap[c.containerNumber]}
-                onClick={() => onCardClick(c)}
-                onReserve={
-                  onReserve && (c.status === "in-yard" || c.status === "reserved")
-                    ? (e) => {
-                        e.stopPropagation();
-                        onReserve(c);
-                      }
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
-// ── ContainerKanbanCard ──────────────────────────────────────────────────────
-
-const STATUS_BORDER: Record<string, string> = {
-  "in-yard": "border-l-maritime",
-  reserved: "border-l-warning",
-  out: "border-l-muted-foreground",
-};
-
-const ContainerKanbanCard = ({ container: c, demurrage, onClick, onReserve }: KanbanCardProps) => {
-  const borderColor = STATUS_BORDER[c.status] ?? "border-l-border";
-  const days = daysInYard(c.gateInTime);
-
-  let demurrageBadge: { label: string; tone: "paid" | "owed" } | null = null;
-  if (demurrage?.paidJOD != null && demurrage.paidJOD > 0) {
-    demurrageBadge = { label: `paid ${demurrage.paidJOD.toFixed(2)} JOD`, tone: "paid" };
-  } else if (demurrage?.owedJOD != null && demurrage.owedJOD > 0) {
-    demurrageBadge = { label: `${demurrage.owedJOD.toFixed(2)} JOD at gate-in`, tone: "owed" };
-  }
-
-  return (
-    <div
-      className={`rounded-lg border border-l-4 ${borderColor} bg-card p-3 cursor-pointer
-        transition-all duration-150 hover:shadow-md hover:-translate-y-0.5`}
-      onClick={onClick}
-    >
-      {/* Container number + shipping line */}
-      <div className="flex items-start justify-between gap-2 mb-1.5">
-        <span className="font-mono font-semibold text-sm leading-tight hover:text-maritime transition-colors">
-          {c.containerNumber}
-        </span>
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 font-normal">
-          {c.shippingLine}
-        </Badge>
-      </div>
-
-      {/* Driver + truck */}
-      <div className="text-xs text-muted-foreground truncate mb-1.5">
-        {c.driverName} · {c.truckNumber}
-      </div>
-
-      {/* Days in yard */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[11px] text-muted-foreground">
-          {c.status === "out"
-            ? c.gateOutTime
-              ? `Out ${c.gateOutTime.toLocaleDateString()}`
-              : "Out"
-            : `${days}d in yard`}
-        </span>
-
-        {/* Demurrage chip */}
-        {demurrageBadge && (
-          <span
-            className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
-              demurrageBadge.tone === "paid"
-                ? "bg-success/10 text-success border-success/30"
-                : "bg-warning/10 text-warning border-warning/30"
-            }`}
-          >
-            {demurrageBadge.label}
-          </span>
-        )}
-      </div>
-
-      {/* Reserve / Unreserve button */}
-      {onReserve && (
-        <div className="mt-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 text-[11px] px-2"
-            onClick={onReserve}
-          >
-            {c.status === "reserved" ? "Unreserve" : "Reserve"}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ── ActivityItem ─────────────────────────────────────────────────────────────
-
-const STATUS_ACTIVITY_BADGE: Record<string, { label: string; cls: string }> = {
-  "in-yard": { label: "IN", cls: "bg-maritime/10 text-maritime border-maritime/30" },
-  reserved: { label: "RES", cls: "bg-warning/10 text-warning border-warning/30" },
-  out: { label: "OUT", cls: "bg-muted text-muted-foreground border-border" },
-};
-
-const ActivityItem = ({ container: c }: { container: ContainerType }) => {
-  const badge = STATUS_ACTIVITY_BADGE[c.status] ?? STATUS_ACTIVITY_BADGE["out"];
-
-  return (
-    <div className="flex items-start gap-2 text-xs py-1 border-b last:border-0">
-      <span className={`mt-0.5 px-1.5 py-0.5 rounded border text-[10px] font-semibold shrink-0 ${badge.cls}`}>
-        {badge.label}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="font-mono font-medium truncate">{c.containerNumber}</div>
-        <div className="text-muted-foreground">Gated in {timeAgo(c.gateInTime)}</div>
-      </div>
-    </div>
-  );
-};
-
-// ── StatCard ─────────────────────────────────────────────────────────────────
-
-const StatCard = ({
-  label,
-  value,
-  color,
-  icon,
-  loading,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  icon: React.ReactNode;
-  loading?: boolean;
-}) => (
-  <Card className={`border-l-4 border-l-${color}`}>
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">{label}</CardTitle>
-      {icon}
-    </CardHeader>
-    <CardContent>
-      {loading ? (
-        <Skeleton className="h-8 w-16" />
-      ) : (
-        <div className={`text-2xl font-bold text-${color}`}>{value}</div>
-      )}
-    </CardContent>
-  </Card>
-);
 
 export default Dashboard;
