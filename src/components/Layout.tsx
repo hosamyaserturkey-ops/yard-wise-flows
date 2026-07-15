@@ -7,6 +7,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CommandPalette } from "@/components/CommandPalette";
+import { YardSwitcher } from "@/components/YardSwitcher";
 import { Keyboard } from "lucide-react";
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -44,6 +45,7 @@ const Layout = () => {
           <Separator orientation="vertical" className="h-4" />
           <span className="text-sm font-medium text-foreground">{pageLabel}</span>
           <div className="flex-1" />
+          <YardSwitcher />
           <ToggleCommandHint />
         </header>
 
