@@ -289,6 +289,11 @@ export default function Bookings() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {isSuperAdmin() && (
+                      <Badge variant="outline" className="text-xs">
+                        {yardName(booking.yard_id)}
+                      </Badge>
+                    )}
                     <Badge className={getStatusColor(booking.status)}>
                       {booking.status}
                     </Badge>
