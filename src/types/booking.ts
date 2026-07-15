@@ -6,6 +6,7 @@ export interface Booking {
   gated_out_containers: number;
   status: 'active' | 'completed' | 'cancelled';
   created_by: string;
+  yard_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
