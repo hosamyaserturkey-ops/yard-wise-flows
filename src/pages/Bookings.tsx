@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Package, Users, CheckCircle, ArrowRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useYards } from "@/hooks/useYards";
 import { useToast } from "@/hooks/use-toast";
 import { bookingSchema } from "@/lib/validation";
 import type { Booking, CreateBookingData } from "@/types/booking";
@@ -25,15 +26,19 @@ export default function Bookings() {
     customer_name: "",
     total_containers: 1,
   });
-  const { user, currentYardId } = useAuth();
+  const { user, currentYardId, isSuperAdmin } = useAuth();
+  const { nameOf: yardName } = useYards();
   const { toast } = useToast();
 
   const fetchBookings = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const yardId = currentYardId();
+      let query = supabase
         .from("bookings")
         .select("*")
         .order("created_at", { ascending: false });
+      if (yardId) query = query.eq("yard_id", yardId);
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -64,7 +69,7 @@ export default function Bookings() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, currentYardId]);
 
   useEffect(() => {
     fetchBookings();
