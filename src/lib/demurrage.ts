@@ -79,6 +79,48 @@ export const hasDemurrageRules = (
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+const startOfLocalDay = (d: Date): Date =>
+  new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+// ── Trip scoping ────────────────────────────────────────────────────────────
+// A container can visit the yard multiple times. Each trip is anchored by the
+// port arrival date currently on file — payments and gate-ins from before that
+// date belong to a previous trip and must not settle or cap the current one.
+
+/**
+ * True when the most recent demurrage payment settles the current trip,
+ * i.e. it was made on or after the trip's port arrival date. With no arrival
+ * date to anchor a trip, any payment counts (legacy behavior).
+ */
+export const isDemurrageSettledForTrip = (
+  lastPaymentAt: Date | null,
+  portArrivalDate: string | null | undefined,
+): boolean => {
+  if (!lastPaymentAt) return false;
+  if (!portArrivalDate) return true;
+  const arrival = new Date(portArrivalDate);
+  if (isNaN(arrival.getTime())) return true;
+  return lastPaymentAt.getTime() >= startOfLocalDay(arrival).getTime();
+};
+
+/**
+ * Earliest gate-in belonging to the current trip (on or after the port
+ * arrival date) — demurrage stops accruing at that moment. Returns null when
+ * the container hasn't been gated in this trip yet. With no arrival date,
+ * falls back to the earliest gate-in ever (legacy behavior).
+ */
+export const firstGateInOfTrip = (
+  gateInTimes: Date[],
+  portArrivalDate: string | null | undefined,
+): Date | null => {
+  const sorted = [...gateInTimes].sort((a, b) => a.getTime() - b.getTime());
+  if (!portArrivalDate) return sorted[0] ?? null;
+  const arrival = new Date(portArrivalDate);
+  if (isNaN(arrival.getTime())) return sorted[0] ?? null;
+  const tripStart = startOfLocalDay(arrival).getTime();
+  return sorted.find((t) => t.getTime() >= tripStart) ?? null;
+};
+
 export const calculateDemurrage = (
   shippingLine: string,
   containerType: string,

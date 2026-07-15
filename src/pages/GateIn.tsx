@@ -28,6 +28,8 @@ import { DemurrageTierRulesTable } from "@/components/gate-in/DemurrageTierRules
 import {
   calculateDemurrage,
   hasDemurrageRules,
+  isDemurrageSettledForTrip,
+  firstGateInOfTrip,
   DEMURRAGE_RULES,
 } from "@/lib/demurrage";
 
@@ -79,14 +81,26 @@ const GateIn = () => {
   const {
     portDataFound,
     lookupDone,
-    demurrageAlreadyPaid,
-    setDemurrageAlreadyPaid,
+    lastDemurragePaymentAt,
+    setLastDemurragePaymentAt,
     alreadyInYard,
     setAlreadyInYard,
-    earliestGateIn,
+    gateInTimes,
     inspectionStatus,
     reset: resetLookup,
   } = useContainerLookup(formData.containerNumber, currentYardId, handlePortData);
+
+  // Trip scoping: the port arrival date on file anchors the CURRENT trip.
+  // A payment or gate-in from before it belongs to a previous visit cycle,
+  // so a returning container is charged fresh demurrage for its new trip.
+  const demurrageAlreadyPaid = isDemurrageSettledForTrip(
+    lastDemurragePaymentAt,
+    formData.portArrivalDate || null,
+  );
+  const tripGateIn = useMemo(
+    () => firstGateInOfTrip(gateInTimes, formData.portArrivalDate || null),
+    [gateInTimes, formData.portArrivalDate],
+  );
 
   const { pendingGateIns, reload: reloadPending } = usePendingGateIns(currentYardId);
 
@@ -102,11 +116,11 @@ const GateIn = () => {
     }
   }, [formData.shippingLine]);
 
-  // Tiered demurrage calculation — capped at the earliest known gate-in date so
+  // Tiered demurrage calculation — capped at this trip's first gate-in so
   // demurrage stops accruing once the container has been picked up from the port.
   const demurragePreview = useMemo(() => {
     if (!formData.portArrivalDate || !formData.containerType) return null;
-    const asOf = earliestGateIn ?? new Date();
+    const asOf = tripGateIn ?? new Date();
     return calculateDemurrage(
       formData.shippingLine,
       formData.containerType,
@@ -117,7 +131,7 @@ const GateIn = () => {
     formData.portArrivalDate,
     formData.containerType,
     formData.shippingLine,
-    earliestGateIn,
+    tripGateIn,
   ]);
 
   const portArrivalIsFuture = useMemo(() => {
@@ -766,7 +780,7 @@ const GateIn = () => {
             });
 
             // Mark paid so banner won't reappear before the next lookup refresh
-            setDemurrageAlreadyPaid(true);
+            setLastDemurragePaymentAt(new Date());
 
             await insertContainer(containerNumber, {
               id: paymentRecord.id,
