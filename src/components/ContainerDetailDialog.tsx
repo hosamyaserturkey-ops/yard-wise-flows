@@ -20,12 +20,16 @@ import {
   Clock,
   MapPin,
   Camera,
+  Printer,
 } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
+import { printGateInReceipt } from "@/lib/gateInReceipt";
 import { resolveSignedUrl } from "@/lib/storage";
+import { Button } from "@/components/ui/button";
 
 interface PortData {
   port_arrival_date: string | null;
@@ -42,7 +46,12 @@ interface InspectionData {
 }
 
 interface DemurragePayment {
+  id: string;
   total_collected: number;
+  chargeable_days: number;
+  demurrage_amount: number;
+  service_fee: number | null;
+  payment_method: string | null;
   created_at: string;
 }
 
@@ -67,7 +76,8 @@ const STATUS_LABEL: Record<string, { label: string; variant: "default" | "outlin
 };
 
 const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
-  const { currentYardId } = useAuth();
+  const { currentYardId, profile } = useAuth();
+  const { toast } = useToast();
   const [portData, setPortData] = useState<PortData | null>(null);
   const [inspection, setInspection] = useState<InspectionData | null>(null);
   const [payment, setPayment] = useState<DemurragePayment | null>(null);
@@ -111,7 +121,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
 
           supabase
             .from("demurrage_payments")
-            .select("total_collected, created_at")
+            .select("id, total_collected, chargeable_days, demurrage_amount, service_fee, payment_method, created_at")
             .eq("container_number", num)
             .order("created_at", { ascending: false })
             .limit(1)
@@ -156,6 +166,41 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
 
   const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   const fmtTime = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
+  // Reprint the gate-in reception ticket from stored data. Payment details are
+  // included when a demurrage payment is on file for this container.
+  const handleReprint = () => {
+    const printed = printGateInReceipt(
+      {
+        id: container.id,
+        container_number: container.containerNumber,
+        container_type: container.containerType,
+        shipping_line: container.shippingLine,
+        driver_name: container.driverName,
+        truck_number: container.truckNumber,
+        gate_in_time: container.gateInTime.toISOString(),
+      },
+      payment
+        ? {
+            id: payment.id,
+            chargeableDays: payment.chargeable_days,
+            demurrageAmount: Number(payment.demurrage_amount),
+            serviceFee: Number(payment.service_fee ?? 0),
+            totalCollected: Number(payment.total_collected),
+            paymentMethod: payment.payment_method ?? "cash",
+          }
+        : undefined,
+      inspection ? { status: inspection.status as "approved" | "rejected" | "pending", grade: inspection.grade } : null,
+      profile,
+    );
+    if (!printed) {
+      toast({
+        title: "Pop-up blocked",
+        description: "Please allow pop-ups to print the gate-in receive note.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -370,6 +415,16 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                   </div>
                 </div>
               )}
+            </div>
+
+            <Separator />
+
+            {/* ── Reprint ───────────────────────────────────────── */}
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={handleReprint}>
+                <Printer className="h-4 w-4 mr-2" />
+                Reprint Gate-In Receipt
+              </Button>
             </div>
           </div>
         )}
