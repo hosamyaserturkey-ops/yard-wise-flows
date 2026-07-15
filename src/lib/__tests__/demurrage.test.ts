@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateDemurrage,
+  firstGateInOfTrip,
   hasDemurrageRules,
+  isDemurrageSettledForTrip,
   toDemurrageContainerType,
   DEMURRAGE_RULES,
   USD_TO_JOD,
@@ -140,5 +142,59 @@ describe("calculateDemurrage — tiered totals", () => {
     // SLD day 11 → 1 × $15 = $15 → 15 × 0.712 = 10.68 JOD.
     const r = calculateDemurrage("SLD", "20FT", "2026-01-01", d("2026-01-11"));
     expect(r.totalJOD).toBe(10.68);
+  });
+});
+
+describe("isDemurrageSettledForTrip", () => {
+  it("is unsettled with no payment on record", () => {
+    expect(isDemurrageSettledForTrip(null, "2026-01-01")).toBe(false);
+  });
+
+  it("does NOT let a previous trip's payment settle a new trip", () => {
+    // Paid in January, container returns with a July port arrival.
+    const paidLastTrip = d("2026-01-10");
+    expect(isDemurrageSettledForTrip(paidLastTrip, "2026-07-01")).toBe(false);
+  });
+
+  it("counts a payment made during the current trip", () => {
+    const paidThisTrip = d("2026-07-05");
+    expect(isDemurrageSettledForTrip(paidThisTrip, "2026-07-01")).toBe(true);
+  });
+
+  it("counts a payment made on the arrival day itself", () => {
+    const paidOnArrival = new Date(2026, 6, 1, 0, 30); // 1 Jul, 00:30 local
+    expect(isDemurrageSettledForTrip(paidOnArrival, "2026-07-01")).toBe(true);
+  });
+
+  it("falls back to any-payment-counts when no arrival date anchors a trip", () => {
+    expect(isDemurrageSettledForTrip(d("2026-01-10"), null)).toBe(true);
+    expect(isDemurrageSettledForTrip(d("2026-01-10"), "not-a-date")).toBe(true);
+  });
+});
+
+describe("firstGateInOfTrip", () => {
+  const trip1GateIn = d("2026-01-12");
+  const trip2GateIn = d("2026-07-08");
+
+  it("returns null when the container was never gated in", () => {
+    expect(firstGateInOfTrip([], "2026-07-01")).toBeNull();
+  });
+
+  it("ignores gate-ins from previous trips", () => {
+    // Only a January gate-in exists; the new trip started in July, so
+    // demurrage for the new trip is NOT capped by the old visit.
+    expect(firstGateInOfTrip([trip1GateIn], "2026-07-01")).toBeNull();
+  });
+
+  it("picks the first gate-in on or after the trip's arrival date", () => {
+    expect(firstGateInOfTrip([trip1GateIn, trip2GateIn], "2026-07-01")).toEqual(trip2GateIn);
+  });
+
+  it("sorts before picking", () => {
+    expect(firstGateInOfTrip([trip2GateIn, trip1GateIn], "2026-01-01")).toEqual(trip1GateIn);
+  });
+
+  it("falls back to the earliest gate-in ever without an arrival date", () => {
+    expect(firstGateInOfTrip([trip2GateIn, trip1GateIn], null)).toEqual(trip1GateIn);
   });
 });

@@ -17,10 +17,13 @@ export function useContainerLookup(
 ) {
   const [portDataFound, setPortDataFound] = useState(false);
   const [lookupDone, setLookupDone] = useState(false);
-  const [demurrageAlreadyPaid, setDemurrageAlreadyPaid] = useState(false);
+  // Most recent demurrage payment for this container, if any. The page decides
+  // whether it settles the CURRENT trip by comparing it to the port arrival date.
+  const [lastDemurragePaymentAt, setLastDemurragePaymentAt] = useState<Date | null>(null);
   const [alreadyInYard, setAlreadyInYard] = useState(false);
-  // Earliest known gate-in date for this container — demurrage stops at this date.
-  const [earliestGateIn, setEarliestGateIn] = useState<Date | null>(null);
+  // All gate-in times for this container, ascending. The page picks the first
+  // one belonging to the current trip — demurrage stops accruing at that date.
+  const [gateInTimes, setGateInTimes] = useState<Date[]>([]);
   const [inspectionStatus, setInspectionStatus] = useState<InspectionStatus | null>(null);
 
   // Keep callbacks in refs so the effect only re-runs on containerNumber changes.
@@ -32,10 +35,10 @@ export function useContainerLookup(
   const reset = () => {
     setPortDataFound(false);
     setLookupDone(false);
-    setDemurrageAlreadyPaid(false);
+    setLastDemurragePaymentAt(null);
     setAlreadyInYard(false);
     setInspectionStatus(null);
-    setEarliestGateIn(null);
+    setGateInTimes([]);
   };
 
   useEffect(() => {
@@ -69,7 +72,7 @@ export function useContainerLookup(
         .maybeSingle();
 
       let openVisit: { id: string } | null = null;
-      let firstGateIn: { gate_in_time: string } | null = null;
+      let visitTimes: { gate_in_time: string }[] = [];
       if (masterRow?.id) {
         const { data: openRow } = await supabase
           .from("container_visits")
@@ -79,29 +82,33 @@ export function useContainerLookup(
           .maybeSingle();
         openVisit = openRow ?? null;
 
-        const { data: firstRow } = await supabase
+        const { data: visitRows } = await supabase
           .from("container_visits")
           .select("gate_in_time")
           .eq("container_id", masterRow.id)
-          .order("gate_in_time", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        firstGateIn = firstRow ?? null;
+          .order("gate_in_time", { ascending: true });
+        visitTimes = visitRows ?? [];
       }
       setAlreadyInYard(!!openVisit);
-      setEarliestGateIn(
-        firstGateIn?.gate_in_time ? new Date(firstGateIn.gate_in_time) : null,
+      setGateInTimes(
+        visitTimes
+          .filter((v) => v.gate_in_time)
+          .map((v) => new Date(v.gate_in_time)),
       );
 
-      // Demurrage already paid: port demurrage is a one-time settlement.
-      // Any existing payment for this container means it's already settled.
+      // Latest demurrage payment. Whether it settles the current trip is
+      // decided against the port arrival date — a payment from a previous
+      // trip must not settle a new one.
       const { data: paymentRow } = await supabase
         .from("demurrage_payments")
-        .select("id")
+        .select("created_at")
         .eq("container_number", containerNum)
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      setDemurrageAlreadyPaid(!!paymentRow);
+      setLastDemurragePaymentAt(
+        paymentRow?.created_at ? new Date(paymentRow.created_at) : null,
+      );
 
       // Latest inspection check for this container
       const { data: inspectionRow } = await supabase
@@ -126,11 +133,11 @@ export function useContainerLookup(
   return {
     portDataFound,
     lookupDone,
-    demurrageAlreadyPaid,
-    setDemurrageAlreadyPaid,
+    lastDemurragePaymentAt,
+    setLastDemurragePaymentAt,
     alreadyInYard,
     setAlreadyInYard,
-    earliestGateIn,
+    gateInTimes,
     inspectionStatus,
     reset,
   };
