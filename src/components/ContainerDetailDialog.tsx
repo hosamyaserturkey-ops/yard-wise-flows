@@ -21,6 +21,7 @@ import {
   MapPin,
   Camera,
   Printer,
+  History,
 } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,6 +56,18 @@ interface DemurragePayment {
   created_at: string;
 }
 
+// One row per yard visit — each visit snapshots its trip's port data at
+// gate-in, so previous trips stay viewable after new port data is imported.
+interface VisitHistory {
+  id: string;
+  gate_in_time: string;
+  gate_out_time: string | null;
+  port_arrival_date: string | null;
+  free_days: number | null;
+  driver_name: string | null;
+  truck_number: string | null;
+}
+
 
 interface Props {
   container: ContainerType | null;
@@ -80,7 +93,8 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
   const { toast } = useToast();
   const [portData, setPortData] = useState<PortData | null>(null);
   const [inspection, setInspection] = useState<InspectionData | null>(null);
-  const [payment, setPayment] = useState<DemurragePayment | null>(null);
+  const [payments, setPayments] = useState<DemurragePayment[]>([]);
+  const [visits, setVisits] = useState<VisitHistory[]>([]);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -88,7 +102,8 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
     if (!open || !container) {
       setPortData(null);
       setInspection(null);
-      setPayment(null);
+      setPayments([]);
+      setVisits([]);
       setPhotoUrls([]);
       return;
     }
@@ -123,16 +138,36 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
             .from("demurrage_payments")
             .select("id, total_collected, chargeable_days, demurrage_amount, service_fee, payment_method, created_at")
             .eq("container_number", num)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
+            .order("created_at", { ascending: false }),
 
         ]);
 
         setPortData(portRes.data ?? null);
         const insp = inspRes.data ? { ...inspRes.data, photo_urls: Array.isArray(inspRes.data.photo_urls) ? inspRes.data.photo_urls as string[] : null } : null;
         setInspection(insp);
-        setPayment(payRes.data ?? null);
+        setPayments(payRes.data ?? []);
+
+        // Full visit history — every trip keeps its own snapshot of port
+        // arrival date and free days, taken at gate-in.
+        let masterId = container.containerId;
+        if (!masterId) {
+          const { data: master } = await supabase
+            .from("containers")
+            .select("id")
+            .eq("container_number", num)
+            .maybeSingle();
+          masterId = master?.id;
+        }
+        if (masterId) {
+          const { data: visitRows } = await supabase
+            .from("container_visits")
+            .select("id, gate_in_time, gate_out_time, port_arrival_date, free_days, driver_name, truck_number")
+            .eq("container_id", masterId)
+            .order("gate_in_time", { ascending: false });
+          setVisits(visitRows ?? []);
+        } else {
+          setVisits([]);
+        }
         if (insp?.photo_urls?.length) {
           const signed = await Promise.all(
             insp.photo_urls.map((p) => resolveSignedUrl("inspection-photos", p)),
@@ -150,6 +185,9 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
   }, [open, container]);
 
   if (!container) return null;
+
+  // Latest payment — used for the paid badge and receipt reprint.
+  const payment = payments[0] ?? null;
 
   // Demurrage: cap at gate-in for all statuses (demurrage stops when container enters yard)
   const capDate = container.gateInTime;
@@ -416,6 +454,76 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
                 </div>
               )}
             </div>
+
+            {/* ── Visit & payment history ───────────────────────── */}
+            {(visits.length > 1 || payments.length > 1) && (
+              <>
+                <Separator />
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-2">
+                    <History className="h-4 w-4" /> Previous Visits & Payments
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Each visit keeps its own port arrival date and demurrage settlement. New trips don't erase old records.
+                  </p>
+
+                  {visits.length > 1 && (
+                    <div className="rounded-lg border overflow-hidden mb-3">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Gate In</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Gate Out</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Port Arrival</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Driver</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visits.map((v) => (
+                            <tr key={v.id} className={`border-t ${v.id === container.id ? "bg-maritime/5" : ""}`}>
+                              <td className="px-3 py-2">
+                                {fmt(new Date(v.gate_in_time))}
+                                {v.id === container.id && (
+                                  <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0">current</Badge>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">{v.gate_out_time ? fmt(new Date(v.gate_out_time)) : "—"}</td>
+                              <td className="px-3 py-2">{v.port_arrival_date ? fmt(new Date(v.port_arrival_date)) : "—"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{v.driver_name ?? "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {payments.length > 1 && (
+                    <div className="rounded-lg border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Paid On</th>
+                            <th className="text-right px-3 py-2 font-medium text-muted-foreground">Days</th>
+                            <th className="text-right px-3 py-2 font-medium text-muted-foreground">Method</th>
+                            <th className="text-right px-3 py-2 font-medium text-muted-foreground">Collected</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {payments.map((p) => (
+                            <tr key={p.id} className="border-t">
+                              <td className="px-3 py-2">{fmt(new Date(p.created_at))}</td>
+                              <td className="text-right px-3 py-2">{p.chargeable_days}</td>
+                              <td className="text-right px-3 py-2 capitalize">{p.payment_method ?? "—"}</td>
+                              <td className="text-right px-3 py-2 font-medium">{Number(p.total_collected).toFixed(2)} JOD</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             <Separator />
 
