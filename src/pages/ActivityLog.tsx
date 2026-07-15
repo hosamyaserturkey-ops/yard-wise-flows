@@ -69,14 +69,14 @@ const ActivityLog = () => {
 
       let q = supabase
         .from("activity_log")
-        .select("id, action, container_number, shift, occurred_at, user_id, metadata")
+        .select("id, action, container_number, shift, occurred_at, user_id, metadata, yard_id")
         .gte("occurred_at", fromTs)
         .lte("occurred_at", toTs)
         .order("occurred_at", { ascending: false })
         .limit(1000);
 
       const yardId = currentYardId();
-      if (!isSuperAdmin() && yardId) q = q.eq("yard_id", yardId);
+      if (yardId) q = q.eq("yard_id", yardId);
 
       const { data, error } = await q;
       if (error) throw error;
