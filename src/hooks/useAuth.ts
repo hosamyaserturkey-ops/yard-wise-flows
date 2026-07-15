@@ -25,7 +25,11 @@ export interface AuthContextType {
   isAdmin: () => boolean;
   isSuperAdmin: () => boolean;
   isInspector: () => boolean;
+  /** Effective yard scope for reads. Null = all yards (super_admin viewing everything). */
   currentYardId: () => string | null;
+  /** Super_admin only: the yard they've selected from the top-bar switcher, or null for "All yards". */
+  selectedYardId: string | null;
+  setSelectedYardId: (id: string | null) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
