@@ -149,6 +149,7 @@ const portDataSchema = z.object({
 
 const PortDemurrageData = () => {
   const { user, profile, isSuperAdmin, currentYardId } = useAuth();
+  const { nameOf: yardName } = useYards();
   const superAdmin = isSuperAdmin();
   const scopedYardId = currentYardId(); // null for super_admin viewing "all yards"
 
