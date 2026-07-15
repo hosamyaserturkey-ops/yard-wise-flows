@@ -14,6 +14,7 @@ import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
+import { useYards } from "@/hooks/useYards";
 
 type SpreadsheetRow = Record<string, unknown>;
 
@@ -147,14 +148,17 @@ const portDataSchema = z.object({
 });
 
 const PortDemurrageData = () => {
-  const { user, profile, isSuperAdmin } = useAuth();
+  const { user, profile, isSuperAdmin, currentYardId } = useAuth();
+  const { nameOf: yardName } = useYards();
   const superAdmin = isSuperAdmin();
+  const scopedYardId = currentYardId(); // null for super_admin viewing "all yards"
 
   // For super admin without a yard, imports/inserts are fanned out across every yard.
+  // If super_admin has picked a specific yard from the switcher, only write to that one.
   const fetchTargetYardIds = async (): Promise<string[]> => {
+    if (superAdmin && scopedYardId) return [scopedYardId];
     if (profile?.yard_id && !superAdmin) return [profile.yard_id];
     if (profile?.yard_id && superAdmin) {
-      // Super admin with an assigned yard: still apply to all yards.
       const { data } = await supabase.from("yards").select("id");
       const ids = (data ?? []).map((y) => y.id);
       return ids.length ? ids : [profile.yard_id];
@@ -179,13 +183,15 @@ const PortDemurrageData = () => {
   const [importResults, setImportResults] = useState<{ success: number; errors: string[] } | null>(null);
 
   const { data: portData, isLoading } = useQuery({
-    queryKey: ["container_port_data"],
+    queryKey: ["container_port_data", scopedYardId ?? "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("container_port_data")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(50);
+      if (scopedYardId) q = q.eq("yard_id", scopedYardId);
+      const { data, error } = await q;
       if (error) throw error;
       return data;
     },
@@ -464,6 +470,7 @@ const PortDemurrageData = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Container</TableHead>
+                    {superAdmin && <TableHead>Yard</TableHead>}
                     <TableHead>Shipping Line</TableHead>
                     <TableHead>Port Arrival</TableHead>
                     <TableHead>Free Days</TableHead>
@@ -475,6 +482,7 @@ const PortDemurrageData = () => {
                   {portData.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-mono">{row.container_number}</TableCell>
+                      {superAdmin && <TableCell className="text-xs">{yardName(row.yard_id)}</TableCell>}
                       <TableCell>{row.shipping_line}</TableCell>
                       <TableCell>{new Date(row.port_arrival_date).toLocaleDateString()}</TableCell>
                       <TableCell>{row.free_days}</TableCell>

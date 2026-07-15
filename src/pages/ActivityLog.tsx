@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useYards } from "@/hooks/useYards";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ interface Row {
   occurred_at: string;
   user_id: string;
   metadata: Record<string, unknown> | null;
+  yard_id: string | null;
 }
 
 interface Operator {
@@ -51,6 +53,7 @@ function todayISO(offsetDays = 0) {
 
 const ActivityLog = () => {
   const { currentYardId, isSuperAdmin } = useAuth();
+  const { nameOf: yardName } = useYards();
   const [rows, setRows] = useState<Row[]>([]);
   const [operators, setOperators] = useState<Record<string, Operator>>({});
   const [loading, setLoading] = useState(true);
@@ -69,14 +72,14 @@ const ActivityLog = () => {
 
       let q = supabase
         .from("activity_log")
-        .select("id, action, container_number, shift, occurred_at, user_id, metadata")
+        .select("id, action, container_number, shift, occurred_at, user_id, metadata, yard_id")
         .gte("occurred_at", fromTs)
         .lte("occurred_at", toTs)
         .order("occurred_at", { ascending: false })
         .limit(1000);
 
       const yardId = currentYardId();
-      if (!isSuperAdmin() && yardId) q = q.eq("yard_id", yardId);
+      if (yardId) q = q.eq("yard_id", yardId);
 
       const { data, error } = await q;
       if (error) throw error;
@@ -242,6 +245,7 @@ const ActivityLog = () => {
                   <thead className="text-xs uppercase text-muted-foreground sticky top-0 bg-background">
                     <tr>
                       <th className="text-left px-2 py-2">Time</th>
+                      {isSuperAdmin() && <th className="text-left px-2 py-2">Yard</th>}
                       <th className="text-left px-2 py-2">Operator</th>
                       <th className="text-left px-2 py-2">Shift</th>
                       <th className="text-left px-2 py-2">Action</th>
@@ -257,6 +261,9 @@ const ActivityLog = () => {
                           <td className="px-2 py-1.5 whitespace-nowrap">
                             {d.toLocaleDateString("en-GB")} {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </td>
+                          {isSuperAdmin() && (
+                            <td className="px-2 py-1.5 text-xs">{yardName(r.yard_id)}</td>
+                          )}
                           <td className="px-2 py-1.5">{op?.full_name || op?.username || r.user_id.slice(0, 8)}</td>
                           <td className="px-2 py-1.5">
                             {r.shift === "day" ? <Sun className="h-4 w-4 text-warning" /> : <Moon className="h-4 w-4 text-maritime" />}

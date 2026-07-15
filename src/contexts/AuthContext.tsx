@@ -4,11 +4,24 @@ import { AuthContext, type AppRole, type Profile } from "@/hooks/useAuth";
 import { usernameToEmail } from "@/lib/auth-utils";
 import type { User, Session } from "@supabase/supabase-js";
 
+const SELECTED_YARD_KEY = "cy.selectedYardId";
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedYardId, setSelectedYardIdState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(SELECTED_YARD_KEY);
+  });
+  const setSelectedYardId = (id: string | null) => {
+    setSelectedYardIdState(id);
+    if (typeof window !== "undefined") {
+      if (id) window.localStorage.setItem(SELECTED_YARD_KEY, id);
+      else window.localStorage.removeItem(SELECTED_YARD_KEY);
+    }
+  };
   const activeUserIdRef = useRef<string | null>(null);
 
   const fetchProfile = async (userId: string) => {
@@ -93,11 +106,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const isSuperAdmin = () => profile?.role === 'super_admin';
   const isAdmin = () => profile?.role === 'admin' || profile?.role === 'super_admin';
   const isInspector = () => profile?.role === 'inspector';
-  const currentYardId = () => profile?.yard_id ?? null;
+  const currentYardId = () => {
+    if (profile?.role === 'super_admin') return selectedYardId; // null = all yards
+    return profile?.yard_id ?? null;
+  };
 
   return (
     <AuthContext.Provider
-      value={{ user, session, profile, loading, signIn, signOut, isAdmin, isSuperAdmin, isInspector, currentYardId }}
+      value={{
+        user, session, profile, loading,
+        signIn, signOut,
+        isAdmin, isSuperAdmin, isInspector,
+        currentYardId,
+        selectedYardId, setSelectedYardId,
+      }}
     >
       {children}
     </AuthContext.Provider>
