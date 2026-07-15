@@ -469,6 +469,7 @@ const PortDemurrageData = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Container</TableHead>
+                    {superAdmin && <TableHead>Yard</TableHead>}
                     <TableHead>Shipping Line</TableHead>
                     <TableHead>Port Arrival</TableHead>
                     <TableHead>Free Days</TableHead>
@@ -480,6 +481,7 @@ const PortDemurrageData = () => {
                   {portData.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-mono">{row.container_number}</TableCell>
+                      {superAdmin && <TableCell className="text-xs">{yardName(row.yard_id)}</TableCell>}
                       <TableCell>{row.shipping_line}</TableCell>
                       <TableCell>{new Date(row.port_arrival_date).toLocaleDateString()}</TableCell>
                       <TableCell>{row.free_days}</TableCell>
