@@ -29,14 +29,20 @@ Cloudflare project settings (Workers Builds):
 - **Deploy command:** `npx wrangler deploy`
 - **Production branch:** `main`
 
-Every push to `main` builds and deploys. SPA routing is handled two ways (both
-harmless together): `not_found_handling: "single-page-application"` in
-`wrangler.jsonc`, and `public/_redirects` for Pages-style hosts.
+Every push to `main` builds and deploys. SPA routing (serving `index.html` for
+client-side routes like `/gate-in`) is handled by
+`not_found_handling: "single-page-application"` in `wrangler.jsonc`.
+
+> Note: do **not** add a `public/_redirects` file for the Workers deploy — the
+> Workers asset validator rejects the SPA rule `/*  /index.html  200` as an
+> infinite loop. `not_found_handling` in `wrangler.jsonc` is the Workers-native
+> equivalent and is all that's needed.
 
 > Prefer Cloudflare **Pages** instead of Workers? Create a Pages project via
 > **Workers & Pages → Create → Pages → Connect to Git**, build `npm run build`,
-> output `dist`. Pages serves `dist/` directly and honors `public/_redirects` —
-> no `wrangler deploy` step and no Vite-version issue.
+> output `dist`. On Pages, SPA routing is configured with a `_redirects` file
+> (`/*  /index.html  200`), which Pages accepts — no `wrangler deploy` step and
+> no Vite-version issue.
 
 ## 2. Attach a custom (branded) domain
 
