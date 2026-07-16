@@ -15,20 +15,28 @@ end.
 
 ---
 
-## 1. Deploy the frontend to Cloudflare Pages
+## 1. Deploy the frontend to Cloudflare
 
-1. Create a free account at https://dash.cloudflare.com and open **Workers &
-   Pages → Create → Pages → Connect to Git**.
-2. Authorize GitHub and select the repository `hosamyaserturkey-ops/yard-wise-flows`.
-3. Set the build configuration:
-   - **Production branch:** `main`
-   - **Build command:** `npm run build`
-   - **Build output directory:** `dist`
-   - **Node version:** 20 (set env var `NODE_VERSION=20` if needed — matches CI)
-4. Click **Save and Deploy**. Every push to `main` now auto-deploys.
+This repo is set up to deploy as a **Cloudflare Worker with static assets** — the
+build command produces `dist/` and `npx wrangler deploy` serves it. The
+`wrangler.jsonc` at the repo root configures this (worker name `everest-depot`,
+assets from `./dist`, SPA fallback), which also stops Wrangler from trying to
+auto-configure the framework (that path requires Vite 6+; this project is on
+Vite 5).
 
-SPA routing is already handled: `public/_redirects` sends all paths to
-`index.html`, so deep links like `/gate-in` and `/photos` work on refresh.
+Cloudflare project settings (Workers Builds):
+- **Build command:** `npm run build`
+- **Deploy command:** `npx wrangler deploy`
+- **Production branch:** `main`
+
+Every push to `main` builds and deploys. SPA routing is handled two ways (both
+harmless together): `not_found_handling: "single-page-application"` in
+`wrangler.jsonc`, and `public/_redirects` for Pages-style hosts.
+
+> Prefer Cloudflare **Pages** instead of Workers? Create a Pages project via
+> **Workers & Pages → Create → Pages → Connect to Git**, build `npm run build`,
+> output `dist`. Pages serves `dist/` directly and honors `public/_redirects` —
+> no `wrangler deploy` step and no Vite-version issue.
 
 ## 2. Attach a custom (branded) domain
 
