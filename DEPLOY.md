@@ -45,7 +45,9 @@ backup workflow (`.github/workflows/backup.yml`) that `pg_dump`s the database an
 stores the snapshot as a workflow artifact. To enable it:
 
 1. In Supabase → **Project Settings → Database → Connection string**, copy the
-   **URI** (the `postgresql://...` string; use the connection-pooler URI).
+   **Session pooler** URI (the `postgresql://...` string). Use the *Session*
+   pooler, not the Transaction pooler — it's IPv4-compatible (GitHub runners are
+   IPv4) and works with `pg_dump`.
 2. In GitHub → repo **Settings → Secrets and variables → Actions → New repository
    secret**, name it `SUPABASE_DB_URL`, paste the URI.
 3. The workflow runs daily on schedule. To test now: **Actions → Daily DB backup →
