@@ -1,0 +1,45 @@
+name: Daily DB backup
+
+# Free-tier safety net: the Supabase free plan has no automated backups, so this
+# takes a daily pg_dump of the database and stores it as a downloadable artifact.
+# Requires a repository secret SUPABASE_DB_URL = the Postgres connection URI from
+# Supabase -> Project Settings -> Database -> Connection string (Session pooler,
+# which is IPv4-compatible and works with pg_dump).
+
+on:
+  schedule:
+    # 02:00 UTC every day
+    - cron: "0 2 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL client 16
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set. Add it in repo Settings -> Secrets -> Actions."
+            exit 1
+          fi
+          STAMP="$(date -u +%Y-%m-%d)"
+          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges | gzip > "backup-${STAMP}.sql.gz"
+          echo "Backup size: $(du -h backup-${STAMP}.sql.gz | cut -f1)"
+          echo "STAMP=${STAMP}" >> "$GITHUB_ENV"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ env.STAMP }}
+          path: backup-*.sql.gz
+          # Keep ~3 months of daily snapshots.
+          retention-days: 90
