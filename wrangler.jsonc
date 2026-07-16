@@ -1,0 +1,15 @@
+{
+  // Cloudflare Workers config for deploying the built static site.
+  // Deploying as an assets-only Worker (no server code) means `wrangler deploy`
+  // serves the Vite build output in ./dist directly. Providing this file stops
+  // Wrangler from trying to auto-configure the framework, which otherwise
+  // requires Vite 6+ (this project is on Vite 5).
+  "name": "everest-depot",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "./dist",
+    // Serve index.html for unknown paths so client-side routes like /gate-in
+    // and /photos work on refresh / deep link (the app uses BrowserRouter).
+    "not_found_handling": "single-page-application"
+  }
+}
