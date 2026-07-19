@@ -149,9 +149,24 @@ export const printGateInReceipt = (
     .footer-bar { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 10px 32px; display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; color: #94a3b8; }
     .footer-brand { font-weight: 700; color: #475569; }
 
+    /* ── Print: compact everything so the ticket always fits one A4 page ── */
+    @page { size: A4 portrait; margin: 8mm; }
     @media print {
-      body { background: #fff; }
-      .page { box-shadow: none; margin: 0; border-radius: 0; }
+      html { font-size: 13px; }
+      body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { box-shadow: none; margin: 0; border-radius: 0; max-width: 100%; }
+      .header { padding: 12px 24px 14px; }
+      .header-meta { margin-top: 6px; }
+      .body { padding: 0 24px 10px; }
+      .section { padding: 10px 0; break-inside: avoid; }
+      .section-header { margin-bottom: 8px; }
+      .fields { gap: 8px 24px; }
+      .demurrage-card { padding: 10px 16px; margin-bottom: 8px; }
+      .demurrage-amount { font-size: 1.5rem; margin-top: 4px; }
+      .notes-box { min-height: 34px; padding: 8px 14px; }
+      /* Keep the top padding roomy — it is the blank space people sign in. */
+      .signatures { padding: 26px 24px 10px; gap: 16px; break-inside: avoid; }
+      .footer-bar { padding: 6px 24px; break-inside: avoid; }
     }
   </style>
 </head>
