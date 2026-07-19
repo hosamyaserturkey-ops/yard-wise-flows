@@ -148,10 +148,14 @@ const portDataSchema = z.object({
 });
 
 const PortDemurrageData = () => {
-  const { user, profile, isSuperAdmin, currentYardId } = useAuth();
+  const { user, profile, isSuperAdmin, isLineRep, currentYardId } = useAuth();
   const { nameOf: yardName } = useYards();
   const superAdmin = isSuperAdmin();
   const scopedYardId = currentYardId(); // null for super_admin viewing "all yards"
+  // Line reps are locked to their own shipping line (RLS enforces it server-side
+  // too; the lock here just keeps the UI honest).
+  const lineRep = isLineRep();
+  const repLine = lineRep ? profile?.shipping_line ?? null : null;
 
   // For super admin without a yard, imports/inserts are fanned out across every yard.
   // If super_admin has picked a specific yard from the switcher, only write to that one.
@@ -173,7 +177,7 @@ const PortDemurrageData = () => {
 
   const [formData, setFormData] = useState({
     containerNumber: "",
-    shippingLine: "SLD",
+    shippingLine: repLine ?? "SLD",
     portArrivalDate: "",
     freeDays: "7",
     dailyDemurrage: "15",
@@ -199,7 +203,9 @@ const PortDemurrageData = () => {
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = portDataSchema.safeParse(formData);
+    const result = portDataSchema.safeParse(
+      repLine ? { ...formData, shippingLine: repLine } : formData,
+    );
     if (!result.success) {
       toast({ title: "Validation Error", description: result.error.errors[0].message, variant: "destructive" });
       return;
@@ -232,7 +238,7 @@ const PortDemurrageData = () => {
         description: `Port data saved for ${result.data.containerNumber}${yardIds.length > 1 ? ` across ${yardIds.length} yards` : ""}`,
       });
       queryClient.invalidateQueries({ queryKey: ["container_port_data"] });
-      setFormData({ containerNumber: "", shippingLine: "SLD", portArrivalDate: "", freeDays: "7", dailyDemurrage: "15" });
+      setFormData({ containerNumber: "", shippingLine: repLine ?? "SLD", portArrivalDate: "", freeDays: "7", dailyDemurrage: "15" });
     } catch (error: unknown) {
       toast({ title: "Error", description: getErrorMessage(error, "Failed to save port data"), variant: "destructive" });
     } finally {
@@ -300,6 +306,10 @@ const PortDemurrageData = () => {
           }
           if (!(SHIPPING_LINES as readonly string[]).includes(shippingLine)) {
             errors.push(`${rowLabel} (${containerNumber}): unrecognized shipping line "${shippingLine}" — expected one of: ${SHIPPING_LINES.join(", ")}`);
+            continue;
+          }
+          if (repLine && shippingLine !== repLine) {
+            errors.push(`${rowLabel} (${containerNumber}): you can only import ${repLine} containers — this row is ${shippingLine}`);
             continue;
           }
           if (!portArrivalDate) {
@@ -378,10 +388,14 @@ const PortDemurrageData = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="shippingLine">Shipping Line *</Label>
-                    <Select value={formData.shippingLine} onValueChange={(v) => setFormData({ ...formData, shippingLine: v })}>
+                    <Select
+                      value={repLine ?? formData.shippingLine}
+                      onValueChange={(v) => setFormData({ ...formData, shippingLine: v })}
+                      disabled={!!repLine}
+                    >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {SHIPPING_LINES.map((sl) => (
+                        {(repLine ? [repLine] : SHIPPING_LINES).map((sl) => (
                           <SelectItem key={sl} value={sl}>{sl}</SelectItem>
                         ))}
                       </SelectContent>
@@ -401,7 +415,7 @@ const PortDemurrageData = () => {
                   </div>
                 </div>
                 <div className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setFormData({ containerNumber: "", shippingLine: "SLD", portArrivalDate: "", freeDays: "7", dailyDemurrage: "15" })}>Clear</Button>
+                  <Button type="button" variant="outline" onClick={() => setFormData({ containerNumber: "", shippingLine: repLine ?? "SLD", portArrivalDate: "", freeDays: "7", dailyDemurrage: "15" })}>Clear</Button>
                   <Button type="submit" className="bg-maritime hover:bg-maritime/90" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save Port Data"}</Button>
                 </div>
               </form>

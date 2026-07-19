@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, user_id, full_name, username, yard_id, created_at, updated_at')
+        .select('id, user_id, full_name, username, yard_id, shipping_line, created_at, updated_at')
         .eq('user_id', userId)
         .single();
       if (error) throw error;
@@ -43,6 +43,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (roles.includes('super_admin')) role = 'super_admin';
       else if (roles.includes('admin')) role = 'admin';
       else if (roles.includes('inspector')) role = 'inspector';
+      else if (roles.includes('line_rep')) role = 'line_rep';
 
       let yard_name: string | null = null;
       if (data.yard_id) {
@@ -106,6 +107,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const isSuperAdmin = () => profile?.role === 'super_admin';
   const isAdmin = () => profile?.role === 'admin' || profile?.role === 'super_admin';
   const isInspector = () => profile?.role === 'inspector';
+  const isLineRep = () => profile?.role === 'line_rep';
   const currentYardId = () => {
     if (profile?.role === 'super_admin') return selectedYardId; // null = all yards
     return profile?.yard_id ?? null;
@@ -116,7 +118,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       value={{
         user, session, profile, loading,
         signIn, signOut,
-        isAdmin, isSuperAdmin, isInspector,
+        isAdmin, isSuperAdmin, isInspector, isLineRep,
         currentYardId,
         selectedYardId, setSelectedYardId,
       }}

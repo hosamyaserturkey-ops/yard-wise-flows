@@ -8,13 +8,20 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   adminOnly?: boolean;
   superAdminOnly?: boolean;
+  /** Allow shipping-line representatives onto this route (they are otherwise
+   *  confined to the routes that carry this flag and redirected to /reports). */
+  lineRepAllowed?: boolean;
 }
 
-const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false }: ProtectedRouteProps) => {
-  const { user, isAdmin, isSuperAdmin, loading } = useAuth();
+const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false, lineRepAllowed = false }: ProtectedRouteProps) => {
+  const { user, isAdmin, isSuperAdmin, isLineRep, loading } = useAuth();
   const notified = useRef(false);
 
-  const denied = !loading && user && ((superAdminOnly && !isSuperAdmin()) || (adminOnly && !isAdmin()));
+  const lineRep = !loading && !!user && isLineRep();
+  const denied =
+    !loading && user &&
+    ((superAdminOnly && !isSuperAdmin()) ||
+      (adminOnly && !isAdmin() && !(lineRepAllowed && lineRep)));
 
   useEffect(() => {
     if (denied && !notified.current) {
@@ -46,7 +53,12 @@ const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false }:
   }
 
   if (denied) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={lineRep ? "/reports" : "/"} replace />;
+  }
+
+  // Line reps only get the routes explicitly flagged for them.
+  if (lineRep && !lineRepAllowed) {
+    return <Navigate to="/reports" replace />;
   }
 
   return <>{children}</>;

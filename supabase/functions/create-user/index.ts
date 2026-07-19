@@ -11,8 +11,10 @@ interface Payload {
   username: string;
   password: string;
   fullName: string;
-  role: "admin" | "user" | "inspector";
+  role: "admin" | "user" | "inspector" | "line_rep";
   yard_id: string;
+  /** Required when role is "line_rep": the shipping line code the rep is scoped to. */
+  shipping_line?: string;
 }
 
 Deno.serve(async (req) => {
@@ -40,6 +42,7 @@ Deno.serve(async (req) => {
     const fullName = (body.fullName || "").trim();
     const role = body.role;
     const yard_id = body.yard_id;
+    const shipping_line = (body.shipping_line || "").trim().toUpperCase();
 
     if (!username || !password || !fullName || !role || !yard_id) {
       return json({ error: "Missing fields" }, 400);
@@ -48,8 +51,13 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid username" }, 400);
     }
     if (password.length < 10) return json({ error: "Password must be at least 10 characters" }, 400);
-    if (role !== "admin" && role !== "user" && role !== "inspector") {
+    if (role !== "admin" && role !== "user" && role !== "inspector" && role !== "line_rep") {
       return json({ error: "Invalid role" }, 400);
+    }
+    if (role === "line_rep") {
+      if (!shipping_line || !/^[A-Z0-9]{2,10}$/.test(shipping_line)) {
+        return json({ error: "A valid shipping line code is required for a line representative" }, 400);
+      }
     }
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -110,7 +118,13 @@ Deno.serve(async (req) => {
         email,
         password,
         email_confirm: true,
-        user_metadata: { full_name: fullName, username, role, yard_id },
+        user_metadata: {
+          full_name: fullName,
+          username,
+          role,
+          yard_id,
+          ...(role === "line_rep" ? { shipping_line } : {}),
+        },
       });
     if (createErr) {
       console.error("createUser failed:", createErr);

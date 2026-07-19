@@ -54,7 +54,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="reports" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute lineRepAllowed>
                     <Reports />
                   </ProtectedRoute>
                 } />
@@ -69,7 +69,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="port-data" element={
-                  <ProtectedRoute adminOnly>
+                  <ProtectedRoute adminOnly lineRepAllowed>
                     <PortDemurrageData />
                   </ProtectedRoute>
                 } />

@@ -438,6 +438,7 @@ export type Database = {
           full_name: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
+          shipping_line: string | null
           updated_at: string
           user_id: string
           username: string | null
@@ -448,6 +449,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          shipping_line?: string | null
           updated_at?: string
           user_id: string
           username?: string | null
@@ -458,6 +460,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          shipping_line?: string | null
           updated_at?: string
           user_id?: string
           username?: string | null
@@ -655,7 +658,7 @@ export type Database = {
         | "reserve"
         | "unreserve"
         | "demurrage_collected"
-      app_role: "admin" | "user" | "super_admin" | "inspector"
+      app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
     }
@@ -792,7 +795,7 @@ export const Constants = {
         "unreserve",
         "demurrage_collected",
       ],
-      app_role: ["admin", "user", "super_admin", "inspector"],
+      app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
       container_status: ["in-yard", "out", "reserved"],
       work_shift: ["day", "night"],
     },

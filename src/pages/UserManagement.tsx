@@ -13,11 +13,12 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Users, Shield, ShieldCheck, ClipboardCheck, UserPlus } from "lucide-react";
+import { Crown, Users, Shield, ShieldCheck, ClipboardCheck, UserPlus, Ship } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { SHIPPING_LINES } from "@/lib/shippingLines";
 
-type AppRole = "super_admin" | "admin" | "inspector" | "user";
-type CreatableRole = "admin" | "inspector" | "user";
+type AppRole = "super_admin" | "admin" | "inspector" | "line_rep" | "user";
+type CreatableRole = "admin" | "inspector" | "line_rep" | "user";
 
 interface UserRow {
   user_id: string;
@@ -27,7 +28,7 @@ interface UserRow {
   created_at: string;
 }
 
-const ROLE_PRIORITY: AppRole[] = ["super_admin", "admin", "inspector", "user"];
+const ROLE_PRIORITY: AppRole[] = ["super_admin", "admin", "inspector", "line_rep", "user"];
 
 const pickHighestRole = (roles: string[]): AppRole => {
   for (const r of ROLE_PRIORITY) {
@@ -46,8 +47,8 @@ const UserManagement = () => {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [yards, setYards] = useState<YardOption[]>([]);
-  const [newUser, setNewUser] = useState<{ fullName: string; username: string; password: string; role: CreatableRole; yard_id: string }>({
-    fullName: "", username: "", password: "", role: "user", yard_id: "",
+  const [newUser, setNewUser] = useState<{ fullName: string; username: string; password: string; role: CreatableRole; yard_id: string; shipping_line: string }>({
+    fullName: "", username: "", password: "", role: "user", yard_id: "", shipping_line: "",
   });
   const [creating, setCreating] = useState(false);
 
@@ -115,6 +116,10 @@ const UserManagement = () => {
       toast({ title: "No yard", description: isSuperAdmin() ? "Please select a yard." : "You are not assigned to a yard.", variant: "destructive" });
       return;
     }
+    if (newUser.role === "line_rep" && !newUser.shipping_line) {
+      toast({ title: "Missing shipping line", description: "Select which shipping line this representative belongs to.", variant: "destructive" });
+      return;
+    }
     setCreating(true);
     const { data, error } = await supabase.functions.invoke("create-user", {
       body: {
@@ -123,6 +128,7 @@ const UserManagement = () => {
         fullName: newUser.fullName.trim(),
         role: newUser.role,
         yard_id: yardId,
+        shipping_line: newUser.role === "line_rep" ? newUser.shipping_line : undefined,
       },
     });
     setCreating(false);
@@ -132,7 +138,7 @@ const UserManagement = () => {
     }
     toast({ title: "User created successfully" });
     setCreateOpen(false);
-    setNewUser({ fullName: "", username: "", password: "", role: "user", yard_id: "" });
+    setNewUser({ fullName: "", username: "", password: "", role: "user", yard_id: "", shipping_line: "" });
     load();
   };
 
@@ -232,6 +238,10 @@ const UserManagement = () => {
                         <Badge variant="secondary" className="bg-blue-500/20 text-blue-600 border-blue-400/30">
                           <ClipboardCheck className="h-3 w-3 mr-1" /> Inspector
                         </Badge>
+                      ) : r.role === "line_rep" ? (
+                        <Badge variant="secondary" className="bg-teal-500/20 text-teal-600 border-teal-400/30">
+                          <Ship className="h-3 w-3 mr-1" /> Line Rep
+                        </Badge>
                       ) : (
                         <Badge variant="secondary">User</Badge>
                       )}
@@ -247,13 +257,14 @@ const UserManagement = () => {
                           updatingId === r.user_id ||
                           r.user_id === user?.id ||
                           r.role === "super_admin" ||
-                          r.role === "inspector"
+                          r.role === "inspector" ||
+                          r.role === "line_rep"
                         }
                         onClick={() => toggleRole(r)}
                       >
                         {updatingId === r.user_id
                           ? "Updating…"
-                          : r.role === "super_admin" || r.role === "inspector"
+                          : r.role === "super_admin" || r.role === "inspector" || r.role === "line_rep"
                           ? "Protected"
                           : r.role === "admin"
                           ? "Demote to User"
@@ -300,10 +311,23 @@ const UserManagement = () => {
                 <SelectContent>
                   {isSuperAdmin() && <SelectItem value="admin">Yard Admin</SelectItem>}
                   <SelectItem value="inspector">Inspector</SelectItem>
+                  <SelectItem value="line_rep">Shipping Line Representative</SelectItem>
                   <SelectItem value="user">User</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {newUser.role === "line_rep" && (
+              <div className="space-y-1">
+                <Label>Shipping Line</Label>
+                <Select value={newUser.shipping_line} onValueChange={v => setNewUser({ ...newUser, shipping_line: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select shipping line" /></SelectTrigger>
+                  <SelectContent>
+                    {SHIPPING_LINES.map(sl => <SelectItem key={sl} value={sl}>{sl}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">The representative will only see containers, port data and demurrage of this line.</p>
+              </div>
+            )}
             {isSuperAdmin() && (
               <div className="space-y-1">
                 <Label>Yard</Label>
