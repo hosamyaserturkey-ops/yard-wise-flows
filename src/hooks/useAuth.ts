@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { AuthError, User, Session } from "@supabase/supabase-js";
 
-export type AppRole = "super_admin" | "admin" | "user" | "inspector";
+export type AppRole = "super_admin" | "admin" | "user" | "inspector" | "line_rep";
 
 export interface Profile {
   id: string;
@@ -11,6 +11,8 @@ export interface Profile {
   role: AppRole;
   yard_id: string | null;
   yard_name: string | null;
+  /** Shipping line code a 'line_rep' represents; null for every other role. */
+  shipping_line: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -25,6 +27,7 @@ export interface AuthContextType {
   isAdmin: () => boolean;
   isSuperAdmin: () => boolean;
   isInspector: () => boolean;
+  isLineRep: () => boolean;
   /** Effective yard scope for reads. Null = all yards (super_admin viewing everything). */
   currentYardId: () => string | null;
   /** Super_admin only: the yard they've selected from the top-bar switcher, or null for "All yards". */

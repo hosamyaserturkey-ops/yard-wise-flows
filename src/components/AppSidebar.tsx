@@ -46,13 +46,19 @@ const INSPECTOR_ONLY = [
   { href: "/inspector",  label: "Inspect",    icon: ClipboardCheck },
 ];
 
+const LINE_REP_NAV = [
+  { href: "/reports",    label: "My Containers", icon: FileText },
+  { href: "/port-data",  label: "Port Data",     icon: Anchor   },
+];
+
 export function AppSidebar() {
   const location = useLocation();
-  const { profile, signOut, isAdmin, isSuperAdmin, isInspector } = useAuth();
+  const { profile, signOut, isAdmin, isSuperAdmin, isInspector, isLineRep } = useAuth();
 
   const admin      = isAdmin();
   const superAdmin = isSuperAdmin();
   const inspector  = isInspector();
+  const lineRep    = isLineRep();
 
   const isActive = (href: string) =>
     href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
@@ -95,8 +101,25 @@ export function AppSidebar() {
       {/* ── Content ────────────────────────────────── */}
       <SidebarContent>
 
+        {/* Line representative — only their line's data + port data entry */}
+        {lineRep && (
+          <SidebarGroup>
+            <SidebarGroupLabel>
+              <Ship className="h-3 w-3 mr-1 inline" />
+              {profile?.shipping_line || "Shipping Line"}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {LINE_REP_NAV.map((item) => (
+                  <NavItem key={item.href} {...item} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
         {/* Operations — visible to non-super, non-inspector users */}
-        {!superAdmin && !inspector && (
+        {!superAdmin && !inspector && !lineRep && (
           <SidebarGroup>
             <SidebarGroupLabel>Operations</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -176,7 +199,7 @@ export function AppSidebar() {
               {profile?.full_name || profile?.username || "User"}
             </p>
             <p className="truncate text-xs text-sidebar-foreground/60">
-              {superAdmin ? "Super Admin" : admin ? "Admin" : inspector ? "Inspector" : "Operator"}
+              {superAdmin ? "Super Admin" : admin ? "Admin" : inspector ? "Inspector" : lineRep ? `${profile?.shipping_line || ""} Representative`.trim() : "Operator"}
             </p>
           </div>
           <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
