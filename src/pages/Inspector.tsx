@@ -77,16 +77,29 @@ const Inspector = () => {
   };
 
   const uploadPhotos = async (): Promise<string[]> => {
+    // New photos go to R2 via the Worker's /api/photos/upload route (see
+    // worker/index.ts) rather than Supabase Storage -- keeps growing photo
+    // storage/egress off the Supabase free-tier caps. Pre-existing photos
+    // already in the "inspection-photos" Supabase bucket are untouched and
+    // keep working via resolveSignedUrl's fallback path.
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+    if (!accessToken) throw new Error("Not authenticated");
+
     const paths: string[] = [];
     for (const photo of photos) {
       const compressed = await compressImage(photo.file);
-      const ext = compressed.name.split(".").pop() || "jpg";
-      const path = `${user!.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage
-        .from("inspection-photos")
-        .upload(path, compressed, { contentType: compressed.type });
-      if (error) throw error;
-      paths.push(path);
+      const res = await fetch("/api/photos/upload", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": compressed.type,
+        },
+        body: compressed,
+      });
+      if (!res.ok) throw new Error(`Photo upload failed (${res.status})`);
+      const { key } = (await res.json()) as { key: string };
+      paths.push(`r2:${key}`);
     }
     return paths;
   };

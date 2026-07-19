@@ -5,7 +5,9 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  // worker/ is a separate Cloudflare Workers script (deployed independently
+  // by wrangler, not part of the Vite build) with its own runtime globals.
+  { ignores: ["dist", "worker"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

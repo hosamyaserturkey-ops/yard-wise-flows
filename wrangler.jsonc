@@ -1,15 +1,31 @@
 {
   // Cloudflare Workers config for deploying the built static site.
-  // Deploying as an assets-only Worker (no server code) means `wrangler deploy`
-  // serves the Vite build output in ./dist directly. Providing this file stops
-  // Wrangler from trying to auto-configure the framework, which otherwise
-  // requires Vite 6+ (this project is on Vite 5).
-  "name": "everest-depot",
+  // `assets` alone serves the Vite build output in ./dist directly, which
+  // stops Wrangler from trying to auto-configure the framework (that path
+  // requires Vite 6+; this project is on Vite 5). `main` adds a Worker script
+  // for the /api/photos/* routes (new inspection photos -> R2); any request
+  // it doesn't handle falls through to the ASSETS binding for the static site.
+  "name": "everest-container-terminal",
   "compatibility_date": "2025-01-01",
+  "main": "worker/index.ts",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     // Serve index.html for unknown paths so client-side routes like /gate-in
     // and /photos work on refresh / deep link (the app uses BrowserRouter).
     "not_found_handling": "single-page-application"
+  },
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS_BUCKET",
+      "bucket_name": "inspection-photos"
+    }
+  ],
+  "vars": {
+    // Both values are already public (embedded in the built frontend) --
+    // no secret needed. Used only to verify the caller's Supabase JWT and
+    // check their role before allowing R2 access.
+    "SUPABASE_URL": "https://qctvjwlaxnidprhcxodj.supabase.co",
+    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdHZqd2xheG5pZHByaGN4b2RqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MDg1ODMsImV4cCI6MjA3MzE4NDU4M30.b0mOM6i2Go3qOvwgQytz_4TZcY3S4vOGzE_YmR0zxZc"
   }
 }
