@@ -5,7 +5,7 @@
   // requires Vite 6+; this project is on Vite 5). `main` adds a Worker script
   // for the /api/photos/* routes (new inspection photos -> R2); any request
   // it doesn't handle falls through to the ASSETS binding for the static site.
-  "name": "everest-depot",
+  "name": "everest-container-terminal",
   "compatibility_date": "2025-01-01",
   "main": "worker/index.ts",
   "assets": {

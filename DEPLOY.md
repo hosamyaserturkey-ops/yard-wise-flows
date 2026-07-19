@@ -19,7 +19,7 @@ end.
 
 This repo is set up to deploy as a **Cloudflare Worker with static assets** — the
 build command produces `dist/` and `npx wrangler deploy` serves it. The
-`wrangler.jsonc` at the repo root configures this (worker name `everest-depot`,
+`wrangler.jsonc` at the repo root configures this (worker name `everest-container-terminal`,
 assets from `./dist`, SPA fallback), which also stops Wrangler from trying to
 auto-configure the framework (that path requires Vite 6+; this project is on
 Vite 5).

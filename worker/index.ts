@@ -1,4 +1,4 @@
-// API routes bolted onto the everest-depot static-assets Worker for storing
+// API routes bolted onto the everest-container-terminal static-assets Worker for storing
 // new inspection photos in R2 (see wrangler.jsonc's `main` + `r2_buckets`).
 // Everything else falls through to the static site via the ASSETS binding.
 //
