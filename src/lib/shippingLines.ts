@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const SHIPPING_LINES = [
   "SLG",
   "SLD",
-  "SFS",
+  "SFT",
   "7Seas",
   "WOM",
   "MDK",
