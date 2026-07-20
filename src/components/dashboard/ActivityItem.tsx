@@ -7,11 +7,20 @@ const STATUS_ACTIVITY_BADGE: Record<string, { label: string; cls: string }> = {
   out: { label: "OUT", cls: "bg-muted text-muted-foreground border-border" },
 };
 
-export const ActivityItem = ({ container: c }: { container: ContainerType }) => {
+export const ActivityItem = ({
+  container: c,
+  onClick,
+}: {
+  container: ContainerType;
+  onClick?: () => void;
+}) => {
   const badge = STATUS_ACTIVITY_BADGE[c.status] ?? STATUS_ACTIVITY_BADGE["out"];
 
   return (
-    <div className="flex items-start gap-2 text-xs py-1 border-b last:border-0">
+    <div
+      className={`flex items-start gap-2 text-xs py-1 border-b last:border-0 ${onClick ? "cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1" : ""}`}
+      onClick={onClick}
+    >
       <span className={`mt-0.5 px-1.5 py-0.5 rounded border text-[10px] font-semibold shrink-0 ${badge.cls}`}>
         {badge.label}
       </span>
