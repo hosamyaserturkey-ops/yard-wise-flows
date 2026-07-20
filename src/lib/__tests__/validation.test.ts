@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { bookingSchema, gateInSchema, gateOutSchema } from "../validation";
 
 const validGateIn = {
-  containerNumber: "SLDX123456",
+  containerNumber: "SLDX1234567",
   containerType: "40HC",
   shippingLine: "SLD",
   driverName: "Ali Hassan",
@@ -18,9 +18,17 @@ describe("gateInSchema", () => {
   });
 
   it("rejects lowercase or symbol container numbers", () => {
-    expect(gateInSchema.safeParse({ ...validGateIn, containerNumber: "sldx123456" }).success).toBe(false);
+    expect(gateInSchema.safeParse({ ...validGateIn, containerNumber: "sldx1234567" }).success).toBe(false);
     expect(gateInSchema.safeParse({ ...validGateIn, containerNumber: "SLDX-123456" }).success).toBe(false);
     expect(gateInSchema.safeParse({ ...validGateIn, containerNumber: "" }).success).toBe(false);
+  });
+
+  it("requires exactly 4 letters followed by 7 numbers", () => {
+    expect(gateInSchema.safeParse({ ...validGateIn, containerNumber: "MSKU1234567" }).success).toBe(true);
+    expect(gateInSchema.safeParse({ ...validGateIn, containerNumber: "MSK1234567" }).success).toBe(false); // 3 letters
+    expect(gateInSchema.safeParse({ ...validGateIn, containerNumber: "MSKUA234567" }).success).toBe(false); // letter in digit run
+    expect(gateInSchema.safeParse({ ...validGateIn, containerNumber: "MSKU123456" }).success).toBe(false); // 6 digits
+    expect(gateInSchema.safeParse({ ...validGateIn, containerNumber: "MSKU12345678" }).success).toBe(false); // 8 digits
   });
 
   it("rejects unknown container types", () => {

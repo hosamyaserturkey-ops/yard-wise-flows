@@ -436,7 +436,8 @@ const GateIn = () => {
                   id="containerNumber"
                   value={formData.containerNumber}
                   onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value.toUpperCase() })}
-                  placeholder="e.g., SLDX123456"
+                  placeholder="e.g., MSKU1234567"
+                  maxLength={11}
                   className="font-mono"
                 />
               </div>

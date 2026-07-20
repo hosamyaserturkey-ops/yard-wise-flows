@@ -15,6 +15,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import { useYards } from "@/hooks/useYards";
+import { CONTAINER_NUMBER_REGEX, CONTAINER_NUMBER_MESSAGE } from "@/lib/validation";
 
 type SpreadsheetRow = Record<string, unknown>;
 
@@ -140,7 +141,7 @@ const resolveDailyDemurrage = (row: SpreadsheetRow): number | null => {
 };
 
 const portDataSchema = z.object({
-  containerNumber: z.string().trim().min(1, "Container number is required").max(20).regex(/^[A-Z0-9]+$/, "Only uppercase letters and numbers"),
+  containerNumber: z.string().trim().min(1, "Container number is required").regex(CONTAINER_NUMBER_REGEX, CONTAINER_NUMBER_MESSAGE),
   shippingLine: z.enum(SHIPPING_LINES as unknown as [string, ...string[]]),
   portArrivalDate: z.string().min(1, "Port arrival date is required"),
   freeDays: z.coerce.number().int().min(0).max(365),
@@ -304,6 +305,10 @@ const PortDemurrageData = () => {
             errors.push(`${rowLabel}: missing container number`);
             continue;
           }
+          if (!CONTAINER_NUMBER_REGEX.test(containerNumber)) {
+            errors.push(`${rowLabel}: "${containerNumber}" — ${CONTAINER_NUMBER_MESSAGE}`);
+            continue;
+          }
           if (!(SHIPPING_LINES as readonly string[]).includes(shippingLine)) {
             errors.push(`${rowLabel} (${containerNumber}): unrecognized shipping line "${shippingLine}" — expected one of: ${SHIPPING_LINES.join(", ")}`);
             continue;
@@ -384,7 +389,7 @@ const PortDemurrageData = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="containerNumber">Container Number *</Label>
-                    <Input id="containerNumber" value={formData.containerNumber} onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value.toUpperCase() })} placeholder="e.g., SEKU1157908" className="font-mono" />
+                    <Input id="containerNumber" value={formData.containerNumber} onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value.toUpperCase() })} placeholder="e.g., SEKU1157908" maxLength={11} className="font-mono" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="shippingLine">Shipping Line *</Label>

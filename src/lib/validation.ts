@@ -1,10 +1,15 @@
 import { z } from 'zod';
 
+// ISO 6346 layout: a 4-letter owner/category prefix followed by a 7-digit
+// serial (the 7th digit is the check digit) — e.g. MSKU1234567.
+export const CONTAINER_NUMBER_REGEX = /^[A-Z]{4}[0-9]{7}$/;
+export const CONTAINER_NUMBER_MESSAGE =
+  'Container number must be 4 letters followed by 7 numbers (e.g., MSKU1234567)';
+
 export const gateInSchema = z.object({
   containerNumber: z.string()
     .min(1, 'Container number is required')
-    .max(20, 'Container number is too long')
-    .regex(/^[A-Z0-9]+$/, 'Only uppercase letters and numbers allowed'),
+    .regex(CONTAINER_NUMBER_REGEX, CONTAINER_NUMBER_MESSAGE),
   containerType: z.enum(['20FT', '40FT', '40HC', '45FT', '20FR', '40FR'], {
     errorMap: () => ({ message: 'Please select a container type' }),
   }),
