@@ -15,6 +15,7 @@ interface KanbanCardProps {
   demurrage?: DemurrageInfo;
   onClick: () => void;
   onReserve?: (e: React.MouseEvent) => void;
+  index?: number;
 }
 
 const ACCENT_STYLES: Record<string, { header: string; border: string; badge: string }> = {
@@ -78,11 +79,12 @@ export const KanbanColumn = ({
             No containers
           </div>
         ) : (
-          <div className="space-y-2">
-            {containers.map((c) => (
+          <div className="space-y-2 [perspective:1000px]">
+            {containers.map((c, i) => (
               <ContainerKanbanCard
                 key={c.id}
                 container={c}
+                index={i}
                 demurrage={demurrageMap[c.containerNumber]}
                 onClick={() => onCardClick(c)}
                 onReserve={
@@ -110,7 +112,7 @@ const STATUS_BORDER: Record<string, string> = {
   out: "border-l-muted-foreground",
 };
 
-const ContainerKanbanCard = ({ container: c, demurrage, onClick, onReserve }: KanbanCardProps) => {
+const ContainerKanbanCard = ({ container: c, demurrage, onClick, onReserve, index = 0 }: KanbanCardProps) => {
   const borderColor = STATUS_BORDER[c.status] ?? "border-l-border";
   const days = daysInYard(c.gateInTime);
 
@@ -124,7 +126,11 @@ const ContainerKanbanCard = ({ container: c, demurrage, onClick, onReserve }: Ka
   return (
     <div
       className={`rounded-lg border border-l-4 ${borderColor} bg-card p-3 cursor-pointer
-        transition-all duration-150 hover:shadow-md hover:-translate-y-0.5`}
+        transition-all duration-200 ease-out will-change-transform
+        hover:shadow-[var(--shadow-elevated)]
+        motion-safe:animate-fade-up
+        motion-safe:hover:[transform:rotateX(4deg)_translateY(-3px)]`}
+      style={{ animationDelay: `${Math.min(index, 12) * 45}ms` }}
       onClick={onClick}
     >
       {/* Container number + shipping line */}

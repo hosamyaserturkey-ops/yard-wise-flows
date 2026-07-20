@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect } from "react";
 import { printGateOutReceipt } from "@/lib/gateOutReceipt";
+import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ const GateOut = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [gateMotion, setGateMotion] = useState<string | null>(null);
 
   // Fetch containers in yard
   const fetchContainers = useCallback(async () => {
@@ -161,6 +163,7 @@ const GateOut = () => {
         title: "Success",
         description: `Container ${selectedContainer.containerNumber} gated out successfully`,
       });
+      setGateMotion(selectedContainer.containerNumber);
 
       // Print receipt
       printReceipt();
@@ -217,6 +220,13 @@ const GateOut = () => {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
+      {gateMotion && (
+        <GateMotionOverlay
+          direction="out"
+          containerNumber={gateMotion}
+          onDone={() => setGateMotion(null)}
+        />
+      )}
       <PageHeader icon={Ship} title="Gate Out" subtitle="Process reserved containers for departure" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

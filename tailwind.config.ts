@@ -89,10 +89,39 @@ export default {
             height: "0",
           },
         },
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(10px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "pop-in": {
+          from: { opacity: "0", transform: "scale(0.92)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        // A container driving in from the port side and settling in the yard.
+        "container-in": {
+          "0%": { opacity: "0", transform: "translateX(-130%) rotate(-3deg)" },
+          "60%": { opacity: "1" },
+          "100%": { opacity: "1", transform: "translateX(0) rotate(0)" },
+        },
+        // A container rolling out through the gate.
+        "container-out": {
+          "0%": { opacity: "1", transform: "translateX(0) rotate(0)" },
+          "40%": { opacity: "1" },
+          "100%": { opacity: "0", transform: "translateX(130%) rotate(3deg)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-up": "fade-up 0.4s ease-out both",
+        "pop-in": "pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both",
+        "container-in": "container-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "container-out": "container-out 0.7s cubic-bezier(0.55, 0, 0.68, 0.19) both",
+        float: "float 3s ease-in-out infinite",
       },
     },
   },

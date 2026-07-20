@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/PageHeader";
 import DemurrageCollectionDialog, { getServiceFeeConfig } from "@/components/DemurrageCollectionDialog";
 import { logActivity } from "@/lib/activityLog";
 import { printGateInReceipt } from "@/lib/gateInReceipt";
+import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +52,7 @@ const GateIn = () => {
   const { toast } = useToast();
   const [formData, setFormData] = useState<GateInData>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [gateMotion, setGateMotion] = useState<string | null>(null);
   const [demurrageDialog, setDemurrageDialog] = useState<{
     open: boolean;
     chargeableDays: number;
@@ -374,6 +376,7 @@ const GateIn = () => {
       title: "Success",
       description: `Container ${containerNumber} gated in successfully`,
     });
+    setGateMotion(containerNumber);
 
     const printed = printGateInReceipt(
       {
@@ -403,6 +406,13 @@ const GateIn = () => {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 animate-in fade-in-0 duration-300">
+      {gateMotion && (
+        <GateMotionOverlay
+          direction="in"
+          containerNumber={gateMotion}
+          onDone={() => setGateMotion(null)}
+        />
+      )}
       <div className="max-w-2xl mx-auto space-y-6">
       <PageHeader icon={Container} title="Gate In Container" subtitle="Record container arrivals and collect demurrage" />
 

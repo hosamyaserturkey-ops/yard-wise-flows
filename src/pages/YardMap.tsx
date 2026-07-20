@@ -125,10 +125,11 @@ const YardMap = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {Array.from(rowMap.entries())
                       .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([row, list]) => (
+                      .map(([row, list], idx) => (
                         <div
                           key={row}
-                          className="border rounded-lg p-3 bg-muted/30 space-y-2"
+                          className="border rounded-lg p-3 bg-muted/30 space-y-2 transition-all duration-200 ease-out motion-safe:animate-pop-in hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)] hover:bg-muted/50"
+                          style={{ animationDelay: `${Math.min(idx, 12) * 40}ms` }}
                         >
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-semibold uppercase text-muted-foreground">Row {row}</span>
