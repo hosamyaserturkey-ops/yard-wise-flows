@@ -36,6 +36,8 @@ const ADMIN_NAV = [
 ];
 
 const SUPER_NAV = [
+  { href: "/",           label: "Dashboard",  icon: BarChart3    },
+  { href: "/reports",    label: "Reports",    icon: FileText     },
   { href: "/port-data",  label: "Port Data",  icon: Anchor       },
   { href: "/activity",   label: "Activity",   icon: Activity     },
   { href: "/admin/yards",label: "Yards",      icon: Building2    },

@@ -14,11 +14,14 @@ import { PageHeader } from "@/components/PageHeader";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
+import ContainerDetailDialog from "@/components/ContainerDetailDialog";
 
 const Reports = () => {
   const { toast } = useToast();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [filteredContainers, setFilteredContainers] = useState<ContainerType[]>([]);
+  const [detailContainer, setDetailContainer] = useState<ContainerType | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [demurragePaid, setDemurragePaid] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -366,7 +369,11 @@ const Reports = () => {
             </TableHeader>
             <TableBody>
               {filteredContainers.map((container) => (
-                <TableRow key={container.id}>
+                <TableRow
+                  key={container.id}
+                  className="cursor-pointer"
+                  onClick={() => { setDetailContainer(container); setDetailOpen(true); }}
+                >
                   <TableCell className="font-mono font-medium">
                     {container.containerNumber}
                   </TableCell>
@@ -427,6 +434,12 @@ const Reports = () => {
           )}
         </CardContent>
       </Card>
+
+      <ContainerDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        container={detailContainer}
+      />
     </div>
   );
 };
