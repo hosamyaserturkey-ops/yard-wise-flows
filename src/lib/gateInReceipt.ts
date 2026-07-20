@@ -14,7 +14,7 @@ export interface ReceiptProfile {
   username?: string | null;
 }
 
-const ISO_DESCRIPTIONS: Record<string, string> = {
+export const ISO_DESCRIPTIONS: Record<string, string> = {
   "20FT": "20FT — 20ft Standard dry container",
   "40FT": "40FT — 40ft Standard dry container",
   "40HC": "40HC — 40ft High Cube dry container",
