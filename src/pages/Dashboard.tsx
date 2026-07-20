@@ -261,7 +261,7 @@ const Dashboard = () => {
                 <p className="text-sm text-muted-foreground">No activity yet.</p>
               ) : (
                 activityFeed.map((c) => (
-                  <ActivityItem key={c.id} container={c} />
+                  <ActivityItem key={c.id} container={c} onClick={() => openDetail(c)} />
                 ))
               )}
             </CardContent>

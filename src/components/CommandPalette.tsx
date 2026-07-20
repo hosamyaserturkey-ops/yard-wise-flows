@@ -10,6 +10,9 @@ import {
 } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import ContainerDetailDialog from "@/components/ContainerDetailDialog";
+import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
+import type { Container as ContainerType } from "@/types/container";
 
 interface ContainerResult {
   container_number: string;
@@ -36,6 +39,8 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContainerResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [detailContainer, setDetailContainer] = useState<ContainerType | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const navigate = useNavigate();
   const { isAdmin, isSuperAdmin, isInspector } = useAuth();
 
@@ -63,26 +68,52 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  // Search containers (open visits)
+  // Search containers — any status (in-yard, reserved, or already shipped
+  // out), so a past container can be found and its ticket reprinted.
   const searchContainers = useCallback(async (q: string) => {
     if (q.length < 2) { setResults([]); return; }
     setSearching(true);
     const { data } = await supabase
       .from("container_visits")
-      .select("status, containers!inner(container_number, shipping_line)")
+      .select("status, gate_in_time, containers!inner(container_number, shipping_line)")
       .ilike("containers.container_number", `%${q}%`)
-      .is("gate_out_time", null)
-      .limit(6);
-    const mapped: ContainerResult[] = (data ?? []).map((r: {
+      .order("gate_in_time", { ascending: false })
+      .limit(20);
+    const seen = new Set<string>();
+    const mapped: ContainerResult[] = [];
+    for (const r of (data ?? []) as {
       status: string;
       containers: { container_number: string; shipping_line: string } | null;
-    }) => ({
-      container_number: r.containers?.container_number ?? "",
-      status: r.status,
-      shipping_line: r.containers?.shipping_line ?? "",
-    }));
+    }[]) {
+      const number = r.containers?.container_number ?? "";
+      if (!number || seen.has(number)) continue; // one row per container — most recent visit wins
+      seen.add(number);
+      mapped.push({
+        container_number: number,
+        status: r.status,
+        shipping_line: r.containers?.shipping_line ?? "",
+      });
+      if (mapped.length >= 6) break;
+    }
     setResults(mapped);
     setSearching(false);
+  }, []);
+
+  // Fetch the container's most recent visit and open its detail dialog
+  // (same dialog Reports/Dashboard use — includes gate-in/gate-out reprint).
+  const openContainer = useCallback(async (containerNumber: string) => {
+    const { data } = await supabase
+      .from("container_visits")
+      .select(VISIT_WITH_CONTAINER)
+      .eq("containers.container_number", containerNumber)
+      .order("gate_in_time", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return;
+    setDetailContainer(mapVisit(data as unknown as VisitJoinRow));
+    setOpen(false);
+    setQuery("");
+    setDetailOpen(true);
   }, []);
 
   useEffect(() => {
@@ -103,6 +134,7 @@ export function CommandPalette() {
   };
 
   return (
+    <>
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
         placeholder="Search containers or navigate…"
@@ -121,7 +153,7 @@ export function CommandPalette() {
                 <CommandItem
                   key={c.container_number}
                   value={c.container_number}
-                  onSelect={() => go(`/gate-in?container=${c.container_number}`)}
+                  onSelect={() => openContainer(c.container_number)}
                 >
                   <Container className="mr-2 h-4 w-4 shrink-0" />
                   <span className="font-mono font-semibold">{c.container_number}</span>
@@ -148,5 +180,12 @@ export function CommandPalette() {
         </CommandGroup>
       </CommandList>
     </CommandDialog>
+
+    <ContainerDetailDialog
+      open={detailOpen}
+      onOpenChange={setDetailOpen}
+      container={detailContainer}
+    />
+    </>
   );
 }
