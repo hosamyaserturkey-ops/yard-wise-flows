@@ -51,7 +51,9 @@ const Layout = () => {
 
         {/* ── Page Content ────────────────────────────── */}
         <main className="flex-1 overflow-auto bg-background">
-          <Outlet />
+          <div className="mx-auto w-full max-w-[1600px]">
+            <Outlet />
+          </div>
         </main>
       </SidebarInset>
 

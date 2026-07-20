@@ -26,7 +26,13 @@ export const ActivityItem = ({
       </span>
       <div className="min-w-0 flex-1">
         <div className="font-mono font-medium truncate">{c.containerNumber}</div>
-        <div className="text-muted-foreground">Gated in {timeAgo(c.gateInTime)}</div>
+        <div className="text-muted-foreground">
+          {c.status === "out" && c.gateOutTime
+            ? `Gated out ${timeAgo(c.gateOutTime)}`
+            : c.status === "reserved"
+            ? `Reserved · in ${timeAgo(c.gateInTime)}`
+            : `Gated in ${timeAgo(c.gateInTime)}`}
+        </div>
       </div>
     </div>
   );

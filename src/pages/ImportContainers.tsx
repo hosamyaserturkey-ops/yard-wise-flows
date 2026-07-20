@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, CheckCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { PageHeader } from "@/components/PageHeader";
 import { importAllContainersFromExcel } from "../../scripts/import-containers-full";
 
 const ImportContainers = () => {
@@ -62,10 +63,11 @@ const ImportContainers = () => {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
-      <div className="flex items-center space-x-2">
-        <FileSpreadsheet className="h-8 w-8 text-maritime" />
-        <h1 className="text-3xl font-bold text-industrial">Import Containers</h1>
-      </div>
+      <PageHeader
+        icon={FileSpreadsheet}
+        title="Import Containers"
+        subtitle="Bulk-load containers from an Excel spreadsheet"
+      />
 
       <Card>
         <CardHeader>
