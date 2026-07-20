@@ -31,6 +31,7 @@ describe("hasDemurrageRules", () => {
     expect(hasDemurrageRules("SLG")).toBe(true);
     expect(hasDemurrageRules("SLD")).toBe(true);
     expect(hasDemurrageRules("WOM")).toBe(true);
+    expect(hasDemurrageRules("SFT")).toBe(true);
   });
 
   it("rejects unknown lines", () => {
@@ -131,8 +132,18 @@ describe("calculateDemurrage — tiered totals", () => {
     expect(charged.totalUSD).toBe(200);
   });
 
+  it("charges SFT tiers identically to SLG", () => {
+    // Same window as the SLG tiered-totals test above: 25 days elapsed →
+    // days 15-21: 7 × $20 = $140; days 22-25: 4 × $30 = $120 → $260 (20FT).
+    const r = calculateDemurrage("SFT", "20FT", "2026-01-01", d("2026-01-25"));
+    expect(r.daysElapsed).toBe(25);
+    expect(r.totalUSD).toBe(260);
+    expect(r.breakdown.map((b) => b.subtotalUSD)).toEqual([140, 120]);
+    expect(DEMURRAGE_RULES.SFT).toEqual(DEMURRAGE_RULES.SLG);
+  });
+
   it("reports the configured free days", () => {
-    for (const line of ["SLG", "SLD", "WOM"] as const) {
+    for (const line of ["SLG", "SLD", "WOM", "SFT"] as const) {
       const r = calculateDemurrage(line, "20FT", "2026-01-01", d("2026-01-02"));
       expect(r.freeDays).toBe(DEMURRAGE_RULES[line].freeDays);
     }
