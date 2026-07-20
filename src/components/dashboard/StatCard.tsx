@@ -9,7 +9,7 @@ export const StatCard = ({
   loading,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   color: string;
   icon: React.ReactNode;
   loading?: boolean;

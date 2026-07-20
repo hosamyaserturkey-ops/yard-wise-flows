@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Crown, Users, Shield, ShieldCheck, ClipboardCheck, UserPlus, Ship } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
+import { PageHeader } from "@/components/PageHeader";
 
 type AppRole = "super_admin" | "admin" | "inspector" | "line_rep" | "user";
 type CreatableRole = "admin" | "inspector" | "line_rep" | "user";
@@ -189,15 +190,16 @@ const UserManagement = () => {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Users className="h-8 w-8 text-maritime" />
-          <h1 className="text-3xl font-bold text-industrial">User Management</h1>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" /> New User
-        </Button>
-      </div>
+      <PageHeader
+        icon={Users}
+        title="User Management"
+        subtitle="Create and manage operator, inspector and admin accounts"
+        action={
+          <Button onClick={() => setCreateOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" /> New User
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader>

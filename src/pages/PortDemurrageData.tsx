@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import { useYards } from "@/hooks/useYards";
 import { CONTAINER_NUMBER_REGEX, CONTAINER_NUMBER_MESSAGE } from "@/lib/validation";
+import { PageHeader } from "@/components/PageHeader";
 
 type SpreadsheetRow = Record<string, unknown>;
 
@@ -370,10 +371,11 @@ const PortDemurrageData = () => {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
-      <div className="flex items-center space-x-2">
-        <Anchor className="h-8 w-8 text-maritime" />
-        <h1 className="text-3xl font-bold text-foreground">Port Demurrage Data</h1>
-      </div>
+      <PageHeader
+        icon={Anchor}
+        title="Port Demurrage Data"
+        subtitle="Port arrival dates and demurrage tariffs per shipping line"
+      />
 
       <Tabs defaultValue="manual" className="w-full">
         <TabsList>

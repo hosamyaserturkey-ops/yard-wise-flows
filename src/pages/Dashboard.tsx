@@ -293,7 +293,7 @@ const Dashboard = () => {
           />
           <StatCard
             label="Oldest (in-yard)"
-            value={topAging.length > 0 ? daysInYard(topAging[0].gateInTime) : 0}
+            value={topAging.length > 0 ? `${daysInYard(topAging[0].gateInTime)}d` : "—"}
             color="container"
             icon={<Timer className="h-4 w-4 text-container" />}
             loading={loading}
