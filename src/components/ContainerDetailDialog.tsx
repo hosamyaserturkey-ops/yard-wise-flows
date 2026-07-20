@@ -29,6 +29,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
 import { printGateInReceipt } from "@/lib/gateInReceipt";
+import { printGateOutReceipt } from "@/lib/gateOutReceipt";
 import { resolveSignedUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 
@@ -235,6 +236,34 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
       toast({
         title: "Pop-up blocked",
         description: "Please allow pop-ups to print the gate-in receive note.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Reprint the gate-out ticket from stored data (only offered once the
+  // container has actually gated out).
+  const handleGateOutReprint = () => {
+    if (!container.gateOutTime) return;
+    const printed = printGateOutReceipt(
+      {
+        id: container.id,
+        container_number: container.containerNumber,
+        container_type: container.containerType,
+        shipping_line: container.shippingLine,
+        booking_number: container.bookingNumber || null,
+        truck_number: container.truckNumber || null,
+        driver_name: container.driverName || null,
+        gate_in_time: container.gateInTime,
+        gate_out_time: container.gateOutTime,
+        fees: Number(container.fees ?? 0),
+      },
+      profile,
+    );
+    if (!printed) {
+      toast({
+        title: "Pop-up blocked",
+        description: "Please allow pop-ups to print the gate-out ticket.",
         variant: "destructive",
       });
     }
@@ -528,11 +557,17 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
             <Separator />
 
             {/* ── Reprint ───────────────────────────────────────── */}
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={handleReprint}>
                 <Printer className="h-4 w-4 mr-2" />
                 Reprint Gate-In Receipt
               </Button>
+              {container.gateOutTime && (
+                <Button variant="outline" onClick={handleGateOutReprint}>
+                  <Printer className="h-4 w-4 mr-2" />
+                  Reprint Gate-Out Ticket
+                </Button>
+              )}
             </div>
           </div>
         )}
