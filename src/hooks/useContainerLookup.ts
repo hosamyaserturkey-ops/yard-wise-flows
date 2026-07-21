@@ -72,7 +72,7 @@ export function useContainerLookup(
         .maybeSingle();
 
       let openVisit: { id: string } | null = null;
-      let visitTimes: { gate_in_time: string }[] = [];
+      let visitTimes: { gate_in_time: string; gate_out_time: string | null }[] = [];
       if (masterRow?.id) {
         const { data: openRow } = await supabase
           .from("container_visits")
@@ -84,7 +84,7 @@ export function useContainerLookup(
 
         const { data: visitRows } = await supabase
           .from("container_visits")
-          .select("gate_in_time")
+          .select("gate_in_time, gate_out_time")
           .eq("container_id", masterRow.id)
           .order("gate_in_time", { ascending: true });
         visitTimes = visitRows ?? [];
@@ -95,6 +95,14 @@ export function useContainerLookup(
           .filter((v) => v.gate_in_time)
           .map((v) => new Date(v.gate_in_time)),
       );
+
+      // Most recent gate-out (previous trip's end), if any — an inspection
+      // from before this must not count toward the CURRENT trip's approval.
+      const closedOutTimes = visitTimes
+        .map((v) => v.gate_out_time)
+        .filter((t): t is string => !!t)
+        .sort();
+      const lastGateOutIso = closedOutTimes[closedOutTimes.length - 1] ?? null;
 
       // Latest demurrage payment. Whether it settles the current trip is
       // decided against the port arrival date — a payment from a previous
@@ -110,11 +118,14 @@ export function useContainerLookup(
         paymentRow?.created_at ? new Date(paymentRow.created_at) : null,
       );
 
-      // Latest inspection check for this container
-      const { data: inspectionRow } = await supabase
+      // Latest inspection check for this container — scoped to the current
+      // trip, so an approval from a previous visit can't satisfy this one.
+      let inspectionQuery = supabase
         .from("inspector_checks")
         .select("status, grade")
-        .eq("container_number", containerNum)
+        .eq("container_number", containerNum);
+      if (lastGateOutIso) inspectionQuery = inspectionQuery.gt("created_at", lastGateOutIso);
+      const { data: inspectionRow } = await inspectionQuery
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

@@ -153,6 +153,11 @@ const GateIn = () => {
     demurragePreview.totalJOD > 0;
 
   const isInspectionRejected = inspectionStatus?.status === "rejected";
+  // Gate-in requires a fresh, approved inspection on file for this trip —
+  // an operator can no longer type an uninspected container straight into
+  // this form and complete the gate-in. Only "approved" clears the gate.
+  const isInspectionApproved = inspectionStatus?.status === "approved";
+  const inspectionBlocksGateIn = lookupDone && !isInspectionApproved;
 
   // Port data is "complete enough" to gate in as long as arrival date is set and not in the future.
   const portDataComplete =
@@ -673,17 +678,17 @@ const GateIn = () => {
 
               {lookupDone && !alreadyInYard && (
                 <div className={`mt-4 p-3 rounded-md border text-sm ${
-                  inspectionStatus?.status === "approved"
+                  isInspectionApproved
                     ? "bg-green-50 border-green-300 text-green-700"
                     : inspectionStatus?.status === "rejected"
                       ? "bg-red-50 border-red-300 text-red-700"
                       : inspectionStatus?.status === "pending"
-                        ? "bg-yellow-50 border-yellow-300 text-yellow-800"
-                        : "bg-gray-50 border-gray-200 text-gray-500"
+                        ? "bg-red-50 border-red-300 text-red-700"
+                        : "bg-red-50 border-red-300 text-red-700"
                 }`}>
-                  {!inspectionStatus && "ℹ️ No inspection record found for this container."}
-                  {inspectionStatus?.status === "approved" && `✅ Inspection Approved — Grade ${inspectionStatus.grade}`}
-                  {inspectionStatus?.status === "pending"  && "⏳ Inspection Pending — awaiting inspector decision."}
+                  {!inspectionStatus && "❌ No inspection on file for this trip — this container must be inspected and approved before it can be gated in."}
+                  {isInspectionApproved && `✅ Inspection Approved — Grade ${inspectionStatus.grade}`}
+                  {inspectionStatus?.status === "pending"  && "❌ Inspection Pending — waiting on the inspector's decision before this can be gated in."}
                   {inspectionStatus?.status === "rejected" && "❌ Inspection Rejected — this container cannot be gated in."}
                 </div>
               )}
@@ -746,7 +751,7 @@ const GateIn = () => {
               <Button
                 type="submit"
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !portDataComplete || isInspectionRejected}
+                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !portDataComplete || inspectionBlocksGateIn}
               >
                 {isSubmitting
                   ? "Processing..."
@@ -754,13 +759,15 @@ const GateIn = () => {
                     ? "Already In Yard — Cannot Gate In"
                     : isInspectionRejected
                       ? "Inspection Rejected — Cannot Gate In"
-                      : hasDemurrageDue
-                        ? "Demurrage Due — Collect Payment First"
-                        : !formData.portArrivalDate
-                          ? "Enter Port Arrival Date"
-                          : portArrivalIsFuture
-                            ? "Invalid Port Arrival Date"
-                            : "Gate In & Print Receipt"}
+                      : inspectionBlocksGateIn
+                        ? "Awaiting Approved Inspection"
+                        : hasDemurrageDue
+                          ? "Demurrage Due — Collect Payment First"
+                          : !formData.portArrivalDate
+                            ? "Enter Port Arrival Date"
+                            : portArrivalIsFuture
+                              ? "Invalid Port Arrival Date"
+                              : "Gate In & Print Receipt"}
               </Button>
             </div>
           </form>
