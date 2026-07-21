@@ -24,6 +24,7 @@ interface R2Bucket {
     body: ReadableStream;
     httpMetadata?: { contentType?: string };
   } | null>;
+  delete(keys: string | string[]): Promise<void>;
 }
 interface Fetcher {
   fetch(request: Request): Promise<Response>;
@@ -41,6 +42,9 @@ const ALLOWED_UPLOAD_ROLES = ["inspector", "admin", "super_admin"] as const;
 // operators) may need to look at an inspection photo, matching the
 // inspector_checks RLS SELECT policy (any non-line-rep account in the yard).
 const ALLOWED_VIEW_ROLES = ["inspector", "admin", "super_admin", "user"] as const;
+// Deleting is yard-admin-only, matching the "only yard admin can delete a
+// container" rule enforced on container_visits in the database.
+const ALLOWED_DELETE_ROLES = ["admin", "super_admin"] as const;
 
 async function authorize(
   req: Request,
@@ -126,6 +130,25 @@ async function handleView(req: Request, env: Env, url: URL): Promise<Response> {
   });
 }
 
+async function handleDelete(req: Request, env: Env): Promise<Response> {
+  const authResult = await authorize(req, env, ALLOWED_DELETE_ROLES);
+  if (authResult instanceof Response) return authResult;
+
+  let keys: unknown;
+  try {
+    ({ keys } = (await req.json()) as { keys: unknown });
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+  if (!Array.isArray(keys) || keys.length === 0 || !keys.every((k) => typeof k === "string")) {
+    return json({ error: "Expected a non-empty array of string keys" }, 400);
+  }
+  if (keys.length > 100) return json({ error: "Too many keys (max 100)" }, 400);
+
+  await env.PHOTOS_BUCKET.delete(keys);
+  return json({ deleted: keys.length });
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -142,6 +165,9 @@ export default {
     }
     if (url.pathname === "/api/photos/view" && req.method === "GET") {
       return handleView(req, env, url);
+    }
+    if (url.pathname === "/api/photos/delete" && req.method === "POST") {
+      return handleDelete(req, env);
     }
 
     return env.ASSETS.fetch(req);
