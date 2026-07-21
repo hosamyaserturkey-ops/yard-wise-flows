@@ -8,8 +8,8 @@ import { escapeHtml } from "@/lib/utils";
 import { ISO_DESCRIPTIONS, type ReceiptProfile } from "@/lib/gateInReceipt";
 
 export interface GateOutReceiptData {
-  /** Visit or container id — only used to derive the printed ticket number. */
-  id: string;
+  /** Sequential ticket number for this visit — shared with the gate-in ticket. */
+  ticket_number: number;
   container_number: string;
   container_type: string;
   shipping_line: string;
@@ -35,9 +35,7 @@ export const printGateOutReceipt = (
   const outTime = data.gate_out_time;
   const dateStr = escapeHtml(outTime.toLocaleDateString("en-GB"));
   const timeStr = escapeHtml(outTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
-  const ticketNum = String(
-    parseInt(data.id.replace(/-/g, "").slice(0, 8), 16) % 1000000,
-  ).padStart(6, "0");
+  const ticketNum = String(data.ticket_number).padStart(6, "0");
   const yardName = escapeHtml(profile?.yard_name || "YARD");
   const supervisorName = escapeHtml(profile?.full_name || profile?.username || "—");
   const printedBy = escapeHtml(profile?.username || profile?.full_name || "system");

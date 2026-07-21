@@ -14,6 +14,7 @@ export interface InspectionStatus {
 
 export interface InsertedContainerRow {
   id: string;
+  ticket_number: number;
   container_number: string;
   container_type: string;
   shipping_line: string;

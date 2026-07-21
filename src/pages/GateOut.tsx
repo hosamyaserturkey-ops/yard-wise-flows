@@ -192,7 +192,7 @@ const GateOut = () => {
     if (!selectedContainer) return;
     const printed = printGateOutReceipt(
       {
-        id: selectedContainer.id,
+        ticket_number: selectedContainer.ticketNumber,
         container_number: selectedContainer.containerNumber,
         container_type: selectedContainer.containerType,
         shipping_line: selectedContainer.shippingLine,

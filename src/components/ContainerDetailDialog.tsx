@@ -212,6 +212,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
     const printed = printGateInReceipt(
       {
         id: container.id,
+        ticket_number: container.ticketNumber,
         container_number: container.containerNumber,
         container_type: container.containerType,
         shipping_line: container.shippingLine,
@@ -247,7 +248,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
     if (!container.gateOutTime) return;
     const printed = printGateOutReceipt(
       {
-        id: container.id,
+        ticket_number: container.ticketNumber,
         container_number: container.containerNumber,
         container_type: container.containerType,
         shipping_line: container.shippingLine,
