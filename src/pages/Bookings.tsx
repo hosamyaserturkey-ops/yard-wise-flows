@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { bookingSchema } from "@/lib/validation";
 import type { Booking, CreateBookingData } from "@/types/booking";
 import { PageHeader } from "@/components/PageHeader";
+import { YardSelectionGuard } from "@/components/YardSelectionGuard";
 
 export default function Bookings() {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ export default function Bookings() {
     customer_name: "",
     total_containers: 1,
   });
-  const { user, currentYardId, isSuperAdmin } = useAuth();
+  const { user, currentYardId, isSuperAdmin, selectedYardId } = useAuth();
   const { nameOf: yardName } = useYards();
   const { toast } = useToast();
 
@@ -180,7 +181,9 @@ export default function Bookings() {
         />
       </div>
 
-      {showCreateForm && (
+      {showCreateForm && isSuperAdmin() && !selectedYardId ? (
+        <YardSelectionGuard description='You&rsquo;re viewing "All yards." Creating a booking needs one specific yard selected — pick one:' />
+      ) : showCreateForm && (
         <Card>
           <CardHeader>
             <CardTitle>Create New Booking</CardTitle>
