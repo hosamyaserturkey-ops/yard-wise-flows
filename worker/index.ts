@@ -37,7 +37,10 @@ export interface Env {
 }
 
 const ALLOWED_UPLOAD_ROLES = ["inspector", "admin", "super_admin"] as const;
-const ALLOWED_VIEW_ROLES = ["inspector", "admin", "super_admin"] as const;
+// Viewing is wider than uploading: any yard staff (including plain
+// operators) may need to look at an inspection photo, matching the
+// inspector_checks RLS SELECT policy (any non-line-rep account in the yard).
+const ALLOWED_VIEW_ROLES = ["inspector", "admin", "super_admin", "user"] as const;
 
 async function authorize(
   req: Request,

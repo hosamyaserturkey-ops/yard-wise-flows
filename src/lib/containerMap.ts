@@ -9,6 +9,7 @@ export interface VisitJoinRow {
   id: string;
   container_id: string;
   yard_id: string;
+  ticket_number: number;
   gate_in_time: string;
   gate_out_time: string | null;
   status: string;
@@ -43,6 +44,7 @@ export function mapVisit(v: VisitJoinRow): Container {
   return {
     id: v.id,
     containerId: master.id ?? v.container_id,
+    ticketNumber: v.ticket_number,
     containerNumber: master.container_number,
     containerType: master.container_type,
     shippingLine: master.shipping_line as ShippingLine,

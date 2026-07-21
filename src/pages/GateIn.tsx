@@ -388,6 +388,7 @@ const GateIn = () => {
     const printed = printGateInReceipt(
       {
         id: visit.id,
+        ticket_number: visit.ticket_number,
         container_number: containerNumber,
         container_type: formData.containerType,
         shipping_line: formData.shippingLine,
