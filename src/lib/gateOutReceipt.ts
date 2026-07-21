@@ -59,48 +59,48 @@ export const printGateOutReceipt = (
   <title>Gate-Out Ticket — ${containerNumberSafe}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #1e293b; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #F3F4F6; color: #1e293b; }
     .page { max-width: 780px; margin: 24px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,.12); }
 
-    .header { background: #134e4a; color: #fff; padding: 24px 32px 28px; }
+    .header { background: #D97706; color: #fff; padding: 24px 32px 28px; }
     .header-inner { display: flex; align-items: center; justify-content: space-between; }
     .logo-box { background: #fff; border-radius: 8px; padding: 8px 16px; min-width: 100px; min-height: 52px; display: flex; align-items: center; justify-content: center; }
-    .logo-text { color: #134e4a; font-weight: 800; font-size: 1.1rem; letter-spacing: 1px; }
+    .logo-text { color: #D97706; font-weight: 800; font-size: 1.1rem; letter-spacing: 1px; }
     .header-center { text-align: center; flex: 1; padding: 0 24px; }
     .ticket-title { font-size: 1.7rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
-    .ticket-title-ar { font-size: 0.9rem; color: #99f6e4; margin-top: 2px; font-family: 'Tahoma', Arial, sans-serif; direction: rtl; }
+    .ticket-title-ar { font-size: 0.9rem; color: rgba(255,255,255,.75); margin-top: 2px; font-family: 'Tahoma', Arial, sans-serif; direction: rtl; }
     .yard-name { font-size: 1.1rem; font-weight: 700; margin-top: 4px; letter-spacing: 1px; }
-    .header-meta { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 10px; font-size: 0.85rem; color: #ccfbf1; }
+    .header-meta { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 10px; font-size: 0.85rem; color: rgba(255,255,255,.85); }
     .ticket-num-box { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); border-radius: 8px; padding: 4px 14px; font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; text-align: center; }
     .sl-box { background: #fff; border-radius: 8px; padding: 8px 16px; min-width: 100px; min-height: 52px; display: flex; align-items: center; justify-content: center; }
-    .sl-badge { background: #134e4a; color: #fff; border-radius: 6px; padding: 6px 14px; font-size: 1.1rem; font-weight: 800; letter-spacing: 2px; }
+    .sl-badge { background: #374151; color: #fff; border-radius: 6px; padding: 6px 14px; font-size: 1.1rem; font-weight: 800; letter-spacing: 2px; }
     .right-col { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 
     .body { padding: 0 32px 24px; }
     .section { border-bottom: 1px solid #e2e8f0; padding: 20px 0; }
     .section:last-of-type { border-bottom: none; }
-    .section-header { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #64748b; margin-bottom: 16px; }
+    .section-header { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #374151; margin-bottom: 16px; }
     .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 32px; }
     .field-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #94a3b8; margin-bottom: 3px; }
     .field-value { font-size: 0.95rem; font-weight: 700; color: #1e293b; }
-    .field-value.mono { font-family: 'Courier New', monospace; font-size: 1.05rem; color: #134e4a; letter-spacing: 1px; }
+    .field-value.mono { font-family: 'Courier New', monospace; font-size: 1.05rem; color: #D97706; letter-spacing: 1px; }
     .field-wide { grid-column: span 2; }
 
-    .fees-card { background: #ecfeff; border: 1px solid #67e8f9; border-radius: 10px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; }
-    .fees-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #0e7490; }
-    .fees-ar { font-size: 0.75rem; color: #22d3ee; direction: rtl; font-family: 'Tahoma', Arial, sans-serif; margin-top: 2px; }
-    .fees-amount { font-size: 2rem; font-weight: 800; color: #0e7490; margin-top: 8px; }
+    .fees-card { background: #F3F4F6; border: 1px solid #D97706; border-radius: 10px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; }
+    .fees-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #D97706; }
+    .fees-ar { font-size: 0.75rem; color: #B45309; direction: rtl; font-family: 'Tahoma', Arial, sans-serif; margin-top: 2px; }
+    .fees-amount { font-size: 2rem; font-weight: 800; color: #D97706; margin-top: 8px; }
     .fees-currency { font-size: 1rem; font-weight: 600; }
 
     .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; padding: 24px 32px 20px; border-top: 1px solid #e2e8f0; }
     .sig { text-align: center; }
     .sig-line { border-top: 1.5px solid #334155; padding-top: 6px; margin-bottom: 4px; }
-    .sig-name { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #134e4a; }
+    .sig-name { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #374151; }
     .sig-name-ar { font-size: 0.72rem; color: #94a3b8; direction: rtl; font-family: 'Tahoma', Arial, sans-serif; margin-top: 2px; }
     .sig-value { font-size: 0.85rem; font-weight: 600; color: #334155; margin-top: 3px; }
 
-    .footer-bar { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 10px 32px; display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; color: #94a3b8; }
-    .footer-brand { font-weight: 700; color: #475569; }
+    .footer-bar { background: #F3F4F6; border-top: 1px solid #e2e8f0; padding: 10px 32px; display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; color: #94a3b8; }
+    .footer-brand { font-weight: 700; color: #374151; }
 
     /* ── Print: compact everything so the ticket always fits one A4 page ── */
     @page { size: A4 portrait; margin: 8mm; }
@@ -208,7 +208,7 @@ export const printGateOutReceipt = (
           <div class="fees-amount">${feeStr} <span class="fees-currency">JOD</span></div>
         </div>
         <div>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0e7490" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M9 9h4.5a1.5 1.5 0 0 1 0 3H9m0 0h5a1.5 1.5 0 0 1 0 3H9"/></svg>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M9 9h4.5a1.5 1.5 0 0 1 0 3H9m0 0h5a1.5 1.5 0 0 1 0 3H9"/></svg>
         </div>
       </div>
     </div>
