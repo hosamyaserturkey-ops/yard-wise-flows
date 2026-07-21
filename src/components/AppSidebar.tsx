@@ -38,6 +38,7 @@ const ADMIN_NAV = [
 const SUPER_NAV = [
   { href: "/",           label: "Dashboard",  icon: BarChart3    },
   { href: "/reports",    label: "Reports",    icon: FileText     },
+  { href: "/photos",     label: "Photos",     icon: Camera       },
   { href: "/port-data",  label: "Port Data",  icon: Anchor       },
   { href: "/activity",   label: "Activity",   icon: Activity     },
   { href: "/admin/yards",label: "Yards",      icon: Building2    },
@@ -46,6 +47,7 @@ const SUPER_NAV = [
 
 const INSPECTOR_ONLY = [
   { href: "/inspector",  label: "Inspect",    icon: ClipboardCheck },
+  { href: "/photos",     label: "Photos",     icon: Camera       },
 ];
 
 const LINE_REP_NAV = [

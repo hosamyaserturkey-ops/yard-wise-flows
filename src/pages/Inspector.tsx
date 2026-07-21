@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 
 type Grade = "A" | "B" | "C" | "D";
 type Decision = "approved" | "rejected";
@@ -34,6 +35,9 @@ const Inspector = () => {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState<{ decision: Decision; grade: Grade } | null>(null);
+  // Holds the just-completed result while the gate-motion animation plays;
+  // `submitted` (the static result screen) is revealed once it finishes.
+  const [pendingResult, setPendingResult] = useState<{ decision: Decision; grade: Grade } | null>(null);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -130,7 +134,9 @@ const Inspector = () => {
         yard_id: yardId,
       });
       if (error) throw error;
-      setSubmitted({ decision, grade });
+      // Play the gate-motion animation first; it reveals the static result
+      // screen (setSubmitted) itself once it finishes.
+      setPendingResult({ decision, grade });
     } catch (err) {
       console.error(err);
       toast({ title: "Submission failed", description: "Please try again.", variant: "destructive" });
@@ -147,7 +153,24 @@ const Inspector = () => {
     setNotes("");
     setStep(1);
     setSubmitted(null);
+    setPendingResult(null);
   };
+
+  if (pendingResult) {
+    const approved = pendingResult.decision === "approved";
+    return (
+      <GateMotionOverlay
+        direction={approved ? "in" : "out"}
+        tone={approved ? "default" : "destructive"}
+        label={approved ? "Approved" : "Rejected"}
+        containerNumber={containerNumber.toUpperCase()}
+        onDone={() => {
+          setSubmitted(pendingResult);
+          setPendingResult(null);
+        }}
+      />
+    );
+  }
 
   if (submitted) {
     const approved = submitted.decision === "approved";
