@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Container, CheckCircle2 } from "lucide-react";
+import { Container, CheckCircle2, XCircle } from "lucide-react";
 
 /**
  * A brief celebratory overlay that animates a container driving in through the
@@ -11,10 +11,17 @@ export const GateMotionOverlay = ({
   direction,
   containerNumber,
   onDone,
+  label,
+  tone = "default",
 }: {
   direction: "in" | "out";
   containerNumber: string;
   onDone: () => void;
+  /** Overrides the default "Gated In" / "Gated Out" caption — e.g. Inspector
+   *  reuses this same motion for "Approved" / "Rejected". */
+  label?: string;
+  /** "destructive" swaps the accent to red, for a rejected/turned-away case. */
+  tone?: "default" | "destructive";
 }) => {
   useEffect(() => {
     const t = setTimeout(onDone, 1600);
@@ -22,6 +29,7 @@ export const GateMotionOverlay = ({
   }, [onDone]);
 
   const isIn = direction === "in";
+  const isDestructive = tone === "destructive";
 
   return (
     <div
@@ -46,7 +54,7 @@ export const GateMotionOverlay = ({
           >
             <div
               className={`flex h-14 w-16 items-center justify-center rounded-lg text-white shadow-lg ${
-                isIn ? "bg-maritime" : "bg-muted-foreground"
+                isDestructive ? "bg-destructive" : isIn ? "bg-maritime" : "bg-muted-foreground"
               }`}
             >
               <Container className="h-8 w-8" />
@@ -55,11 +63,13 @@ export const GateMotionOverlay = ({
         </div>
 
         <div className="motion-safe:animate-pop-in">
-          <CheckCircle2
-            className={`mx-auto h-8 w-8 ${isIn ? "text-maritime" : "text-success"}`}
-          />
+          {isDestructive ? (
+            <XCircle className="mx-auto h-8 w-8 text-destructive" />
+          ) : (
+            <CheckCircle2 className={`mx-auto h-8 w-8 ${isIn ? "text-maritime" : "text-success"}`} />
+          )}
           <p className="mt-2 text-lg font-bold text-foreground">
-            {isIn ? "Gated In" : "Gated Out"}
+            {label ?? (isIn ? "Gated In" : "Gated Out")}
           </p>
           <p className="font-mono text-sm text-muted-foreground">{containerNumber}</p>
         </div>

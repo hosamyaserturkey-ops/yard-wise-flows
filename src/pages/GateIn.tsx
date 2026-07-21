@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Container, AlertTriangle } from "lucide-react";
+import { Container, AlertTriangle, Building2 } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { GateInData } from "@/types/container";
 import type { DemurragePaymentData, PortLookupData } from "@/types/gateIn";
@@ -17,6 +17,7 @@ import DemurrageCollectionDialog, { getServiceFeeConfig } from "@/components/Dem
 import { logActivity } from "@/lib/activityLog";
 import { printGateInReceipt } from "@/lib/gateInReceipt";
 import { GateMotionOverlay } from "@/components/GateMotionOverlay";
+import { useYards } from "@/hooks/useYards";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,7 +49,8 @@ const EMPTY_FORM: GateInData = {
 };
 
 const GateIn = () => {
-  const { user, currentYardId, profile } = useAuth();
+  const { user, currentYardId, profile, isSuperAdmin, selectedYardId, setSelectedYardId } = useAuth();
+  const { yards } = useYards();
   const { toast } = useToast();
   const [formData, setFormData] = useState<GateInData>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -416,6 +418,29 @@ const GateIn = () => {
       <div className="max-w-2xl mx-auto space-y-6">
       <PageHeader icon={Container} title="Gate In Container" subtitle="Record container arrivals and collect demurrage" />
 
+      {isSuperAdmin() && !selectedYardId ? (
+        <Alert className="border-warning/40 bg-warning/10">
+          <Building2 className="h-4 w-4" />
+          <AlertTitle>Select a yard to gate in containers</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              You're viewing "All yards." Gate-in (and the approved-inspection
+              queue below) needs one specific yard selected — pick one:
+            </p>
+            <Select value={selectedYardId ?? undefined} onValueChange={(v) => setSelectedYardId(v)}>
+              <SelectTrigger className="w-full max-w-xs bg-background">
+                <SelectValue placeholder="Choose a yard…" />
+              </SelectTrigger>
+              <SelectContent>
+                {yards.map((y) => (
+                  <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <>
       <PendingGateInsCard
         items={pendingGateIns}
         onSelect={(containerNumber) =>
@@ -741,6 +766,8 @@ const GateIn = () => {
           </form>
         </CardContent>
       </Card>
+        </>
+      )}
       </div>
 
       <DemurrageCollectionDialog
