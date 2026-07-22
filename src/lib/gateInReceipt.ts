@@ -14,14 +14,8 @@ export interface ReceiptProfile {
   username?: string | null;
 }
 
-export const ISO_DESCRIPTIONS: Record<string, string> = {
-  "20FT": "20FT — 20ft Standard dry container",
-  "40FT": "40FT — 40ft Standard dry container",
-  "40HC": "40HC — 40ft High Cube dry container",
-  "45FT": "45FT — 45ft High Cube dry container",
-  "20FR": "20FR — 20ft Reefer container",
-  "40FR": "40FR — 40ft Reefer container",
-};
+// Re-exported so receipt callers (and gateOutReceipt) keep importing it here.
+export { ISO_DESCRIPTIONS } from "@/lib/containerTypes";
 
 /** Brand palette shared by both ticket types. */
 export const BLUE = "#1E50A8";

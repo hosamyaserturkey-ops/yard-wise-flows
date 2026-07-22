@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { FileText, Download, Calendar, Search } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
+import { CONTAINER_TYPES } from "@/lib/containerTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
@@ -282,10 +283,9 @@ const Reports = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="20FT">20FT</SelectItem>
-                  <SelectItem value="40FT">40FT</SelectItem>
-                  <SelectItem value="40HC">40HC</SelectItem>
-                  <SelectItem value="45FT">45FT</SelectItem>
+                  {CONTAINER_TYPES.map((t) => (
+                    <SelectItem key={t.code} value={t.code}>{t.code}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
