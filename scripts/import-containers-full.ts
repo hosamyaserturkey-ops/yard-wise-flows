@@ -101,12 +101,13 @@ const parseDate = (dateStr: string): Date => {
 };
 
 const mapContainerType = (size: string): string => {
-  if (size.includes('20')) return '20FT';
   if (size.includes('40 HQ') || size.includes('40HQ')) return '40HC';
-  if (size.includes('40 OT') || size.includes('40OT')) return '40FT';
-  if (size.includes('40FL')) return '40FT';
-  if (size.includes('40') || size.includes('45')) return '40FT';
-  return '20FT'; // Default
+  if (size.includes('40 OT') || size.includes('40OT')) return '40OT';
+  if (size.includes('40FL') || size.includes('40 FR')) return '40FR';
+  if (size.includes('45')) return '45HC';
+  if (size.includes('20')) return '20GP';
+  if (size.includes('40')) return '40GP';
+  return '20GP'; // Default
 };
 
 const mapStatus = (status: string): 'in-yard' | 'out' => {

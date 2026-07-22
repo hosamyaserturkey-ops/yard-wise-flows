@@ -20,6 +20,7 @@ import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 import { useYards } from "@/hooks/useYards";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
+import { CONTAINER_TYPES } from "@/lib/containerTypes";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useContainerLookup } from "@/hooks/useContainerLookup";
 import { usePendingGateIns } from "@/hooks/usePendingGateIns";
@@ -493,12 +494,9 @@ const GateIn = () => {
                     <SelectValue placeholder="Select container type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="20FT">20FT Standard</SelectItem>
-                    <SelectItem value="40FT">40FT Standard</SelectItem>
-                    <SelectItem value="40HC">40FT High Cube</SelectItem>
-                    <SelectItem value="45FT">45FT High Cube</SelectItem>
-                    <SelectItem value="20FR">20FT Reefer</SelectItem>
-                    <SelectItem value="40FR">40FT Reefer</SelectItem>
+                    {CONTAINER_TYPES.map((t) => (
+                      <SelectItem key={t.code} value={t.code}>{t.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

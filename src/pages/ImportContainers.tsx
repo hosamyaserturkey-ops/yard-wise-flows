@@ -86,7 +86,7 @@ const ImportContainers = () => {
             <h3 className="font-semibold">Data Mapping:</h3>
             <ul className="text-sm text-muted-foreground space-y-1">
               <li>• Container numbers will be imported as-is</li>
-              <li>• Container sizes will be mapped to standard types (20FT, 40FT, 40HC)</li>
+              <li>• Container sizes will be mapped to standard ISO types (20GP, 40GP, 40HC, 45HC)</li>
               <li>• Status will be mapped to "in-yard" or "out"</li>
               <li>• Shipping lines will be mapped to SLD or SLG</li>
               <li>• Fees will be calculated from notes when available</li>

@@ -35,6 +35,18 @@ describe("gateInSchema", () => {
     expect(gateInSchema.safeParse({ ...validGateIn, containerType: "50FT" }).success).toBe(false);
   });
 
+  it("accepts the full set of ISO container types", () => {
+    for (const code of ["20GP", "40GP", "45HC", "20RF", "40RF", "40RH", "20FR", "40FR", "20OT", "40OT", "20TK", "40TK"]) {
+      expect(gateInSchema.safeParse({ ...validGateIn, containerType: code }).success).toBe(true);
+    }
+  });
+
+  it("still accepts legacy container-type codes on existing records", () => {
+    for (const code of ["20FT", "40FT", "45FT"]) {
+      expect(gateInSchema.safeParse({ ...validGateIn, containerType: code }).success).toBe(true);
+    }
+  });
+
   it("bounds free days to 0-365", () => {
     expect(gateInSchema.safeParse({ ...validGateIn, freeDays: "365" }).success).toBe(true);
     expect(gateInSchema.safeParse({ ...validGateIn, freeDays: "366" }).success).toBe(false);

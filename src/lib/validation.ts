@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ALL_ACCEPTED_TYPE_CODES } from '@/lib/containerTypes';
 
 // ISO 6346 layout: a 4-letter owner/category prefix followed by a 7-digit
 // serial (the 7th digit is the check digit) — e.g. MSKU1234567.
@@ -10,7 +11,7 @@ export const gateInSchema = z.object({
   containerNumber: z.string()
     .min(1, 'Container number is required')
     .regex(CONTAINER_NUMBER_REGEX, CONTAINER_NUMBER_MESSAGE),
-  containerType: z.enum(['20FT', '40FT', '40HC', '45FT', '20FR', '40FR'], {
+  containerType: z.enum(ALL_ACCEPTED_TYPE_CODES as [string, ...string[]], {
     errorMap: () => ({ message: 'Please select a container type' }),
   }),
   // Shipping line is validated at runtime against the shipping_lines table.
