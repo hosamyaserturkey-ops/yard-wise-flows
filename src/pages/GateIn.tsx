@@ -50,7 +50,7 @@ const EMPTY_FORM: GateInData = {
 };
 
 const GateIn = () => {
-  const { user, currentYardId, profile, isSuperAdmin, selectedYardId, setSelectedYardId } = useAuth();
+  const { user, currentYardId, profile, isAdmin, isSuperAdmin, selectedYardId, setSelectedYardId } = useAuth();
   const { yards } = useYards();
   const { toast } = useToast();
   const [formData, setFormData] = useState<GateInData>(EMPTY_FORM);
@@ -158,7 +158,14 @@ const GateIn = () => {
   // an operator can no longer type an uninspected container straight into
   // this form and complete the gate-in. Only "approved" clears the gate.
   const isInspectionApproved = inspectionStatus?.status === "approved";
-  const inspectionBlocksGateIn = lookupDone && !isInspectionApproved;
+  // Yard/super admins are exempt from the inspection gate (matching the DB
+  // container_visits_insert policy) — their manual path is the intended
+  // override for corrections and backfills. Operators still require approval.
+  const canOverrideInspection = isAdmin() || isSuperAdmin();
+  const inspectionBlocksGateIn = lookupDone && !isInspectionApproved && !canOverrideInspection;
+  // True when an admin is proceeding without a fresh approved inspection.
+  const inspectionAdminOverride =
+    lookupDone && !isInspectionApproved && canOverrideInspection;
 
   // Port data is "complete enough" to gate in as long as arrival date is set and not in the future.
   const portDataComplete =
@@ -679,16 +686,23 @@ const GateIn = () => {
                 <div className={`mt-4 p-3 rounded-md border text-sm ${
                   isInspectionApproved
                     ? "bg-green-50 border-green-300 text-green-700"
-                    : inspectionStatus?.status === "rejected"
-                      ? "bg-red-50 border-red-300 text-red-700"
-                      : inspectionStatus?.status === "pending"
-                        ? "bg-red-50 border-red-300 text-red-700"
-                        : "bg-red-50 border-red-300 text-red-700"
+                    : inspectionAdminOverride
+                      ? "bg-amber-50 border-amber-300 text-amber-800"
+                      : "bg-red-50 border-red-300 text-red-700"
                 }`}>
-                  {!inspectionStatus && "❌ No inspection on file for this trip — this container must be inspected and approved before it can be gated in."}
                   {isInspectionApproved && `✅ Inspection Approved — Grade ${inspectionStatus.grade}`}
-                  {inspectionStatus?.status === "pending"  && "❌ Inspection Pending — waiting on the inspector's decision before this can be gated in."}
-                  {inspectionStatus?.status === "rejected" && "❌ Inspection Rejected — this container cannot be gated in."}
+
+                  {!isInspectionApproved && !inspectionStatus && (canOverrideInspection
+                    ? "⚠️ Admin override — no inspection on file for this trip. You can gate in without a fresh inspection."
+                    : "❌ No inspection for this trip. If this container was previously gated out, ask the inspector to re-inspect it (Inspector app → enter the container number) before gate-in.")}
+
+                  {!isInspectionApproved && inspectionStatus?.status === "pending" && (canOverrideInspection
+                    ? "⚠️ Admin override — inspection still pending. You can gate in without a final decision."
+                    : "❌ Inspection Pending — waiting on the inspector's decision before this can be gated in.")}
+
+                  {!isInspectionApproved && inspectionStatus?.status === "rejected" && (canOverrideInspection
+                    ? "⚠️ Admin override — this container's inspection was REJECTED. Gating it in anyway."
+                    : "❌ Inspection Rejected — this container cannot be gated in.")}
                 </div>
               )}
 
@@ -756,16 +770,18 @@ const GateIn = () => {
                   ? "Processing..."
                   : alreadyInYard
                     ? "Already In Yard — Cannot Gate In"
-                    : isInspectionRejected
-                      ? "Inspection Rejected — Cannot Gate In"
-                      : inspectionBlocksGateIn
-                        ? "Awaiting Approved Inspection"
-                        : hasDemurrageDue
-                          ? "Demurrage Due — Collect Payment First"
-                          : !formData.portArrivalDate
-                            ? "Enter Port Arrival Date"
-                            : portArrivalIsFuture
-                              ? "Invalid Port Arrival Date"
+                    : inspectionBlocksGateIn
+                      ? (isInspectionRejected
+                          ? "Inspection Rejected — Cannot Gate In"
+                          : "Awaiting Approved Inspection")
+                      : hasDemurrageDue
+                        ? "Demurrage Due — Collect Payment First"
+                        : !formData.portArrivalDate
+                          ? "Enter Port Arrival Date"
+                          : portArrivalIsFuture
+                            ? "Invalid Port Arrival Date"
+                            : inspectionAdminOverride
+                              ? "Gate In (Admin Override) & Print"
                               : "Gate In & Print Receipt"}
               </Button>
             </div>
