@@ -8,7 +8,7 @@ export const SHIPPING_LINES = [
   "SFT",
   "7Seas",
   "WOM",
-  "MDK",
+  "EEL",
   "INX",
   "ICR",
   "EMK",
