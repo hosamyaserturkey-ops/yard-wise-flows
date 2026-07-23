@@ -23,6 +23,11 @@ export const resolveSignedUrl = async (
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) return null;
+    // Guard against the request being answered by the SPA fallback (index.html)
+    // instead of the Worker — rendering that as an <img> would show a broken
+    // image. Only accept an actual image response.
+    const contentType = res.headers.get("Content-Type") ?? "";
+    if (!contentType.startsWith("image/")) return null;
     const blob = await res.blob();
     return URL.createObjectURL(blob);
   }
