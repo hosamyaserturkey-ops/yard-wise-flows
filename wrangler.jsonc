@@ -13,7 +13,13 @@
     "binding": "ASSETS",
     // Serve index.html for unknown paths so client-side routes like /gate-in
     // and /photos work on refresh / deep link (the app uses BrowserRouter).
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    // Without this, the SPA fallback above answers GET /api/* with index.html
+    // BEFORE the Worker runs, so GET /api/photos/view returned the app HTML
+    // instead of the image (uploads use POST, which assets never serve, so
+    // they were unaffected). Run the Worker first for API paths; everything
+    // else still falls through to static assets + the SPA fallback.
+    "run_worker_first": ["/api/*"]
   },
   "r2_buckets": [
     {
