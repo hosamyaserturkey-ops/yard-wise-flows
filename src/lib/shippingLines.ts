@@ -9,13 +9,8 @@ export const SHIPPING_LINES = [
   "7Seas",
   "WOM",
   "EEL",
-  "INX",
-  "ICR",
-  "EMK",
-  "BLT",
-  "AXL",
-  "XSL",
-  "TRL",
+  "BaBa",
+  "SaM",
 ] as const;
 
 export type ShippingLine = (typeof SHIPPING_LINES)[number] | string;
