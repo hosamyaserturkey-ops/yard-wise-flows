@@ -72,6 +72,9 @@ const GateIn = () => {
         freeDays: String(data.free_days),
         dailyDemurrage: String(data.daily_demurrage),
         shippingLine: data.shipping_line as ShippingLine,
+        // Size stored with the port data drives the size-aware demurrage; fill
+        // it so the operator doesn't re-pick (and can't contradict) it.
+        ...(data.container_type ? { containerType: data.container_type } : {}),
       }));
     } else {
       setFormData(prev => ({
@@ -167,11 +170,14 @@ const GateIn = () => {
   const inspectionAdminOverride =
     lookupDone && !isInspectionApproved && canOverrideInspection;
 
-  // Port data is "complete enough" to gate in as long as arrival date is set and not in the future.
+  // Lines with no tiered demurrage formula (e.g. 7Seas, EEL, BaBa, SaM) aren't
+  // charged, so they need no port data to gate in. Formula lines still require a
+  // valid, non-future arrival date to anchor the demurrage clock.
+  const lineChargesDemurrage = hasDemurrageRules(formData.shippingLine);
   const portDataComplete =
-    !!formData.portArrivalDate && !portArrivalIsFuture;
+    !lineChargesDemurrage || (!!formData.portArrivalDate && !portArrivalIsFuture);
 
-  const showNoPortDataWarning = lookupDone && !portDataFound;
+  const showNoPortDataWarning = lookupDone && !portDataFound && lineChargesDemurrage;
 
   const clearForm = () => {
     setFormData(EMPTY_FORM);
@@ -208,7 +214,7 @@ const GateIn = () => {
       return;
     }
 
-    if (!formData.portArrivalDate) {
+    if (hasDemurrageRules(formData.shippingLine) && !formData.portArrivalDate) {
       toast({
         title: "Port Arrival Date Required",
         description: "Enter the port arrival date before gating in.",

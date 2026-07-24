@@ -38,4 +38,5 @@ export interface PortLookupData {
   free_days: number;
   daily_demurrage: number;
   shipping_line: string;
+  container_type: string | null;
 }

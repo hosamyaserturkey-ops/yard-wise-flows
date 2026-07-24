@@ -53,7 +53,7 @@ export function useContainerLookup(
       const yardId = currentYardIdRef.current();
       let query = supabase
         .from("container_port_data")
-        .select("port_arrival_date, free_days, daily_demurrage, shipping_line")
+        .select("port_arrival_date, free_days, daily_demurrage, shipping_line, container_type")
         .eq("container_number", containerNum);
       if (yardId) query = query.eq("yard_id", yardId);
       const { data } = await query
