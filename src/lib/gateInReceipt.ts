@@ -14,8 +14,13 @@ export interface ReceiptProfile {
   username?: string | null;
 }
 
-// Re-exported so receipt callers (and gateOutReceipt) keep importing it here.
-export { ISO_DESCRIPTIONS } from "@/lib/containerTypes";
+// Imported for local use below AND re-exported so receipt callers (and
+// gateOutReceipt) keep importing it from here. A bare `export … from` is only a
+// re-export and does NOT create a local binding — referencing it in this module
+// then throws `ISO_DESCRIPTIONS is not defined`, which aborted the receipt after
+// the window opened and left a blank page.
+import { ISO_DESCRIPTIONS } from "@/lib/containerTypes";
+export { ISO_DESCRIPTIONS };
 
 /** Brand palette shared by both ticket types. */
 export const BLUE = "#1E50A8";
@@ -166,13 +171,12 @@ export const printGateInReceipt = (
   inspection: InspectionStatus | null | undefined,
   profile: ReceiptProfile | null | undefined,
 ): boolean => {
-  const receiptWindow = window.open("", "_blank");
-  if (!receiptWindow) return false;
-
   const gateInDateRaw = new Date(containerData.gate_in_time);
   const dateStr = escapeHtml(gateInDateRaw.toLocaleDateString("en-GB"));
   const timeStr = escapeHtml(gateInDateRaw.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
-  const ticketNum = String(containerData.ticket_number).padStart(6, "0");
+  const ticketNum = containerData.ticket_number != null
+    ? String(containerData.ticket_number).padStart(6, "0")
+    : "—";
   const yardNameRaw = profile?.yard_name || "YARD";
   const yardName = escapeHtml(yardNameRaw);
   const supervisorName = escapeHtml(profile?.full_name || profile?.username || "—");
@@ -214,6 +218,10 @@ export const printGateInReceipt = (
       </div>
     `;
 
+  // Open the window only once the receipt HTML above is fully built, so a
+  // build-time error can never leave a blank popup on screen.
+  const receiptWindow = window.open("", "_blank");
+  if (!receiptWindow) return false;
   receiptWindow.document.write(`<!DOCTYPE html>
 <html lang="en">
 <head>
