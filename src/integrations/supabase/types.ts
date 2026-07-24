@@ -111,6 +111,7 @@ export type Database = {
       container_port_data: {
         Row: {
           container_number: string
+          container_type: string | null
           created_at: string
           daily_demurrage: number
           free_days: number
@@ -123,6 +124,7 @@ export type Database = {
         }
         Insert: {
           container_number: string
+          container_type?: string | null
           created_at?: string
           daily_demurrage: number
           free_days: number
@@ -135,6 +137,7 @@ export type Database = {
         }
         Update: {
           container_number?: string
+          container_type?: string | null
           created_at?: string
           daily_demurrage?: number
           free_days?: number
