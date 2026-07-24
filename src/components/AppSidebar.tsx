@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import {
-  BarChart3, Container, Ship, FileText, Calendar, Upload, Anchor,
+  BarChart3, Container, Ship, FileText, Calendar, Anchor,
   Calculator, Users, Building2, ClipboardCheck, LogOut, ShieldCheck, Crown,
   MapPin, Camera, Activity,
 } from "lucide-react";
@@ -27,7 +27,6 @@ const OPS_NAV = [
 ];
 
 const ADMIN_NAV = [
-  { href: "/import",     label: "Import",     icon: Upload       },
   { href: "/port-data",  label: "Port Data",  icon: Anchor       },
   { href: "/accounting", label: "Accounting", icon: Calculator   },
   { href: "/activity",   label: "Activity",   icon: Activity     },

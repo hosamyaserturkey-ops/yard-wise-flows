@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  BarChart3, Container, Ship, FileText, Calendar, Upload, Anchor,
+  BarChart3, Container, Ship, FileText, Calendar, Anchor,
   Calculator, Users, Building2, ClipboardCheck, Search,
 } from "lucide-react";
 import {
@@ -26,7 +26,6 @@ const NAV_COMMANDS = [
   { label: "Gate Out",    href: "/gate-out",       icon: Ship         },
   { label: "Reports",     href: "/reports",        icon: FileText     },
   { label: "Bookings",    href: "/bookings",       icon: Calendar     },
-  { label: "Import",      href: "/import",         icon: Upload       },
   { label: "Port Data",   href: "/port-data",      icon: Anchor       },
   { label: "Accounting",  href: "/accounting",     icon: Calculator   },
   { label: "Users",       href: "/admin/users",    icon: Users        },
@@ -51,7 +50,7 @@ export function CommandPalette() {
   // Filter nav items by role
   const navItems = NAV_COMMANDS.filter((item) => {
     if (item.href === "/port-data" || item.href === "/admin/yards") return superAdmin;
-    if (["/import", "/accounting", "/admin/users"].includes(item.href)) return admin;
+    if (["/accounting", "/admin/users"].includes(item.href)) return admin;
     if (item.href === "/inspector") return admin || superAdmin || inspector;
     return !superAdmin && !inspector; // ops pages hidden from super/inspector
   });
