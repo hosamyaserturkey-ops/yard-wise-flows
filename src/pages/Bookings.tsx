@@ -27,7 +27,7 @@ export default function Bookings() {
     customer_name: "",
     total_containers: 1,
   });
-  const { user, currentYardId, isSuperAdmin, selectedYardId } = useAuth();
+  const { user, currentYardId, isAdmin, isSuperAdmin, selectedYardId } = useAuth();
   const { nameOf: yardName } = useYards();
   const { toast } = useToast();
 
@@ -339,7 +339,7 @@ export default function Bookings() {
                 )}
 
                 <div className="flex justify-end mt-4">
-                  {booking.status === 'active' && (
+                  {booking.status === 'active' && isAdmin() && (
                     <Button
                       variant="ghost"
                       size="sm"
