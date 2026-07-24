@@ -12,7 +12,6 @@ import Dashboard from "./pages/Dashboard";
 import GateIn from "./pages/GateIn";
 import GateOut from "./pages/GateOut";
 import Reports from "./pages/Reports";
-import ImportContainers from "./pages/ImportContainers";
 import Bookings from "./pages/Bookings";
 import BookingDetail from "./pages/BookingDetail";
 import PortDemurrageData from "./pages/PortDemurrageData";
@@ -56,11 +55,6 @@ const App = () => (
                 <Route path="reports" element={
                   <ProtectedRoute lineRepAllowed>
                     <Reports />
-                  </ProtectedRoute>
-                } />
-                <Route path="import" element={
-                  <ProtectedRoute adminOnly>
-                    <ImportContainers />
                   </ProtectedRoute>
                 } />
                 <Route path="bookings" element={
