@@ -16,6 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import { useYards } from "@/hooks/useYards";
 import { CONTAINER_NUMBER_REGEX, CONTAINER_NUMBER_MESSAGE } from "@/lib/validation";
+import { CONTAINER_TYPES } from "@/lib/containerTypes";
+import { DEMURRAGE_RULES, hasDemurrageRules, toDemurrageContainerType } from "@/lib/demurrage";
 import { PageHeader } from "@/components/PageHeader";
 
 type SpreadsheetRow = Record<string, unknown>;
@@ -144,9 +146,8 @@ const resolveDailyDemurrage = (row: SpreadsheetRow): number | null => {
 const portDataSchema = z.object({
   containerNumber: z.string().trim().min(1, "Container number is required").regex(CONTAINER_NUMBER_REGEX, CONTAINER_NUMBER_MESSAGE),
   shippingLine: z.enum(SHIPPING_LINES as unknown as [string, ...string[]]),
+  containerType: z.string().min(1, "Container size is required"),
   portArrivalDate: z.string().min(1, "Port arrival date is required"),
-  freeDays: z.coerce.number().int().min(0).max(365),
-  dailyDemurrage: z.coerce.number().min(0).max(99999),
 });
 
 const PortDemurrageData = () => {
@@ -180,10 +181,13 @@ const PortDemurrageData = () => {
   const [formData, setFormData] = useState({
     containerNumber: "",
     shippingLine: repLine ?? "SLD",
+    containerType: "",
     portArrivalDate: "",
-    freeDays: "7",
-    dailyDemurrage: "15",
   });
+  // The selected line's demurrage formula (null when the line isn't charged).
+  const selectedLineRule = hasDemurrageRules(formData.shippingLine)
+    ? DEMURRAGE_RULES[formData.shippingLine]
+    : null;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState<{ success: number; errors: string[] } | null>(null);
@@ -212,6 +216,14 @@ const PortDemurrageData = () => {
       toast({ title: "Validation Error", description: result.error.errors[0].message, variant: "destructive" });
       return;
     }
+    if (!hasDemurrageRules(result.data.shippingLine)) {
+      toast({
+        title: "No demurrage for this line",
+        description: `${result.data.shippingLine} isn't charged demurrage — no port data is needed. Gate the container in directly.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -221,12 +233,16 @@ const PortDemurrageData = () => {
         setIsSubmitting(false);
         return;
       }
+      // Free days come from the line's formula; the daily rate is derived per
+      // day-tier and size at charge time, so no flat daily rate is stored.
+      const freeDays = DEMURRAGE_RULES[result.data.shippingLine].freeDays;
       const rows = yardIds.map((yid) => ({
         container_number: result.data.containerNumber,
         shipping_line: result.data.shippingLine,
+        container_type: result.data.containerType,
         port_arrival_date: result.data.portArrivalDate,
-        free_days: result.data.freeDays,
-        daily_demurrage: result.data.dailyDemurrage,
+        free_days: freeDays,
+        daily_demurrage: 0, // dead column; the tiered formula sets the real rate
         last_source: "manual",
         yard_id: yid,
       }));
@@ -240,7 +256,7 @@ const PortDemurrageData = () => {
         description: `Port data saved for ${result.data.containerNumber}${yardIds.length > 1 ? ` across ${yardIds.length} yards` : ""}`,
       });
       queryClient.invalidateQueries({ queryKey: ["container_port_data"] });
-      setFormData({ containerNumber: "", shippingLine: repLine ?? "SLD", portArrivalDate: "", freeDays: "7", dailyDemurrage: "15" });
+      setFormData({ containerNumber: "", shippingLine: repLine ?? "SLD", containerType: "", portArrivalDate: "" });
     } catch (error: unknown) {
       toast({ title: "Error", description: getErrorMessage(error, "Failed to save port data"), variant: "destructive" });
     } finally {
@@ -277,6 +293,7 @@ const PortDemurrageData = () => {
       type ParsedRecord = {
         container_number: string;
         shipping_line: string;
+        container_type: string | null;
         port_arrival_date: string;
         free_days: number;
         daily_demurrage: number | null;
@@ -326,6 +343,7 @@ const PortDemurrageData = () => {
           parsedByContainer.set(containerNumber, {
             container_number: containerNumber,
             shipping_line: shippingLine,
+            container_type: resolveContainerType(row),
             port_arrival_date: portArrivalDate,
             free_days: Number.isNaN(freeDays) ? 7 : Math.max(0, freeDays),
             daily_demurrage: dailyDemurrage,
@@ -409,21 +427,48 @@ const PortDemurrageData = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="containerType">Container Size *</Label>
+                    <Select value={formData.containerType} onValueChange={(v) => setFormData({ ...formData, containerType: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select size" /></SelectTrigger>
+                      <SelectContent>
+                        {CONTAINER_TYPES.map((t) => (
+                          <SelectItem key={t.code} value={t.code}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
                     <Input id="portArrivalDate" type="date" value={formData.portArrivalDate} onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })} />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="freeDays">Free Days</Label>
-                    <Input id="freeDays" type="number" value={formData.freeDays} onChange={(e) => setFormData({ ...formData, freeDays: e.target.value })} />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="dailyDemurrage">Daily Demurrage Rate (JOD)</Label>
-                    <Input id="dailyDemurrage" type="number" step="0.01" value={formData.dailyDemurrage} onChange={(e) => setFormData({ ...formData, dailyDemurrage: e.target.value })} />
-                  </div>
                 </div>
+
+                {/* Demurrage is derived from the line's tiered formula (size-aware),
+                    not a manual rate — show what will apply, or that none does. */}
+                {selectedLineRule ? (
+                  <div className="rounded-lg border border-maritime/30 bg-maritime/5 p-3 text-sm">
+                    <div className="font-semibold text-maritime mb-1">
+                      {formData.shippingLine} demurrage · {selectedLineRule.freeDays} free days
+                    </div>
+                    <div className="text-muted-foreground space-y-0.5">
+                      {selectedLineRule.tiers.map((t, i) => {
+                        const size = formData.containerType ? toDemurrageContainerType(formData.containerType) : null;
+                        const rateText = size
+                          ? `$${size === "20FT" ? t.rate20 : t.rate40}/day`
+                          : `20ft $${t.rate20} · 40ft $${t.rate40} /day`;
+                        return <div key={i}>{t.label}: {rateText}</div>;
+                      })}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">Charged per day held, computed at gate-in.</div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+                    <strong>{formData.shippingLine}</strong> isn&rsquo;t charged demurrage — no port data is needed. Gate the container in directly.
+                  </div>
+                )}
                 <div className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setFormData({ containerNumber: "", shippingLine: repLine ?? "SLD", portArrivalDate: "", freeDays: "7", dailyDemurrage: "15" })}>Clear</Button>
-                  <Button type="submit" className="bg-maritime hover:bg-maritime/90" disabled={isSubmitting}>{isSubmitting ? "Saving..." : "Save Port Data"}</Button>
+                  <Button type="button" variant="outline" onClick={() => setFormData({ containerNumber: "", shippingLine: repLine ?? "SLD", containerType: "", portArrivalDate: "" })}>Clear</Button>
+                  <Button type="submit" className="bg-maritime hover:bg-maritime/90" disabled={isSubmitting || !selectedLineRule}>{isSubmitting ? "Saving..." : "Save Port Data"}</Button>
                 </div>
               </form>
             </CardContent>

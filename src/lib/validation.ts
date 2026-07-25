@@ -24,15 +24,12 @@ export const gateInSchema = z.object({
     .min(1, 'Truck number is required')
     .max(20, 'Truck number is too long')
     .regex(/^[A-Z0-9]+$/, 'Only uppercase letters and numbers allowed'),
-  portArrivalDate: z.string().min(1, 'Port arrival date is required'),
-  freeDays: z.string().min(1, 'Free days is required').refine(
-    (val) => { const n = parseInt(val); return !isNaN(n) && n >= 0 && n <= 365; },
-    'Free days must be between 0 and 365'
-  ),
-  dailyDemurrage: z.string().min(1, 'Daily demurrage rate is required').refine(
-    (val) => { const n = parseFloat(val); return !isNaN(n) && n >= 0; },
-    'Daily demurrage must be a positive number'
-  ),
+  // Port data is optional at the schema level: no-demurrage lines gate in
+  // without it. GateIn enforces a valid arrival date at runtime for lines that
+  // do charge demurrage (hasDemurrageRules).
+  portArrivalDate: z.string().optional(),
+  freeDays: z.string().optional(),
+  dailyDemurrage: z.string().optional(),
 });
 
 export const gateOutSchema = z.object({

@@ -47,17 +47,18 @@ describe("gateInSchema", () => {
     }
   });
 
-  it("bounds free days to 0-365", () => {
-    expect(gateInSchema.safeParse({ ...validGateIn, freeDays: "365" }).success).toBe(true);
-    expect(gateInSchema.safeParse({ ...validGateIn, freeDays: "366" }).success).toBe(false);
-    expect(gateInSchema.safeParse({ ...validGateIn, freeDays: "-1" }).success).toBe(false);
-    expect(gateInSchema.safeParse({ ...validGateIn, freeDays: "abc" }).success).toBe(false);
+  it("treats port arrival date as optional (no-demurrage lines gate in without it)", () => {
+    const base = { ...validGateIn };
+    delete (base as Record<string, unknown>).portArrivalDate;
+    expect(gateInSchema.safeParse(base).success).toBe(true);
+    expect(gateInSchema.safeParse({ ...validGateIn, portArrivalDate: "" }).success).toBe(true);
   });
 
-  it("rejects negative or non-numeric demurrage rates", () => {
-    expect(gateInSchema.safeParse({ ...validGateIn, dailyDemurrage: "-5" }).success).toBe(false);
-    expect(gateInSchema.safeParse({ ...validGateIn, dailyDemurrage: "abc" }).success).toBe(false);
-    expect(gateInSchema.safeParse({ ...validGateIn, dailyDemurrage: "0" }).success).toBe(true);
+  it("treats free days and daily demurrage as optional (formula-driven, not user-entered)", () => {
+    const base = { ...validGateIn };
+    delete (base as Record<string, unknown>).freeDays;
+    delete (base as Record<string, unknown>).dailyDemurrage;
+    expect(gateInSchema.safeParse(base).success).toBe(true);
   });
 });
 
