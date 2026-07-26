@@ -237,7 +237,7 @@ const UserManagement = () => {
                           <Crown className="h-3 w-3 mr-1" /> Admin
                         </Badge>
                       ) : r.role === "inspector" ? (
-                        <Badge variant="secondary" className="bg-blue-500/20 text-blue-600 border-blue-400/30">
+                        <Badge variant="secondary" className="bg-maritime/10 text-maritime border-maritime/30">
                           <ClipboardCheck className="h-3 w-3 mr-1" /> Inspector
                         </Badge>
                       ) : r.role === "line_rep" ? (

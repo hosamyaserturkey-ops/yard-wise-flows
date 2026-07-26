@@ -265,7 +265,7 @@ const GateOut = () => {
                       <div className="text-sm text-muted-foreground">
                         {container.driverName} • {container.truckNumber}
                       </div>
-                      <div className="text-sm text-blue-600 font-medium">
+                      <div className="text-sm text-maritime font-medium">
                         Booking: {container.bookingNumber}
                       </div>
                     </div>
