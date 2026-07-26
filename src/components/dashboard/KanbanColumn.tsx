@@ -79,7 +79,7 @@ export const KanbanColumn = ({
             No containers
           </div>
         ) : (
-          <div className="space-y-2 [perspective:1000px]">
+          <div className="space-y-2">
             {containers.map((c, i) => (
               <ContainerKanbanCard
                 key={c.id}
@@ -126,10 +126,10 @@ const ContainerKanbanCard = ({ container: c, demurrage, onClick, onReserve, inde
   return (
     <div
       className={`rounded-lg border border-l-4 ${borderColor} bg-card p-3 cursor-pointer
-        transition-all duration-200 ease-out will-change-transform
-        hover:shadow-[var(--shadow-elevated)]
+        transition-all duration-200 ease-out
+        hover:border-border hover:shadow-[var(--shadow-elevated)]
         motion-safe:animate-fade-up
-        motion-safe:hover:[transform:rotateX(4deg)_translateY(-3px)]`}
+        motion-safe:hover:-translate-y-0.5`}
       style={{ animationDelay: `${Math.min(index, 12) * 45}ms` }}
       onClick={onClick}
     >

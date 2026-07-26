@@ -40,10 +40,10 @@ const Layout = () => {
       <AppSidebar />
       <SidebarInset>
         {/* ── Top Bar ─────────────────────────────────── */}
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background/80 backdrop-blur-sm px-4 sticky top-0 z-10">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/85 backdrop-blur-md px-4 sticky top-0 z-10 md:px-6">
           <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="h-4" />
-          <span className="text-sm font-medium text-foreground">{pageLabel}</span>
+          <Separator orientation="vertical" className="h-5" />
+          <span className="text-sm font-semibold tracking-tight text-foreground">{pageLabel}</span>
           <div className="flex-1" />
           <YardSwitcher />
           <ToggleCommandHint />
