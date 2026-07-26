@@ -6,12 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, Calendar, Search } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FileText, Download, Calendar, Search, Container, Ship, Boxes, Coins, Wallet } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { CONTAINER_TYPES } from "@/lib/containerTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
+import { StatCard } from "@/components/dashboard/StatCard";
+import { StatusBadge } from "@/components/StatusBadge";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
@@ -301,48 +304,48 @@ const Reports = () => {
 
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-maritime">{filteredContainers.length}</div>
-            <div className="text-sm text-muted-foreground">Total Containers</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-success">
-              {filteredContainers.filter(c => c.status === 'in-yard').length}
-            </div>
-            <div className="text-sm text-muted-foreground">In Yard</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">
-              {filteredContainers.filter(c => c.status === 'reserved').length}
-            </div>
-            <div className="text-sm text-muted-foreground">Reserved</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-warning">
-              {filteredContainers.filter(c => c.status === 'out').length}
-            </div>
-            <div className="text-sm text-muted-foreground">Gated Out</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-container">{totalFees.toFixed(2)} JOD</div>
-            <div className="text-sm text-muted-foreground">Total Fees</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-success">{totalDemurrage.toFixed(2)} JOD</div>
-            <div className="text-sm text-muted-foreground">Demurrage Collected</div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Total Containers"
+          value={filteredContainers.length}
+          color="container"
+          icon={<Boxes className="h-5 w-5 text-container" />}
+          loading={loading}
+        />
+        <StatCard
+          label="In Yard"
+          value={filteredContainers.filter(c => c.status === 'in-yard').length}
+          color="maritime"
+          icon={<Container className="h-5 w-5 text-maritime" />}
+          loading={loading}
+        />
+        <StatCard
+          label="Reserved"
+          value={filteredContainers.filter(c => c.status === 'reserved').length}
+          color="warning"
+          icon={<Calendar className="h-5 w-5 text-warning" />}
+          loading={loading}
+        />
+        <StatCard
+          label="Gated Out"
+          value={filteredContainers.filter(c => c.status === 'out').length}
+          color="success"
+          icon={<Ship className="h-5 w-5 text-success" />}
+          loading={loading}
+        />
+        <StatCard
+          label="Total Fees"
+          value={`${totalFees.toFixed(2)} JOD`}
+          color="container"
+          icon={<Coins className="h-5 w-5 text-container" />}
+          loading={loading}
+        />
+        <StatCard
+          label="Demurrage Collected"
+          value={`${totalDemurrage.toFixed(2)} JOD`}
+          color="success"
+          icon={<Wallet className="h-5 w-5 text-success" />}
+          loading={loading}
+        />
       </div>
 
       {/* Data Table */}
@@ -368,7 +371,17 @@ const Reports = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredContainers.map((container) => (
+              {loading &&
+                Array.from({ length: 8 }).map((_, i) => (
+                  <TableRow key={`sk-${i}`}>
+                    {Array.from({ length: 11 }).map((__, j) => (
+                      <TableCell key={j}>
+                        <Skeleton className="h-4 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              {!loading && filteredContainers.map((container) => (
                 <TableRow
                   key={container.id}
                   className="cursor-pointer"
@@ -400,13 +413,7 @@ const Reports = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    {container.status === 'in-yard' ? (
-                      <Badge variant="default">In Yard</Badge>
-                    ) : container.status === 'reserved' ? (
-                      <Badge className="bg-blue-500/20 text-blue-600 border-blue-400/30">Reserved</Badge>
-                    ) : (
-                      <Badge variant="secondary">Out</Badge>
-                    )}
+                    <StatusBadge status={container.status} dot />
                   </TableCell>
                   <TableCell className="font-mono">
                     {container.bookingNumber || "-"}
@@ -427,9 +434,13 @@ const Reports = () => {
               ))}
             </TableBody>
           </Table>
-          {filteredContainers.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No containers found matching the current filters
+          {!loading && filteredContainers.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
+              <Search className="h-8 w-8 opacity-40" />
+              <p className="text-sm">No containers match the current filters</p>
+              <Button variant="outline" size="sm" onClick={clearFilters}>
+                Clear filters
+              </Button>
             </div>
           )}
         </CardContent>
