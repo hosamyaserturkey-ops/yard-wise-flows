@@ -44,6 +44,17 @@ All colors MUST be HSL.
     --success-green: 142 72% 34%;
     --warning-amber: 38 95% 50%;
 
+    /* Categorical chart palette — theme-aware series colors. Referenced as
+       hsl(var(--chart-N)) so charts adapt automatically to light/dark. */
+    --chart-1: 210 100% 42%;
+    --chart-2: 38 92% 48%;
+    --chart-3: 142 66% 38%;
+    --chart-4: 262 60% 55%;
+    --chart-5: 0 72% 55%;
+    --chart-6: 190 85% 40%;
+    --chart-7: 328 68% 55%;
+    --chart-8: 24 90% 50%;
+
     /* Gradients */
     --gradient-maritime: linear-gradient(135deg, hsl(210 100% 35%), hsl(195 100% 45%));
     --gradient-industrial: linear-gradient(180deg, hsl(215 15% 95%), hsl(210 20% 98%));
@@ -95,6 +106,17 @@ All colors MUST be HSL.
     --border: 213 30% 19%;
     --input: 213 30% 19%;
     --ring: 199 89% 55%;
+
+    /* Chart palette brightened / desaturated so series stay distinct and
+       legible on the navy dark surface. */
+    --chart-1: 205 90% 60%;
+    --chart-2: 38 92% 60%;
+    --chart-3: 142 60% 52%;
+    --chart-4: 262 70% 70%;
+    --chart-5: 0 75% 65%;
+    --chart-6: 190 80% 58%;
+    --chart-7: 328 70% 68%;
+    --chart-8: 24 90% 62%;
 
     /* Brand colors, brightened so they read on the navy surface. */
     --maritime-blue: 205 90% 58%;

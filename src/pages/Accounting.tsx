@@ -53,8 +53,8 @@ interface TransferRow {
 }
 
 const chartConfig: ChartConfig = {
-  collected: { label: "Collected (JOD)", color: "hsl(210 100% 35%)" },
-  yard: { label: "Yard Share (JOD)", color: "hsl(142 76% 36%)" },
+  collected: { label: "Collected (JOD)", color: "hsl(var(--chart-1))" },
+  yard: { label: "Yard Share (JOD)", color: "hsl(var(--chart-3))" },
 };
 
 const Accounting = () => {
@@ -259,8 +259,8 @@ const Accounting = () => {
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="collected" fill="hsl(210 100% 35%)" radius={[4, 4, 0, 0]} name="Total Collected" />
-                <Bar dataKey="yard" fill="hsl(142 76% 36%)" radius={[4, 4, 0, 0]} name="Yard Share" />
+                <Bar dataKey="collected" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} name="Total Collected" />
+                <Bar dataKey="yard" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} name="Yard Share" />
               </BarChart>
             </ChartContainer>
           )}

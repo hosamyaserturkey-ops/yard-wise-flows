@@ -38,17 +38,9 @@ import {
   Pie,
   Legend,
 } from "recharts";
+import { CHART_SERIES, chartColorAt } from "@/lib/chartColors";
 
-const LINE_COLORS = [
-  "#1a56db",
-  "#f59e0b",
-  "#10b981",
-  "#8b5cf6",
-  "#ef4444",
-  "#06b6d4",
-  "#ec4899",
-  "#6366f1",
-];
+const LINE_COLORS = CHART_SERIES;
 
 const Dashboard = () => {
   const { profile, currentYardId } = useAuth();
@@ -124,7 +116,7 @@ const Dashboard = () => {
   };
 
   const barChartConfig: ChartConfig = {
-    count: { label: "Gate-ins", color: "#1a56db" },
+    count: { label: "Gate-ins", color: chartColorAt(0) },
   };
 
   const pieChartConfig: ChartConfig = Object.fromEntries(
@@ -192,7 +184,7 @@ const Dashboard = () => {
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="count" name="Gate-ins" radius={[4, 4, 0, 0]} fill="#1a56db" />
+                    <Bar dataKey="count" name="Gate-ins" radius={[4, 4, 0, 0]} fill={chartColorAt(0)} />
                   </BarChart>
                 </ChartContainer>
               )}
@@ -357,11 +349,11 @@ const Dashboard = () => {
                 <Skeleton className="h-32 w-full" />
               ) : (
                 <ul className="space-y-2 text-sm">
-                  <AgingRow label="0–7 days" count={aging.fresh} tone="bg-green-500" />
-                  <AgingRow label="8–14 days" count={aging.week} tone="bg-blue-500" />
-                  <AgingRow label="15–21 days" count={aging.twoWeeks} tone="bg-yellow-500" />
-                  <AgingRow label="22–30 days" count={aging.threeWeeks} tone="bg-orange-500" />
-                  <AgingRow label="30+ days" count={aging.stale} tone="bg-red-500" />
+                  <AgingRow label="0–7 days" count={aging.fresh} tone="bg-success" />
+                  <AgingRow label="8–14 days" count={aging.week} tone="bg-maritime" />
+                  <AgingRow label="15–21 days" count={aging.twoWeeks} tone="bg-warning" />
+                  <AgingRow label="22–30 days" count={aging.threeWeeks} tone="bg-container" />
+                  <AgingRow label="30+ days" count={aging.stale} tone="bg-destructive" />
                 </ul>
               )}
             </CardContent>
