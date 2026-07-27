@@ -41,14 +41,18 @@ export function CommandPalette() {
   const [detailContainer, setDetailContainer] = useState<ContainerType | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const navigate = useNavigate();
-  const { isAdmin, isSuperAdmin, isInspector } = useAuth();
+  const { isAdmin, isSuperAdmin, isInspector, isLineRep } = useAuth();
 
   const admin = isAdmin();
   const superAdmin = isSuperAdmin();
   const inspector = isInspector();
+  const lineRep = isLineRep();
 
   // Filter nav items by role
   const navItems = NAV_COMMANDS.filter((item) => {
+    // Line reps are confined to their two pages; every other command would only
+    // bounce them back to /reports, so don't offer them.
+    if (lineRep) return item.href === "/reports" || item.href === "/port-data";
     if (item.href === "/port-data" || item.href === "/admin/yards") return superAdmin;
     if (["/accounting", "/admin/users"].includes(item.href)) return admin;
     if (item.href === "/inspector") return admin || superAdmin || inspector;

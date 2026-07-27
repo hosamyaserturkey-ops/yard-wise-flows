@@ -12,6 +12,7 @@ import { Container as ContainerType } from "@/types/container";
 import { CONTAINER_TYPES } from "@/lib/containerTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -22,6 +23,9 @@ import ContainerDetailDialog from "@/components/ContainerDetailDialog";
 
 const Reports = () => {
   const { toast } = useToast();
+  // Line reps see only their own line — this page is their "My Containers".
+  const { isLineRep } = useAuth();
+  const lineRep = isLineRep();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [filteredContainers, setFilteredContainers] = useState<ContainerType[]>([]);
   const [detailContainer, setDetailContainer] = useState<ContainerType | null>(null);
@@ -199,7 +203,7 @@ const Reports = () => {
     <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
       <PageHeader
         icon={FileText}
-        title="Reports"
+        title={lineRep ? "My Containers" : "Reports"}
         subtitle={`${filteredContainers.length} container${filteredContainers.length !== 1 ? "s" : ""} shown`}
         action={
           <Button onClick={exportToCSV} className="bg-success hover:bg-success/90">
@@ -248,20 +252,23 @@ const Reports = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Shipping Line</Label>
-              <Select value={filters.shippingLine} onValueChange={(value) => setFilters({ ...filters, shippingLine: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Lines" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Lines</SelectItem>
-                  {SHIPPING_LINES.map((sl) => (
-                    <SelectItem key={sl} value={sl}>{sl}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Line reps only ever see their own line, so this filter is noise for them. */}
+            {!lineRep && (
+              <div className="space-y-2">
+                <Label>Shipping Line</Label>
+                <Select value={filters.shippingLine} onValueChange={(value) => setFilters({ ...filters, shippingLine: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Lines" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Lines</SelectItem>
+                    {SHIPPING_LINES.map((sl) => (
+                      <SelectItem key={sl} value={sl}>{sl}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Status</Label>
