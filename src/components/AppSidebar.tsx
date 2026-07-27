@@ -52,6 +52,7 @@ const INSPECTOR_ONLY = [
 const LINE_REP_NAV = [
   { href: "/reports",    label: "My Containers", icon: FileText },
   { href: "/port-data",  label: "Port Data",     icon: Anchor   },
+  { href: "/bookings",   label: "Bookings",      icon: Calendar },
 ];
 
 export function AppSidebar() {

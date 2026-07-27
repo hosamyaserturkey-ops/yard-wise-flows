@@ -40,8 +40,10 @@ export interface Env {
 const ALLOWED_UPLOAD_ROLES = ["inspector", "admin", "super_admin"] as const;
 // Viewing is wider than uploading: any yard staff (including plain
 // operators) may need to look at an inspection photo, matching the
-// inspector_checks RLS SELECT policy (any non-line-rep account in the yard).
-const ALLOWED_VIEW_ROLES = ["inspector", "admin", "super_admin", "user"] as const;
+// inspector_checks RLS SELECT policy (any account in the yard, including line
+// reps scoped to their own line — the RLS query on inspector_checks already
+// limits which photo keys a line rep's client ever requests).
+const ALLOWED_VIEW_ROLES = ["inspector", "admin", "super_admin", "user", "line_rep"] as const;
 // Deleting is yard-admin-only, matching the "only yard admin can delete a
 // container" rule enforced on container_visits in the database.
 const ALLOWED_DELETE_ROLES = ["admin", "super_admin"] as const;

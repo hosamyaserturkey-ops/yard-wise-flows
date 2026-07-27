@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Package, Users, CheckCircle, Clock, Truck, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking } from "@/types/booking";
 import type { Container } from "@/types/container";
@@ -15,6 +16,7 @@ import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/contain
 export default function BookingDetail() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const navigate = useNavigate();
+  const { isLineRep } = useAuth();
   const { toast } = useToast();
   const [booking, setBooking] = useState<Booking | null>(null);
   const [assignedContainers, setAssignedContainers] = useState<Container[]>([]);
@@ -349,7 +351,7 @@ export default function BookingDetail() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {container.status === "reserved" && (
+                      {container.status === "reserved" && !isLineRep() && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -370,7 +372,8 @@ export default function BookingDetail() {
         </CardContent>
       </Card>
 
-      {/* Available Containers */}
+      {/* Available Containers — assignment UI, not shown to read-only line reps */}
+      {!isLineRep() && (
       <Card>
         <CardHeader>
           <CardTitle>Available Containers ({availableContainers.length})</CardTitle>
@@ -425,6 +428,7 @@ export default function BookingDetail() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

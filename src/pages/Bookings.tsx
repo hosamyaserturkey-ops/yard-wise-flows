@@ -27,7 +27,7 @@ export default function Bookings() {
     customer_name: "",
     total_containers: 1,
   });
-  const { user, currentYardId, isAdmin, isSuperAdmin, selectedYardId } = useAuth();
+  const { user, currentYardId, isAdmin, isSuperAdmin, isLineRep, selectedYardId } = useAuth();
   const { nameOf: yardName } = useYards();
   const { toast } = useToast();
 
@@ -161,12 +161,14 @@ export default function Bookings() {
       <PageHeader
         icon={Package}
         title="Bookings"
-        subtitle="Manage container bookings and track gate-out progress"
+        subtitle={isLineRep() ? "Bookings in your yard" : "Manage container bookings and track gate-out progress"}
         action={
-          <Button onClick={() => setShowCreateForm(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Booking
-          </Button>
+          !isLineRep() && (
+            <Button onClick={() => setShowCreateForm(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Booking
+            </Button>
+          )
         }
       />
 
@@ -259,11 +261,15 @@ export default function Bookings() {
               <Package className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No bookings found</h3>
               <p className="text-muted-foreground text-center mb-4">
-                Create your first booking to start managing container gate-outs
+                {isLineRep()
+                  ? "No bookings have been created for this yard yet."
+                  : "Create your first booking to start managing container gate-outs"}
               </p>
-              <Button onClick={() => setShowCreateForm(true)}>
-                Create First Booking
-              </Button>
+              {!isLineRep() && (
+                <Button onClick={() => setShowCreateForm(true)}>
+                  Create First Booking
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
