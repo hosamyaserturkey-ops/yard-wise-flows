@@ -12,10 +12,10 @@ type Grade = "A" | "B" | "C" | "D";
 type Decision = "approved" | "rejected";
 
 const GRADE_CONFIG: Record<Grade, { bg: string; ring: string; label: string }> = {
-  A: { bg: "bg-green-500 hover:bg-green-600",  ring: "ring-green-700", label: "Excellent" },
-  B: { bg: "bg-blue-500 hover:bg-blue-600",    ring: "ring-blue-700",  label: "Good"      },
-  C: { bg: "bg-yellow-500 hover:bg-yellow-600",ring: "ring-yellow-700",label: "Fair"      },
-  D: { bg: "bg-red-500 hover:bg-red-600",      ring: "ring-red-700",   label: "Poor"      },
+  A: { bg: "bg-success hover:bg-success/90 text-white",       ring: "ring-success",   label: "Excellent" },
+  B: { bg: "bg-maritime hover:bg-maritime/90 text-white",     ring: "ring-maritime",  label: "Good"      },
+  C: { bg: "bg-warning hover:bg-warning/90 text-white",       ring: "ring-warning",   label: "Fair"      },
+  D: { bg: "bg-destructive hover:bg-destructive/90 text-white", ring: "ring-destructive", label: "Poor"    },
 };
 
 interface PhotoItem {
@@ -175,20 +175,20 @@ const Inspector = () => {
   if (submitted) {
     const approved = submitted.decision === "approved";
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gray-50">
-        <div className={`rounded-full p-6 mb-6 ${approved ? "bg-green-100" : "bg-red-100"}`}>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
+        <div className={`rounded-full p-6 mb-6 ${approved ? "bg-success/15" : "bg-destructive/15"}`}>
           {approved
-            ? <CheckCircle className="h-20 w-20 text-green-600" />
-            : <XCircle className="h-20 w-20 text-red-600" />}
+            ? <CheckCircle className="h-20 w-20 text-success" />
+            : <XCircle className="h-20 w-20 text-destructive" />}
         </div>
         <h2 className="text-2xl font-bold mb-2 text-center">
           {approved ? "Container Approved" : "Container Rejected"}
         </h2>
-        <p className="text-gray-700 font-mono text-lg mb-1">{containerNumber.toUpperCase()}</p>
-        <p className="text-gray-500 mb-2">
+        <p className="text-foreground font-mono text-lg mb-1">{containerNumber.toUpperCase()}</p>
+        <p className="text-muted-foreground mb-2">
           Grade: <strong>{submitted.grade}</strong> — {GRADE_CONFIG[submitted.grade].label}
         </p>
-        <p className="text-gray-400 text-sm mb-8">
+        <p className="text-muted-foreground text-sm mb-8">
           {approved
             ? "The operations team can now proceed with gate-in."
             : "This container has been flagged and blocked from gate-in."}
@@ -201,9 +201,9 @@ const Inspector = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="bg-gray-900 text-white px-4 pt-safe-top pb-4">
+      <div className="bg-primary text-primary-foreground px-4 pt-safe-top pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5" />
@@ -236,7 +236,7 @@ const Inspector = () => {
           <div className="space-y-6 pt-4">
             <div>
               <h2 className="text-2xl font-bold mb-1">Container Number</h2>
-              <p className="text-gray-500 text-sm mb-5">Enter the container number to begin the inspection</p>
+              <p className="text-muted-foreground text-sm mb-5">Enter the container number to begin the inspection</p>
               <Input
                 value={containerNumber}
                 onChange={(e) => setContainerNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
@@ -263,7 +263,7 @@ const Inspector = () => {
             {/* Photos */}
             <section>
               <h2 className="text-xl font-bold mb-1">Photos</h2>
-              <p className="text-gray-500 text-sm mb-3">
+              <p className="text-muted-foreground text-sm mb-3">
                 Take photos of the container — up to 6
               </p>
               <input
@@ -278,7 +278,7 @@ const Inspector = () => {
               {photos.length < 6 && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-28 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors active:bg-gray-100"
+                  className="w-full h-28 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors active:bg-muted"
                 >
                   <Camera className="h-9 w-9" />
                   <span className="text-sm font-medium">Tap to take photo</span>
@@ -295,7 +295,7 @@ const Inspector = () => {
                       />
                       <button
                         onClick={() => removePhoto(i)}
-                        className="absolute top-1.5 right-1.5 bg-red-500 text-white rounded-full p-1 shadow"
+                        className="absolute top-1.5 right-1.5 bg-destructive text-destructive-foreground rounded-full p-1 shadow"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -308,7 +308,7 @@ const Inspector = () => {
             {/* Grade */}
             <section>
               <h2 className="text-xl font-bold mb-1">Condition Grade</h2>
-              <p className="text-gray-500 text-sm mb-3">Rate the container's overall condition</p>
+              <p className="text-muted-foreground text-sm mb-3">Rate the container's overall condition</p>
               <div className="grid grid-cols-2 gap-3">
                 {(Object.keys(GRADE_CONFIG) as Grade[]).map((g) => {
                   const cfg = GRADE_CONFIG[g];
@@ -333,7 +333,7 @@ const Inspector = () => {
             <section>
               <h2 className="text-xl font-bold mb-1">
                 Notes{" "}
-                <span className="text-gray-400 font-normal text-base">(optional)</span>
+                <span className="text-muted-foreground font-normal text-base">(optional)</span>
               </h2>
               <Textarea
                 value={notes}
@@ -374,8 +374,8 @@ const Inspector = () => {
               />
               {notes && (
                 <div className="pt-2 border-t">
-                  <p className="text-xs text-gray-400 mb-1">Notes</p>
-                  <p className="text-sm text-gray-700">{notes}</p>
+                  <p className="text-xs text-muted-foreground mb-1">Notes</p>
+                  <p className="text-sm text-foreground">{notes}</p>
                 </div>
               )}
             </div>
@@ -395,7 +395,7 @@ const Inspector = () => {
 
             <div className="space-y-3 pt-2">
               <Button
-                className="w-full h-16 text-xl bg-green-600 hover:bg-green-700 active:bg-green-800"
+                className="w-full h-16 text-xl bg-success hover:bg-success/90 active:bg-success/80 text-white"
                 disabled={submitting}
                 onClick={() => handleSubmit("approved")}
               >
@@ -403,7 +403,7 @@ const Inspector = () => {
                 {submitting ? "Submitting…" : "Approve Container"}
               </Button>
               <Button
-                className="w-full h-16 text-xl bg-red-600 hover:bg-red-700 active:bg-red-800"
+                className="w-full h-16 text-xl bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-white"
                 disabled={submitting}
                 onClick={() => handleSubmit("rejected")}
               >
@@ -423,7 +423,7 @@ const Inspector = () => {
 
 const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
   <div className="flex items-center justify-between gap-3">
-    <span className="text-gray-500 text-sm">{label}</span>
+    <span className="text-muted-foreground text-sm">{label}</span>
     <span className="text-sm">{value}</span>
   </div>
 );

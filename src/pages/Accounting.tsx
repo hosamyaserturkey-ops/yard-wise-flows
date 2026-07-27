@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard } from "@/components/dashboard/StatCard";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -53,8 +54,8 @@ interface TransferRow {
 }
 
 const chartConfig: ChartConfig = {
-  collected: { label: "Collected (JOD)", color: "hsl(210 100% 35%)" },
-  yard: { label: "Yard Share (JOD)", color: "hsl(142 76% 36%)" },
+  collected: { label: "Collected (JOD)", color: "hsl(var(--chart-1))" },
+  yard: { label: "Yard Share (JOD)", color: "hsl(var(--chart-3))" },
 };
 
 const Accounting = () => {
@@ -219,30 +220,34 @@ const Accounting = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}><CardContent className="pt-4"><Skeleton className="h-8 w-24 mb-1" /><Skeleton className="h-4 w-32" /></CardContent></Card>
-          ))
-        ) : (
-          <>
-            <Card className="border-l-4 border-l-maritime">
-              <CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Collected</CardTitle><DollarSign className="h-4 w-4 text-maritime" /></CardHeader>
-              <CardContent><div className="text-2xl font-bold text-maritime">{summaryCards.totalCollected.toFixed(2)} JOD</div></CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-success">
-              <CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Yard Earnings</CardTitle><TrendingUp className="h-4 w-4 text-success" /></CardHeader>
-              <CardContent><div className="text-2xl font-bold text-success">{summaryCards.yardEarnings.toFixed(2)} JOD</div></CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-warning">
-              <CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Pending Transfers</CardTitle><Clock className="h-4 w-4 text-warning" /></CardHeader>
-              <CardContent><div className="text-2xl font-bold text-warning">{summaryCards.pendingTransfers.toFixed(2)} JOD</div></CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-container">
-              <CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Transferred</CardTitle><CheckCircle2 className="h-4 w-4 text-container" /></CardHeader>
-              <CardContent><div className="text-2xl font-bold">{summaryCards.completedTransfers.toFixed(2)} JOD</div></CardContent>
-            </Card>
-          </>
-        )}
+        <StatCard
+          label="Total Collected"
+          value={`${summaryCards.totalCollected.toFixed(2)} JOD`}
+          color="maritime"
+          icon={<DollarSign className="h-5 w-5 text-maritime" />}
+          loading={loading}
+        />
+        <StatCard
+          label="Yard Earnings"
+          value={`${summaryCards.yardEarnings.toFixed(2)} JOD`}
+          color="success"
+          icon={<TrendingUp className="h-5 w-5 text-success" />}
+          loading={loading}
+        />
+        <StatCard
+          label="Pending Transfers"
+          value={`${summaryCards.pendingTransfers.toFixed(2)} JOD`}
+          color="warning"
+          icon={<Clock className="h-5 w-5 text-warning" />}
+          loading={loading}
+        />
+        <StatCard
+          label="Transferred"
+          value={`${summaryCards.completedTransfers.toFixed(2)} JOD`}
+          color="container"
+          icon={<CheckCircle2 className="h-5 w-5 text-container" />}
+          loading={loading}
+        />
       </div>
 
       {/* Monthly Chart */}
@@ -259,8 +264,8 @@ const Accounting = () => {
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="collected" fill="hsl(210 100% 35%)" radius={[4, 4, 0, 0]} name="Total Collected" />
-                <Bar dataKey="yard" fill="hsl(142 76% 36%)" radius={[4, 4, 0, 0]} name="Yard Share" />
+                <Bar dataKey="collected" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} name="Total Collected" />
+                <Bar dataKey="yard" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} name="Yard Share" />
               </BarChart>
             </ChartContainer>
           )}

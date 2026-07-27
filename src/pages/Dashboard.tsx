@@ -38,17 +38,16 @@ import {
   Pie,
   Legend,
 } from "recharts";
+import { CHART_SERIES, chartColorAt } from "@/lib/chartColors";
 
-const LINE_COLORS = [
-  "#1a56db",
-  "#f59e0b",
-  "#10b981",
-  "#8b5cf6",
-  "#ef4444",
-  "#06b6d4",
-  "#ec4899",
-  "#6366f1",
-];
+const LINE_COLORS = CHART_SERIES;
+
+/** Compact section label to break the dashboard into scannable zones. */
+const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    {children}
+  </h2>
+);
 
 const Dashboard = () => {
   const { profile, currentYardId } = useAuth();
@@ -124,7 +123,7 @@ const Dashboard = () => {
   };
 
   const barChartConfig: ChartConfig = {
-    count: { label: "Gate-ins", color: "#1a56db" },
+    count: { label: "Gate-ins", color: chartColorAt(0) },
   };
 
   const pieChartConfig: ChartConfig = Object.fromEntries(
@@ -135,45 +134,70 @@ const Dashboard = () => {
   );
 
   return (
-    <div className="space-y-6 p-4 md:p-6 lg:p-8 animate-in fade-in-0 duration-300">
+    <div className="space-y-8 p-4 md:p-6 lg:p-8 animate-in fade-in-0 duration-300">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <PageHeader icon={BarChart3} title="Dashboard" subtitle={`Last updated ${lastUpdated.toLocaleTimeString()}`} />
-        </div>
-
-        {/* Stats row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            label="Containers In Yard"
-            value={inYardCount}
-            color="maritime"
-            icon={<Container className="h-4 w-4 text-maritime" />}
-            loading={loading}
-          />
-          <StatCard
-            label="Reserved"
-            value={reservedCount}
-            color="warning"
-            icon={<Calendar className="h-4 w-4 text-warning" />}
-            loading={loading}
-          />
-          <StatCard
-            label="Containers Out"
-            value={outCount}
-            color="success"
-            icon={<Ship className="h-4 w-4 text-success" />}
-            loading={loading}
-          />
-          <StatCard
-            label="Total Containers"
-            value={containers.length}
-            color="container"
-            icon={<Users className="h-4 w-4 text-container" />}
-            loading={loading}
+          <PageHeader
+            icon={BarChart3}
+            title="Dashboard"
+            subtitle={
+              <span className="inline-flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+                </span>
+                Live · updated {lastUpdated.toLocaleTimeString()}
+              </span>
+            }
           />
         </div>
 
-        {/* Charts + Activity feed row */}
+        {/* ── Overview ─────────────────────────────────── */}
+        <section className="space-y-3">
+          <SectionTitle>Overview</SectionTitle>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="Containers In Yard"
+              value={inYardCount}
+              color="maritime"
+              icon={<Container className="h-5 w-5 text-maritime" />}
+              loading={loading}
+              hint={`${today.gateIn} gated in today`}
+            />
+            <StatCard
+              label="Reserved"
+              value={reservedCount}
+              color="warning"
+              icon={<Calendar className="h-5 w-5 text-warning" />}
+              loading={loading}
+              hint={reservedCount > 0 ? "Awaiting pickup" : "None reserved"}
+            />
+            <StatCard
+              label="Containers Out"
+              value={outCount}
+              color="success"
+              icon={<Ship className="h-5 w-5 text-success" />}
+              loading={loading}
+              hint={`${today.gateOut} gated out today`}
+            />
+            <StatCard
+              label="Total Containers"
+              value={containers.length}
+              color="container"
+              icon={<Users className="h-5 w-5 text-container" />}
+              loading={loading}
+              hint={
+                topAging.length > 0
+                  ? `Oldest ${daysInYard(topAging[0].gateInTime)}d in yard`
+                  : "All clear"
+              }
+            />
+          </div>
+        </section>
+
+        {/* ── Analytics ────────────────────────────────── */}
+        <section className="space-y-3">
+        <SectionTitle>Analytics</SectionTitle>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* Bar chart — daily gate-in trend */}
           <Card className="lg:col-span-2">
@@ -192,7 +216,7 @@ const Dashboard = () => {
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="count" name="Gate-ins" radius={[4, 4, 0, 0]} fill="#1a56db" />
+                    <Bar dataKey="count" name="Gate-ins" radius={[4, 4, 0, 0]} fill={chartColorAt(0)} />
                   </BarChart>
                 </ChartContainer>
               )}
@@ -267,40 +291,47 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+        </section>
 
-        {/* Today's activity */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
-            label="Gate-ins Today"
-            value={today.gateIn}
-            color="maritime"
-            icon={<LogIn className="h-4 w-4 text-maritime" />}
-            loading={loading}
-          />
-          <StatCard
-            label="Gate-outs Today"
-            value={today.gateOut}
-            color="success"
-            icon={<LogOutIcon className="h-4 w-4 text-success" />}
-            loading={loading}
-          />
-          <StatCard
-            label="Currently Reserved"
-            value={today.reserved}
-            color="warning"
-            icon={<PackageCheck className="h-4 w-4 text-warning" />}
-            loading={loading}
-          />
-          <StatCard
-            label="Oldest (in-yard)"
-            value={topAging.length > 0 ? `${daysInYard(topAging[0].gateInTime)}d` : "—"}
-            color="container"
-            icon={<Timer className="h-4 w-4 text-container" />}
-            loading={loading}
-          />
-        </div>
+        {/* ── Today ────────────────────────────────────── */}
+        <section className="space-y-3">
+          <SectionTitle>Today</SectionTitle>
+          <Card className="overflow-hidden">
+            <div className="grid grid-cols-2 sm:grid-cols-4">
+              {[
+                { label: "Gate-ins today", value: today.gateIn, icon: <LogIn className="h-4 w-4 text-maritime" /> },
+                { label: "Gate-outs today", value: today.gateOut, icon: <LogOutIcon className="h-4 w-4 text-success" /> },
+                { label: "Currently reserved", value: today.reserved, icon: <PackageCheck className="h-4 w-4 text-warning" /> },
+                {
+                  label: "Oldest in yard",
+                  value: topAging.length > 0 ? `${daysInYard(topAging[0].gateInTime)}d` : "—",
+                  icon: <Timer className="h-4 w-4 text-container" />,
+                },
+              ].map((m) => (
+                <div
+                  key={m.label}
+                  className="flex items-center gap-3 border-b border-r p-4 last:border-r-0 [&:nth-child(2)]:border-r-0 sm:[&:nth-child(2)]:border-r sm:[&:nth-child(-n+4)]:border-b-0"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    {m.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs text-muted-foreground">{m.label}</p>
+                    {loading ? (
+                      <Skeleton className="mt-1 h-6 w-10" />
+                    ) : (
+                      <p className="text-xl font-bold leading-tight tabular-nums">{m.value}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </section>
 
-        {/* Stock by line + Aging */}
+        {/* ── Details ──────────────────────────────────── */}
+        <section className="space-y-3">
+        <SectionTitle>Stock &amp; aging</SectionTitle>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
@@ -357,11 +388,11 @@ const Dashboard = () => {
                 <Skeleton className="h-32 w-full" />
               ) : (
                 <ul className="space-y-2 text-sm">
-                  <AgingRow label="0–7 days" count={aging.fresh} tone="bg-green-500" />
-                  <AgingRow label="8–14 days" count={aging.week} tone="bg-blue-500" />
-                  <AgingRow label="15–21 days" count={aging.twoWeeks} tone="bg-yellow-500" />
-                  <AgingRow label="22–30 days" count={aging.threeWeeks} tone="bg-orange-500" />
-                  <AgingRow label="30+ days" count={aging.stale} tone="bg-red-500" />
+                  <AgingRow label="0–7 days" count={aging.fresh} tone="bg-success" />
+                  <AgingRow label="8–14 days" count={aging.week} tone="bg-maritime" />
+                  <AgingRow label="15–21 days" count={aging.twoWeeks} tone="bg-warning" />
+                  <AgingRow label="22–30 days" count={aging.threeWeeks} tone="bg-container" />
+                  <AgingRow label="30+ days" count={aging.stale} tone="bg-destructive" />
                 </ul>
               )}
             </CardContent>
@@ -409,11 +440,12 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
+        </section>
 
-        {/* Kanban section */}
-        <div className="space-y-3">
-          {/* Search above kanban */}
-          <div className="flex items-center gap-3">
+        {/* ── Live board ───────────────────────────────── */}
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SectionTitle>Live board</SectionTitle>
             <div className="relative w-full max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -421,6 +453,7 @@ const Dashboard = () => {
                 placeholder="Search container, driver…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search containers"
               />
             </div>
           </div>
@@ -456,7 +489,7 @@ const Dashboard = () => {
               onCardClick={openDetail}
             />
           </div>
-        </div>
+        </section>
 
       {/* Dialogs */}
       <ReserveContainerDialog

@@ -581,12 +581,12 @@ const GateIn = () => {
               <h3 className="text-sm font-semibold text-muted-foreground mb-3">
                 Port & Demurrage Information
                 {portDataFound && (
-                  <span className="ml-2 text-xs text-green-600 font-normal">(Auto-filled from port data)</span>
+                  <span className="ml-2 text-xs text-success font-normal">(Auto-filled from port data)</span>
                 )}
               </h3>
 
               {showNoPortDataWarning && (
-                <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900 [&>svg]:text-amber-600">
+                <Alert className="mb-4 border-warning/40 bg-warning/10 text-warning [&>svg]:text-warning">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>No port data found for this container</AlertTitle>
                   <AlertDescription>
@@ -683,18 +683,18 @@ const GateIn = () => {
               </Tabs>
 
               {alreadyInYard && (
-                <div className="mt-4 p-3 bg-amber-50 border border-amber-300 rounded-md text-amber-800 text-sm">
-                  ⚠️ This container is already in the yard. It must be gated out before it can be gated in again.
+                <div className="mt-4 p-3 bg-warning/10 border border-warning/30 rounded-md text-warning text-sm">
+                  This container is already in the yard. It must be gated out before it can be gated in again.
                 </div>
               )}
 
               {lookupDone && !alreadyInYard && (
                 <div className={`mt-4 p-3 rounded-md border text-sm ${
                   isInspectionApproved
-                    ? "bg-green-50 border-green-300 text-green-700"
+                    ? "bg-success/10 border-success/30 text-success"
                     : inspectionAdminOverride
-                      ? "bg-amber-50 border-amber-300 text-amber-800"
-                      : "bg-red-50 border-red-300 text-red-700"
+                      ? "bg-warning/10 border-warning/30 text-warning"
+                      : "bg-destructive/10 border-destructive/30 text-destructive"
                 }`}>
                   {isInspectionApproved && `✅ Inspection Approved — Grade ${inspectionStatus.grade}`}
 
@@ -713,24 +713,24 @@ const GateIn = () => {
               )}
 
               {!alreadyInYard && demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0 && (
-                <div className="mt-4 p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
-                  ✅ Demurrage already paid for this container — no further collection required.
+                <div className="mt-4 p-3 bg-success/10 border border-success/30 rounded-md text-success text-sm">
+                  Demurrage already paid for this container — no further collection required.
                 </div>
               )}
 
               {!demurrageAlreadyPaid && demurragePreview && demurragePreview.totalJOD > 0 && (() => {
                 const feeCfg = getServiceFeeConfig(formData.shippingLine);
                 return (
-                <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm space-y-3">
-                  <p className="font-medium">⚠️ Demurrage Due — Collect payment before gate-in</p>
+                <div className="mt-4 p-4 bg-destructive/10 border border-destructive/30 rounded-md text-destructive text-sm space-y-3">
+                  <p className="font-medium">Demurrage Due — Collect payment before gate-in</p>
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between"><span>Demurrage Total</span><strong>{demurragePreview.totalJOD.toLocaleString()} JOD</strong></div>
                     <div className="flex justify-between"><span>Service Fee</span><strong>{feeCfg.total} JOD</strong></div>
-                    <div className="flex justify-between border-t border-red-200 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.totalJOD + feeCfg.total).toLocaleString()} JOD</strong></div>
+                    <div className="flex justify-between border-t border-destructive/20 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.totalJOD + feeCfg.total).toLocaleString()} JOD</strong></div>
                   </div>
                   <Button
                     type="button"
-                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                    className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                     onClick={() => {
                       if (!formData.containerNumber || !formData.shippingLine) {
                         toast({

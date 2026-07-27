@@ -2,116 +2,147 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
 All colors MUST be HSL.
+
+Design language: a refined enterprise operations console — a neutral slate
+canvas, one confident deep-blue brand color, crisp corners, subtle shadows,
+and status colors reserved for meaning (not decoration).
 */
 
 @layer base {
   :root {
-    --background: 210 30% 96%;
-    --foreground: 215 30% 13%;
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 30% 13%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 30% 13%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 210 100% 35%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 226 71% 40%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 20% 94%;
-    --secondary-foreground: 215 25% 25%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 40% 20%;
 
-    --muted: 210 24% 95%;
-    --muted-foreground: 215 16% 46%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 195 100% 45%;
-    --accent-foreground: 0 0% 98%;
+    /* Neutral hover/selected surface (shadcn uses --accent for hovers, so it
+       must stay quiet — the brand accent lives in --primary). */
+    --accent: 210 40% 94%;
+    --accent-foreground: 222 40% 20%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214 24% 89%;
-    --input: 214 24% 89%;
-    --ring: 210 100% 35%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 226 71% 40%;
 
-    /* Container Yard Specific Colors */
-    --maritime-blue: 210 100% 35%;
-    --maritime-light: 210 100% 45%;
-    --industrial-gray: 215 10% 25%;
-    --container-orange: 25 95% 55%;
-    --success-green: 142 72% 34%;
-    --warning-amber: 38 95% 50%;
+    /* Container Yard brand / status tokens */
+    --maritime-blue: 226 71% 40%;
+    --maritime-light: 217 91% 60%;
+    --industrial-gray: 215 16% 47%;
+    --container-orange: 25 90% 48%;
+    --success-green: 142 71% 35%;
+    --warning-amber: 32 95% 44%;
+
+    /* Categorical chart palette — theme-aware series colors. Referenced as
+       hsl(var(--chart-N)) so charts adapt automatically to light/dark. */
+    --chart-1: 226 71% 48%;
+    --chart-2: 32 95% 50%;
+    --chart-3: 142 71% 40%;
+    --chart-4: 262 52% 55%;
+    --chart-5: 0 72% 55%;
+    --chart-6: 199 89% 45%;
+    --chart-7: 291 47% 55%;
+    --chart-8: 25 90% 52%;
 
     /* Gradients */
-    --gradient-maritime: linear-gradient(135deg, hsl(210 100% 35%), hsl(195 100% 45%));
-    --gradient-industrial: linear-gradient(180deg, hsl(215 15% 95%), hsl(210 20% 98%));
+    --gradient-maritime: linear-gradient(135deg, hsl(226 71% 40%), hsl(217 91% 55%));
+    --gradient-industrial: linear-gradient(180deg, hsl(210 40% 98%), hsl(0 0% 100%));
 
-    /* Shadows — soft, layered, low-contrast for a clean flat look */
-    --shadow-sm: 0 1px 2px hsl(215 25% 15% / 0.04), 0 1px 3px hsl(215 25% 15% / 0.06);
-    --shadow-maritime: 0 4px 20px -2px hsl(210 100% 35% / 0.15);
-    --shadow-elevated: 0 10px 30px -8px hsl(215 25% 15% / 0.12);
+    /* Shadows — subtle, layered, low-contrast for a clean enterprise feel */
+    --shadow-sm: 0 1px 2px hsl(222 47% 11% / 0.05);
+    --shadow-maritime: 0 6px 20px -6px hsl(226 71% 40% / 0.25);
+    --shadow-elevated: 0 4px 12px -2px hsl(222 47% 11% / 0.08), 0 2px 6px -2px hsl(222 47% 11% / 0.05);
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    --sidebar-background: 213 78% 11%;
-    --sidebar-foreground: 210 40% 85%;
-    --sidebar-primary: 199 89% 55%;
-    --sidebar-primary-foreground: 213 78% 8%;
-    --sidebar-accent: 213 55% 20%;
-    --sidebar-accent-foreground: 210 40% 92%;
-    --sidebar-border: 213 50% 20%;
-    --sidebar-ring: 199 89% 55%;
+    /* Clean light sidebar with a blue-tinted active state */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 25% 32%;
+    --sidebar-primary: 226 71% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 226 71% 95%;
+    --sidebar-accent-foreground: 226 71% 40%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 226 71% 40%;
   }
 
   .dark {
-    /* Deep navy family so dark mode matches the maritime sidebar instead of
-       generic slate. */
-    --background: 213 46% 8%;
-    --foreground: 210 30% 92%;
+    /* Professional dark slate — neutral, not navy — so the console reads calm
+       and high-end in low light. */
+    --background: 222 30% 9%;
+    --foreground: 210 20% 92%;
 
-    --card: 213 40% 11%;
-    --card-foreground: 210 30% 92%;
+    --card: 222 28% 12%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 213 42% 10%;
-    --popover-foreground: 210 30% 92%;
+    --popover: 222 28% 12%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 199 89% 55%;
-    --primary-foreground: 213 78% 8%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
 
-    --secondary: 213 33% 17%;
-    --secondary-foreground: 210 30% 92%;
+    --secondary: 222 22% 18%;
+    --secondary-foreground: 210 20% 92%;
 
-    --muted: 213 30% 15%;
-    --muted-foreground: 210 18% 62%;
+    --muted: 222 22% 16%;
+    --muted-foreground: 215 16% 62%;
 
-    --accent: 195 90% 48%;
-    --accent-foreground: 213 78% 8%;
+    --accent: 222 22% 18%;
+    --accent-foreground: 210 20% 92%;
 
-    --destructive: 0 72% 45%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 213 30% 19%;
-    --input: 213 30% 19%;
-    --ring: 199 89% 55%;
+    --border: 222 20% 20%;
+    --input: 222 20% 20%;
+    --ring: 217 91% 60%;
 
-    /* Brand colors, brightened so they read on the navy surface. */
-    --maritime-blue: 205 90% 58%;
-    --maritime-light: 199 89% 64%;
-    --industrial-gray: 210 20% 70%;
-    --container-orange: 25 95% 60%;
-    --success-green: 142 62% 45%;
-    --warning-amber: 38 92% 55%;
+    /* Brand / status, brightened so they read on the dark slate surface. */
+    --maritime-blue: 217 91% 60%;
+    --maritime-light: 213 94% 68%;
+    --industrial-gray: 210 16% 70%;
+    --container-orange: 25 90% 58%;
+    --success-green: 142 60% 45%;
+    --warning-amber: 32 95% 55%;
 
-    --sidebar-background: 213 78% 9%;
-    --sidebar-foreground: 210 40% 88%;
-    --sidebar-primary: 199 89% 58%;
-    --sidebar-primary-foreground: 213 78% 6%;
-    --sidebar-accent: 213 55% 17%;
-    --sidebar-accent-foreground: 210 40% 94%;
-    --sidebar-border: 213 50% 18%;
-    --sidebar-ring: 199 89% 58%;
+    /* Chart palette brightened / desaturated so series stay distinct and
+       legible on the dark surface. */
+    --chart-1: 217 91% 62%;
+    --chart-2: 32 95% 60%;
+    --chart-3: 142 60% 52%;
+    --chart-4: 262 60% 70%;
+    --chart-5: 0 75% 65%;
+    --chart-6: 199 89% 58%;
+    --chart-7: 291 55% 68%;
+    --chart-8: 25 90% 62%;
+
+    --gradient-maritime: linear-gradient(135deg, hsl(217 91% 45%), hsl(199 89% 50%));
+
+    --sidebar-background: 222 30% 11%;
+    --sidebar-foreground: 210 18% 78%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 222 25% 18%;
+    --sidebar-accent-foreground: 210 30% 96%;
+    --sidebar-border: 222 22% 18%;
+    --sidebar-ring: 217 91% 60%;
   }
 }
 
@@ -120,7 +151,19 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Tabular figures for data-dense numerics keep columns from shifting. */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }

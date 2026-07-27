@@ -137,7 +137,7 @@ const DemurrageCollectionDialog = ({
               )}
 
               {step === "confirmed" && (
-                <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-700 dark:text-green-400">
+                <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>
                     Payment of {totalAmount.toLocaleString()} JOD via {paymentMethod === "cash" ? "Cash" : "Qlick"} confirmed. Proceed with gate-in.
@@ -167,7 +167,7 @@ const DemurrageCollectionDialog = ({
                 Change Method
               </Button>
               <Button
-                className="gap-1 bg-green-600 hover:bg-green-700"
+                className="gap-1 bg-success hover:bg-success/90 text-white"
                 onClick={handleConfirm}
               >
                 <CheckCircle2 className="h-4 w-4" />

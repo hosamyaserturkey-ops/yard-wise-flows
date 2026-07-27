@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import {
   SidebarInset,
@@ -8,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { YardSwitcher } from "@/components/YardSwitcher";
-import { Keyboard } from "lucide-react";
+import { Keyboard, Loader2 } from "lucide-react";
 
 const ROUTE_LABELS: Record<string, string> = {
   "/":             "Dashboard",
@@ -39,10 +40,10 @@ const Layout = () => {
       <AppSidebar />
       <SidebarInset>
         {/* ── Top Bar ─────────────────────────────────── */}
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background/80 backdrop-blur-sm px-4 sticky top-0 z-10">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/85 backdrop-blur-md px-4 sticky top-0 z-10 md:px-6">
           <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="h-4" />
-          <span className="text-sm font-medium text-foreground">{pageLabel}</span>
+          <Separator orientation="vertical" className="h-5" />
+          <span className="text-sm font-semibold tracking-tight text-foreground">{pageLabel}</span>
           <div className="flex-1" />
           <YardSwitcher />
           <ToggleCommandHint />
@@ -51,7 +52,15 @@ const Layout = () => {
         {/* ── Page Content ────────────────────────────── */}
         <main className="flex-1 overflow-auto bg-background">
           <div className="mx-auto w-full max-w-[1600px]">
-            <Outlet />
+            <Suspense
+              fallback={
+                <div className="flex h-[60vh] items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading page" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </SidebarInset>

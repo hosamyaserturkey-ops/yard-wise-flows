@@ -4,9 +4,9 @@ import { USD_TO_JOD, type DemurrageResult } from "@/lib/demurrage";
 export const DemurragePreviewCard = ({ preview }: { preview: DemurrageResult }) => (
   <div className="rounded-md border bg-card p-4 space-y-3">
     {preview.totalJOD === 0 ? (
-      <div className="p-3 bg-green-50 border border-green-300 rounded-md text-green-700 text-sm">
-        ✅ No demurrage due — {Math.max(0, preview.freeDays - preview.daysElapsed)} free day(s) remaining.
-        <div className="text-xs mt-1 text-green-600">
+      <div className="p-3 bg-success/10 border border-success/30 rounded-md text-success text-sm">
+        No demurrage due — {Math.max(0, preview.freeDays - preview.daysElapsed)} free day(s) remaining.
+        <div className="text-xs mt-1 text-success/80">
           {preview.daysElapsed} day(s) elapsed since port arrival, {preview.freeDays} free.
         </div>
       </div>

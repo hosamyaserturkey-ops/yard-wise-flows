@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 interface PageHeaderProps {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
 }

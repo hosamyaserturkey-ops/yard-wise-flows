@@ -77,10 +77,10 @@ interface Props {
 }
 
 const GRADE_COLOR: Record<string, string> = {
-  A: "bg-green-100 text-green-800 border-green-300",
-  B: "bg-blue-100 text-blue-800 border-blue-300",
-  C: "bg-yellow-100 text-yellow-800 border-yellow-300",
-  D: "bg-red-100 text-red-800 border-red-300",
+  A: "bg-success/10 text-success border-success/30",
+  B: "bg-maritime/10 text-maritime border-maritime/30",
+  C: "bg-warning/10 text-warning border-warning/30",
+  D: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
 const STATUS_LABEL: Record<string, { label: string; variant: "default" | "outline" | "secondary" | "destructive" }> = {
