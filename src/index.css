@@ -21,7 +21,7 @@ and status colors reserved for meaning (not decoration).
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 226 71% 40%;
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
@@ -40,11 +40,11 @@ and status colors reserved for meaning (not decoration).
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 226 71% 40%;
+    --ring: 221 83% 53%;
 
     /* Container Yard brand / status tokens */
-    --maritime-blue: 226 71% 40%;
-    --maritime-light: 217 91% 60%;
+    --maritime-blue: 221 83% 53%;
+    --maritime-light: 213 94% 68%;
     --industrial-gray: 215 16% 47%;
     --container-orange: 25 90% 48%;
     --success-green: 142 71% 35%;
@@ -52,7 +52,7 @@ and status colors reserved for meaning (not decoration).
 
     /* Categorical chart palette — theme-aware series colors. Referenced as
        hsl(var(--chart-N)) so charts adapt automatically to light/dark. */
-    --chart-1: 226 71% 48%;
+    --chart-1: 221 83% 55%;
     --chart-2: 32 95% 50%;
     --chart-3: 142 71% 40%;
     --chart-4: 262 52% 55%;
@@ -62,12 +62,12 @@ and status colors reserved for meaning (not decoration).
     --chart-8: 25 90% 52%;
 
     /* Gradients */
-    --gradient-maritime: linear-gradient(135deg, hsl(226 71% 40%), hsl(217 91% 55%));
+    --gradient-maritime: linear-gradient(135deg, hsl(221 83% 53%), hsl(199 89% 55%));
     --gradient-industrial: linear-gradient(180deg, hsl(210 40% 98%), hsl(0 0% 100%));
 
     /* Shadows — subtle, layered, low-contrast for a clean enterprise feel */
     --shadow-sm: 0 1px 2px hsl(222 47% 11% / 0.05);
-    --shadow-maritime: 0 6px 20px -6px hsl(226 71% 40% / 0.25);
+    --shadow-maritime: 0 6px 20px -6px hsl(221 83% 53% / 0.25);
     --shadow-elevated: 0 4px 12px -2px hsl(222 47% 11% / 0.08), 0 2px 6px -2px hsl(222 47% 11% / 0.05);
 
     --radius: 0.5rem;
@@ -75,12 +75,12 @@ and status colors reserved for meaning (not decoration).
     /* Clean light sidebar with a blue-tinted active state */
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 25% 32%;
-    --sidebar-primary: 226 71% 40%;
+    --sidebar-primary: 221 83% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 226 71% 95%;
-    --sidebar-accent-foreground: 226 71% 40%;
+    --sidebar-accent: 214 95% 95%;
+    --sidebar-accent-foreground: 221 83% 45%;
     --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 226 71% 40%;
+    --sidebar-ring: 221 83% 53%;
   }
 
   .dark {
