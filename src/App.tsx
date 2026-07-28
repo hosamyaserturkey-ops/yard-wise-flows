@@ -71,7 +71,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="bookings" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute lineRepAllowed>
                     <Bookings />
                   </ProtectedRoute>
                 } />
@@ -96,7 +96,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="bookings/:bookingId" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute lineRepAllowed>
                     <BookingDetail />
                   </ProtectedRoute>
                 } />
