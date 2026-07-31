@@ -65,13 +65,15 @@ export function computeDailyTrend<T extends Pick<ContainerLike, "gateInTime">>(
   });
 }
 
-export function computeLineDistribution<T extends Pick<ContainerLike, "shippingLine">>(
-  containers: T[],
-): { name: string; value: number }[] {
+export function computeLineDistribution<
+  T extends Pick<ContainerLike, "shippingLine" | "status">,
+>(containers: T[]): { name: string; value: number }[] {
   const map = new Map<string, number>();
-  containers.forEach((c) => {
-    map.set(c.shippingLine, (map.get(c.shippingLine) ?? 0) + 1);
-  });
+  containers
+    .filter((c) => c.status === "in-yard")
+    .forEach((c) => {
+      map.set(c.shippingLine, (map.get(c.shippingLine) ?? 0) + 1);
+    });
   return Array.from(map.entries())
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);

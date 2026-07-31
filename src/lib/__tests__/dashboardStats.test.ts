@@ -47,14 +47,23 @@ describe("computeDailyTrend", () => {
 describe("computeLineDistribution", () => {
   it("counts per line, sorted descending", () => {
     const containers = [
-      { shippingLine: "SLD" },
-      { shippingLine: "SLD" },
-      { shippingLine: "WOM" },
+      { status: "in-yard", shippingLine: "SLD" },
+      { status: "in-yard", shippingLine: "SLD" },
+      { status: "in-yard", shippingLine: "WOM" },
     ];
     expect(computeLineDistribution(containers)).toEqual([
       { name: "SLD", value: 2 },
       { name: "WOM", value: 1 },
     ]);
+  });
+
+  it("ignores reserved and gated-out containers", () => {
+    const containers = [
+      { status: "in-yard", shippingLine: "SLD" },
+      { status: "reserved", shippingLine: "SLD" },
+      { status: "out", shippingLine: "WOM" },
+    ];
+    expect(computeLineDistribution(containers)).toEqual([{ name: "SLD", value: 1 }]);
   });
 });
 
