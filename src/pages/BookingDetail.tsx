@@ -4,13 +4,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Package, Users, CheckCircle, Clock, Truck, DollarSign } from "lucide-react";
+import { ArrowLeft, Package, Users, CheckCircle, Clock, Truck, DollarSign, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking } from "@/types/booking";
 import type { Container } from "@/types/container";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
+
+interface HistoryEvent {
+  id: string;
+  action: string;
+  containerNumber: string | null;
+  occurredAt: Date;
+  feesJod: number | null;
+}
 
 
 export default function BookingDetail() {
@@ -21,6 +29,7 @@ export default function BookingDetail() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [assignedContainers, setAssignedContainers] = useState<Container[]>([]);
   const [availableContainers, setAvailableContainers] = useState<Container[]>([]);
+  const [history, setHistory] = useState<HistoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchBookingDetails = useCallback(async () => {
@@ -68,6 +77,29 @@ export default function BookingDetail() {
 
       setAvailableContainers(
         (availableData ?? []).map((row) => mapVisit(row as unknown as VisitJoinRow))
+      );
+
+      // History: gate/reserve events tied to this booking, kept even after the
+      // underlying container_visits row is gone (e.g. test data cleanup).
+      const { data: historyData, error: historyError } = await supabase
+        .from("activity_log")
+        .select("id, action, container_number, occurred_at, metadata")
+        .eq("metadata->>booking_number", bookingData.booking_number)
+        .order("occurred_at", { ascending: false });
+
+      if (historyError) throw historyError;
+
+      setHistory(
+        (historyData ?? []).map((row) => ({
+          id: row.id,
+          action: row.action,
+          containerNumber: row.container_number,
+          occurredAt: new Date(row.occurred_at),
+          feesJod:
+            typeof (row.metadata as Record<string, unknown> | null)?.fees_jod === "number"
+              ? ((row.metadata as Record<string, unknown>).fees_jod as number)
+              : null,
+        }))
       );
     } catch (error) {
       console.error("Error fetching booking details:", error);
@@ -362,6 +394,58 @@ export default function BookingDetail() {
                       )}
                       {container.status === "out" && (
                         <span className="text-sm text-muted-foreground">Gated Out</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* History — audit trail from activity_log, survives deleted containers */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5 text-muted-foreground" />
+            History
+          </CardTitle>
+          <CardDescription>Gate and reservation events recorded for this booking</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {history.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No activity recorded for this booking yet.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Container #</TableHead>
+                  <TableHead>Date/Time</TableHead>
+                  <TableHead>Fees</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.map((event) => (
+                  <TableRow key={event.id}>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {event.action.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono">{event.containerNumber ?? "-"}</TableCell>
+                    <TableCell className="text-sm">{event.occurredAt.toLocaleString()}</TableCell>
+                    <TableCell>
+                      {event.feesJod != null ? (
+                        <span className="flex items-center gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          {event.feesJod}
+                        </span>
+                      ) : (
+                        "-"
                       )}
                     </TableCell>
                   </TableRow>
