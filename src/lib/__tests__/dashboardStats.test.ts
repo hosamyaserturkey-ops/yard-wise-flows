@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  agingBucketOf,
   computeAgingBuckets,
   computeDailyTrend,
   computeLineDistribution,
   computeStockByLine,
   computeTodayActivity,
+  dayKey,
   daysInYard,
+  sizeBucketOf,
   timeAgo,
 } from "../dashboardStats";
 
@@ -36,11 +39,65 @@ describe("computeDailyTrend", () => {
       { gateInTime: daysAgo(6) },
       { gateInTime: daysAgo(10) }, // outside window
     ];
-    const trend = computeDailyTrend(containers, NOW);
+    const trend = computeDailyTrend(containers, 7, NOW);
     expect(trend).toHaveLength(7);
-    expect(trend[6].count).toBe(2); // today
-    expect(trend[0].count).toBe(1); // six days ago
-    expect(trend.reduce((s, d) => s + d.count, 0)).toBe(3);
+    expect(trend[6].gateIn).toBe(2); // today
+    expect(trend[0].gateIn).toBe(1); // six days ago
+    expect(trend.reduce((s, d) => s + d.gateIn, 0)).toBe(3);
+  });
+
+  it("counts gate-outs as a separate series", () => {
+    const containers = [
+      { gateInTime: daysAgo(6), gateOutTime: daysAgo(0) },
+      { gateInTime: daysAgo(3), gateOutTime: undefined },
+    ];
+    const trend = computeDailyTrend(containers, 7, NOW);
+    expect(trend[6].gateOut).toBe(1);
+    expect(trend[6].gateIn).toBe(0);
+    expect(trend.reduce((s, d) => s + d.gateOut, 0)).toBe(1);
+  });
+
+  it("honours a wider window and tags each point with a day key", () => {
+    const containers = [{ gateInTime: daysAgo(20) }];
+    expect(computeDailyTrend(containers, 7, NOW).reduce((s, d) => s + d.gateIn, 0)).toBe(0);
+
+    const wide = computeDailyTrend(containers, 30, NOW);
+    expect(wide).toHaveLength(30);
+    expect(wide.reduce((s, d) => s + d.gateIn, 0)).toBe(1);
+    expect(wide[29].dayKey).toBe("2026-07-15"); // today, local time
+  });
+});
+
+describe("agingBucketOf", () => {
+  it("places containers on the right side of each boundary", () => {
+    expect(agingBucketOf(daysAgo(0), NOW)).toBe("fresh");
+    expect(agingBucketOf(daysAgo(7), NOW)).toBe("fresh");
+    expect(agingBucketOf(daysAgo(8), NOW)).toBe("week");
+    expect(agingBucketOf(daysAgo(14), NOW)).toBe("week");
+    expect(agingBucketOf(daysAgo(15), NOW)).toBe("twoWeeks");
+    expect(agingBucketOf(daysAgo(21), NOW)).toBe("twoWeeks");
+    expect(agingBucketOf(daysAgo(22), NOW)).toBe("threeWeeks");
+    expect(agingBucketOf(daysAgo(30), NOW)).toBe("threeWeeks");
+    expect(agingBucketOf(daysAgo(31), NOW)).toBe("stale");
+    expect(agingBucketOf(daysAgo(400), NOW)).toBe("stale");
+  });
+});
+
+describe("sizeBucketOf", () => {
+  it("maps container types onto stock-table buckets", () => {
+    expect(sizeBucketOf("20FT")).toBe("small");
+    expect(sizeBucketOf("40ft")).toBe("large");
+    expect(sizeBucketOf("40HC")).toBe("hc");
+    expect(sizeBucketOf("45FT")).toBe("hc");
+    expect(sizeBucketOf("40FR")).toBe("reefer");
+    expect(sizeBucketOf("SOMETHING-ELSE")).toBeNull();
+  });
+});
+
+describe("dayKey", () => {
+  it("formats a local-time yyyy-mm-dd key", () => {
+    expect(dayKey(new Date(2026, 0, 5))).toBe("2026-01-05");
+    expect(dayKey(new Date(2026, 11, 31))).toBe("2026-12-31");
   });
 });
 
