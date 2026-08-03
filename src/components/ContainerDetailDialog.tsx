@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { calculateDemurrage, hasDemurrageRules } from "@/lib/demurrage";
 import { printGateInReceipt } from "@/lib/gateInReceipt";
 import { printGateOutReceipt } from "@/lib/gateOutReceipt";
+import { fetchVisitOperators, type VisitOperators } from "@/lib/gateOperators";
 import { resolveSignedUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 
@@ -97,6 +98,9 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
   const [payments, setPayments] = useState<DemurragePayment[]>([]);
   const [visits, setVisits] = useState<VisitHistory[]>([]);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  // Gate operators for this visit — reprinted tickets are signed off by them,
+  // not by the user doing the reprint.
+  const [operators, setOperators] = useState<VisitOperators>({ receivedBy: null, releasedBy: null });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -106,6 +110,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
       setPayments([]);
       setVisits([]);
       setPhotoUrls([]);
+      setOperators({ receivedBy: null, releasedBy: null });
       return;
     }
 
@@ -121,7 +126,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
           .eq("container_number", num);
         if (yardId) portQuery = portQuery.eq("yard_id", yardId);
 
-        const [portRes, inspRes, payRes] = await Promise.all([
+        const [portRes, inspRes, payRes, visitOperators] = await Promise.all([
           portQuery
             .order("updated_at", { ascending: false })
             .limit(1)
@@ -141,8 +146,10 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
             .eq("container_number", num)
             .order("created_at", { ascending: false }),
 
+          fetchVisitOperators(container.id),
         ]);
 
+        setOperators(visitOperators);
         setPortData(portRes.data ?? null);
         const insp = inspRes.data ? { ...inspRes.data, photo_urls: Array.isArray(inspRes.data.photo_urls) ? inspRes.data.photo_urls as string[] : null } : null;
         setInspection(insp);
@@ -232,6 +239,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
         : undefined,
       inspection ? { status: inspection.status as "approved" | "rejected" | "pending", grade: inspection.grade } : null,
       profile,
+      { operatorName: operators.receivedBy, isReprint: true },
     );
     if (!printed) {
       toast({
@@ -260,6 +268,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
         fees: Number(container.fees ?? 0),
       },
       profile,
+      { operatorName: operators.releasedBy, isReprint: true },
     );
     if (!printed) {
       toast({

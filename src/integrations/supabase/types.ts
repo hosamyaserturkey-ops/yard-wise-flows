@@ -171,6 +171,7 @@ export type Database = {
           free_days: number
           gate_in_time: string
           gate_out_time: string | null
+          gated_out_by: string | null
           id: string
           port_arrival_date: string | null
           status: string
@@ -192,6 +193,7 @@ export type Database = {
           free_days?: number
           gate_in_time?: string
           gate_out_time?: string | null
+          gated_out_by?: string | null
           id?: string
           port_arrival_date?: string | null
           status?: string
@@ -213,6 +215,7 @@ export type Database = {
           free_days?: number
           gate_in_time?: string
           gate_out_time?: string | null
+          gated_out_by?: string | null
           id?: string
           port_arrival_date?: string | null
           status?: string

@@ -126,6 +126,9 @@ const GateOut = () => {
         .update({
           status: 'out',
           gate_out_time: new Date().toISOString(),
+          // Who released the container — printed on the gate-out ticket so a
+          // later reprint still names this operator, not the person reprinting.
+          gated_out_by: user.id,
           fees: parseFloat(fees),
           driver_name: driverName,
           truck_number: truckNumber,

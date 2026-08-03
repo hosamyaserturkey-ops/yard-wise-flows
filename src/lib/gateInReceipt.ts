@@ -14,6 +14,35 @@ export interface ReceiptProfile {
   username?: string | null;
 }
 
+/**
+ * Who the ticket is printed FOR versus BY.
+ *
+ * `operatorName` is the person who actually handled the container at the gate
+ * (received it on a gate-in ticket, released it on a gate-out ticket). It is
+ * read from the visit record, so a reprint keeps naming that operator instead
+ * of whoever pressed print. Omit it when printing live at the gate — the
+ * signed-in user is the operator there.
+ *
+ * The footer's "printed by" always names the signed-in user, which is what
+ * makes a reprint traceable to the person who produced the paper.
+ */
+export interface ReceiptContext {
+  operatorName?: string | null;
+  isReprint?: boolean;
+}
+
+/** Name to print on the gate operator's signature line. */
+export const operatorSignatureName = (
+  profile: ReceiptProfile | null | undefined,
+  context: ReceiptContext | null | undefined,
+): string => {
+  const stored = context?.operatorName?.trim();
+  if (stored) return stored;
+  // A reprint must never fall back to the person reprinting.
+  if (context?.isReprint) return "—";
+  return profile?.full_name || profile?.username || "—";
+};
+
 // Imported for local use below AND re-exported so receipt callers (and
 // gateOutReceipt) keep importing it from here. A bare `export … from` is only a
 // re-export and does NOT create a local binding — referencing it in this module
@@ -170,6 +199,7 @@ export const printGateInReceipt = (
   demurragePayment: DemurragePaymentData | undefined,
   inspection: InspectionStatus | null | undefined,
   profile: ReceiptProfile | null | undefined,
+  context?: ReceiptContext,
 ): boolean => {
   const gateInDateRaw = new Date(containerData.gate_in_time);
   const dateStr = escapeHtml(gateInDateRaw.toLocaleDateString("en-GB"));
@@ -179,9 +209,12 @@ export const printGateInReceipt = (
     : "—";
   const yardNameRaw = profile?.yard_name || "YARD";
   const yardName = escapeHtml(yardNameRaw);
-  const supervisorName = escapeHtml(profile?.full_name || profile?.username || "—");
+  // The operator who received the container — from the visit record on a
+  // reprint, so the ticket never credits the person pressing print.
+  const receivedByName = escapeHtml(operatorSignatureName(profile, context));
   const printedBy = escapeHtml(profile?.username || profile?.full_name || "system");
   const printedAt = escapeHtml(new Date().toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).replace(",", ""));
+  const printLabel = context?.isReprint ? "Reprinted" : "Printed";
   const containerNumberSafe = escapeHtml(containerData.container_number);
   const shippingLineSafe = escapeHtml(containerData.shipping_line);
   const truckNumberSafe = escapeHtml(containerData.truck_number);
@@ -340,8 +373,9 @@ export const printGateInReceipt = (
     <div class="sig">
       <div class="sig-avatar">${clipboardSigSvg("#fff")}</div>
       <div class="sig-line"></div>
-      <div class="sig-name">Yard Supervisor</div>
-      <div class="sig-value">${supervisorName}</div>
+      <div class="sig-name">Received By</div>
+      <div class="sig-name-ar">استلمها</div>
+      <div class="sig-value">${receivedByName}</div>
     </div>
   </div>
 
@@ -350,7 +384,7 @@ export const printGateInReceipt = (
   <div class="footer-bar">
     <span class="footer-brand">🏔 ${yardName}</span>
     <span>🔒 Official Document — Do not alter</span>
-    <span>Printed: ${printedAt} by ${printedBy}</span>
+    <span>${printLabel}: ${printedAt} by ${printedBy}</span>
   </div>
 
 </div>
