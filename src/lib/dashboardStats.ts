@@ -18,6 +18,36 @@ export interface AgingBuckets {
   stale: number;
 }
 
+export type AgingBucketKey = keyof AgingBuckets;
+
+/**
+ * Single source of truth for the age bands. The aging card renders from this
+ * list and the dashboard's age filter buckets containers with `agingBucketOf`,
+ * so the boundaries can never drift apart.
+ */
+export const AGING_BUCKETS: {
+  key: AgingBucketKey;
+  label: string;
+  tone: string;
+  maxDays: number;
+}[] = [
+  { key: "fresh", label: "0–7 days", tone: "bg-success", maxDays: 7 },
+  { key: "week", label: "8–14 days", tone: "bg-maritime", maxDays: 14 },
+  { key: "twoWeeks", label: "15–21 days", tone: "bg-warning", maxDays: 21 },
+  { key: "threeWeeks", label: "22–30 days", tone: "bg-container", maxDays: 30 },
+  { key: "stale", label: "30+ days", tone: "bg-destructive", maxDays: Infinity },
+];
+
+/** Size buckets used by the stock-by-line table and the dashboard size filter. */
+export type SizeBucket = "small" | "large" | "hc" | "reefer";
+
+export const SIZE_BUCKET_LABELS: Record<SizeBucket, string> = {
+  small: "20FT",
+  large: "40FT",
+  hc: "40HC/45",
+  reefer: "Reefer",
+};
+
 interface ContainerLike {
   status: string;
   containerType: string;
@@ -41,27 +71,71 @@ export function timeAgo(date: Date, now: Date = new Date()): string {
   return `${days}d ago`;
 }
 
-export function last7DayLabels(now: Date = new Date()): { date: Date; label: string }[] {
-  return Array.from({ length: 7 }).map((_, i) => {
+/** Stable local-time `yyyy-mm-dd` key — used to identify a selected trend day. */
+export function dayKey(date: Date): string {
+  const m = `${date.getMonth() + 1}`.padStart(2, "0");
+  const d = `${date.getDate()}`.padStart(2, "0");
+  return `${date.getFullYear()}-${m}-${d}`;
+}
+
+/** Which age band a container falls into, by whole days since gate-in. */
+export function agingBucketOf(gateInTime: Date, now: Date = new Date()): AgingBucketKey {
+  const d = daysInYard(gateInTime, now);
+  return (AGING_BUCKETS.find((b) => d <= b.maxDays) ?? AGING_BUCKETS[AGING_BUCKETS.length - 1]).key;
+}
+
+/** Map a raw container type onto a stock-table size bucket. */
+export function sizeBucketOf(containerType: string): SizeBucket | null {
+  const t = containerType.toUpperCase();
+  if (t === "20FT") return "small";
+  if (t === "40FT") return "large";
+  if (t === "40HC" || t === "45FT") return "hc";
+  if (t.endsWith("FR")) return "reefer";
+  return null;
+}
+
+/** The last `days` midnights ending today, oldest first. */
+export function lastNDayLabels(
+  days: number,
+  now: Date = new Date(),
+): { date: Date; label: string }[] {
+  // Longer windows drop the weekday so the axis stays legible.
+  const format: Intl.DateTimeFormatOptions =
+    days > 14 ? { day: "numeric", month: "short" } : { weekday: "short", day: "numeric" };
+
+  return Array.from({ length: days }).map((_, i) => {
     const d = new Date(now);
-    d.setDate(d.getDate() - (6 - i));
+    d.setDate(d.getDate() - (days - 1 - i));
     d.setHours(0, 0, 0, 0);
-    const label = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
-    return { date: d, label };
+    return { date: d, label: d.toLocaleDateString("en-GB", format) };
   });
 }
 
-export function computeDailyTrend<T extends Pick<ContainerLike, "gateInTime">>(
-  containers: T[],
-  now: Date = new Date(),
-): { label: string; count: number }[] {
-  return last7DayLabels(now).map(({ date, label }) => {
+export function last7DayLabels(now: Date = new Date()): { date: Date; label: string }[] {
+  return lastNDayLabels(7, now);
+}
+
+export interface TrendPoint {
+  label: string;
+  /** `yyyy-mm-dd` of this bar, for filtering on click. */
+  dayKey: string;
+  gateIn: number;
+  gateOut: number;
+}
+
+export function computeDailyTrend<
+  T extends Pick<ContainerLike, "gateInTime" | "gateOutTime">,
+>(containers: T[], days = 7, now: Date = new Date()): TrendPoint[] {
+  return lastNDayLabels(days, now).map(({ date, label }) => {
     const next = new Date(date);
     next.setDate(next.getDate() + 1);
-    const count = containers.filter(
-      (c) => c.gateInTime >= date && c.gateInTime < next,
-    ).length;
-    return { label, count };
+    const inWindow = (d?: Date) => !!d && d >= date && d < next;
+    return {
+      label,
+      dayKey: dayKey(date),
+      gateIn: containers.filter((c) => inWindow(c.gateInTime)).length,
+      gateOut: containers.filter((c) => inWindow(c.gateOutTime)).length,
+    };
   });
 }
 
@@ -88,11 +162,8 @@ export function computeStockByLine<
     .filter((c) => c.status === "in-yard")
     .forEach((c) => {
       const row = map.get(c.shippingLine) ?? { small: 0, large: 0, hc: 0, reefer: 0, total: 0 };
-      const t = c.containerType.toUpperCase();
-      if (t === "20FT") row.small += 1;
-      else if (t === "40FT") row.large += 1;
-      else if (t === "40HC" || t === "45FT") row.hc += 1;
-      else if (t.endsWith("FR")) row.reefer += 1;
+      const bucket = sizeBucketOf(c.containerType);
+      if (bucket) row[bucket] += 1;
       row.total += 1;
       map.set(c.shippingLine, row);
     });
@@ -108,12 +179,7 @@ export function computeAgingBuckets<
   containers
     .filter((c) => c.status === "in-yard")
     .forEach((c) => {
-      const d = daysInYard(c.gateInTime, now);
-      if (d <= 7) buckets.fresh += 1;
-      else if (d <= 14) buckets.week += 1;
-      else if (d <= 21) buckets.twoWeeks += 1;
-      else if (d <= 30) buckets.threeWeeks += 1;
-      else buckets.stale += 1;
+      buckets[agingBucketOf(c.gateInTime, now)] += 1;
     });
   return buckets;
 }
