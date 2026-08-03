@@ -13,10 +13,12 @@ import {
   containerSvg,
   everestLogoSvg,
   mountainBandSvg,
+  operatorSignatureName,
   personSigSvg,
   receiptCss,
   shipSigSvg,
   truckWatermarkSvg,
+  type ReceiptContext,
   type ReceiptProfile,
 } from "@/lib/gateInReceipt";
 
@@ -41,6 +43,7 @@ export interface GateOutReceiptData {
 export const printGateOutReceipt = (
   data: GateOutReceiptData,
   profile: ReceiptProfile | null | undefined,
+  context?: ReceiptContext,
 ): boolean => {
   const receiptWindow = window.open("", "_blank");
   if (!receiptWindow) return false;
@@ -51,11 +54,14 @@ export const printGateOutReceipt = (
   const ticketNum = String(data.ticket_number).padStart(6, "0");
   const yardNameRaw = profile?.yard_name || "YARD";
   const yardName = escapeHtml(yardNameRaw);
-  const supervisorName = escapeHtml(profile?.full_name || profile?.username || "—");
+  // The operator who released the container — from the visit record on a
+  // reprint, so the ticket never credits the person pressing print.
+  const releasedByName = escapeHtml(operatorSignatureName(profile, context));
   const printedBy = escapeHtml(profile?.username || profile?.full_name || "system");
   const printedAt = escapeHtml(new Date()
     .toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
     .replace(",", ""));
+  const printLabel = context?.isReprint ? "Reprinted" : "Printed";
 
   const words = yardNameRaw.trim().split(/\s+/);
   const logoLine1 = escapeHtml(words[0] || "YARD");
@@ -188,8 +194,9 @@ export const printGateOutReceipt = (
     <div class="sig">
       <div class="sig-avatar">${clipboardSigSvg("#fff")}</div>
       <div class="sig-line"></div>
-      <div class="sig-name">Yard Supervisor</div>
-      <div class="sig-value">${supervisorName}</div>
+      <div class="sig-name">Released By</div>
+      <div class="sig-name-ar">سلّمها</div>
+      <div class="sig-value">${releasedByName}</div>
     </div>
   </div>
 
@@ -198,7 +205,7 @@ export const printGateOutReceipt = (
   <div class="footer-bar">
     <span class="footer-brand">🏔 ${yardName}</span>
     <span>🔒 Official Document — Do not alter</span>
-    <span>Printed: ${printedAt} by ${printedBy}</span>
+    <span>${printLabel}: ${printedAt} by ${printedBy}</span>
   </div>
 
 </div>
