@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Camera, CheckCircle, XCircle, ChevronRight, Trash2, ClipboardCheck, LogOut } from "lucide-react";
+import { Camera, CheckCircle, XCircle, ChevronRight, Trash2, ClipboardCheck, LogOut, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +27,12 @@ interface PhotoItem {
 const Inspector = () => {
   const { user, profile, currentYardId, signOut } = useAuth();
   const { toast } = useToast();
+  // Two separate inputs: the camera one carries `capture`, which on mobile
+  // opens the camera directly and gives no way to reach the photo library.
+  // Photos taken earlier in the shift (or before the container was logged)
+  // have to come from the library, hence the second, capture-less input.
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState(1);
   const [containerNumber, setContainerNumber] = useState("");
@@ -210,7 +215,7 @@ const Inspector = () => {
             <section>
               <h2 className="text-xl font-bold mb-1">Photos</h2>
               <p className="text-muted-foreground text-sm mb-3">
-                Take photos of the container — up to 6
+                Take photos of the container, or pick existing ones — up to 6
               </p>
               <input
                 ref={fileInputRef}
@@ -221,14 +226,31 @@ const Inspector = () => {
                 className="hidden"
                 onChange={handlePhotoSelect}
               />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePhotoSelect}
+              />
               {photos.length < 6 && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-28 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors active:bg-muted"
-                >
-                  <Camera className="h-9 w-9" />
-                  <span className="text-sm font-medium">Tap to take photo</span>
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-28 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors active:bg-muted"
+                  >
+                    <Camera className="h-9 w-9" />
+                    <span className="text-sm font-medium">Tap to take photo</span>
+                  </button>
+                  <button
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="w-full h-12 border border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors active:bg-muted"
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    <span className="text-sm font-medium">Choose from gallery</span>
+                  </button>
+                </div>
               )}
               {photos.length > 0 && (
                 <div className="grid grid-cols-3 gap-2 mt-3">

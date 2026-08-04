@@ -48,7 +48,11 @@ const PhotoArchive = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadingIds, setUploadingIds] = useState<Set<string>>(new Set());
+  // Camera vs library: `capture` on an input opens the camera directly on
+  // mobile with no route to the photo library, so each check gets both a
+  // capture input and a plain one.
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const galleryInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const canAddPhotos = isInspector() || isAdmin() || isSuperAdmin();
 
@@ -248,15 +252,38 @@ const PhotoArchive = () => {
                           void handleAddPhotos(c, files);
                         }}
                       />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={uploading}
-                        onClick={() => fileInputRefs.current[c.id]?.click()}
-                      >
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        {uploading ? "Uploading…" : "Add Photos"}
-                      </Button>
+                      <input
+                        ref={(el) => { galleryInputRefs.current[c.id] = el; }}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          e.target.value = "";
+                          void handleAddPhotos(c, files);
+                        }}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={uploading}
+                          onClick={() => fileInputRefs.current[c.id]?.click()}
+                        >
+                          <Camera className="h-3.5 w-3.5 mr-1" />
+                          {uploading ? "Uploading…" : "Take Photos"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={uploading}
+                          onClick={() => galleryInputRefs.current[c.id]?.click()}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          {uploading ? "Uploading…" : "Add From Gallery"}
+                        </Button>
+                      </div>
                     </>
                   )}
                 </div>
