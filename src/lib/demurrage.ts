@@ -5,7 +5,7 @@
 export const USD_TO_JOD = 0.712;
 
 export type DemurrageContainerType = "20FT" | "40FT";
-export type DemurrageShippingLine = "SLG" | "SLD" | "WOM" | "SFT";
+export type DemurrageShippingLine = "SLG" | "SLD" | "WOM" | "SFT" | "EEL";
 
 export interface DemurrageTier {
   // Inclusive start day, inclusive end day (null = open-ended).
@@ -69,6 +69,16 @@ export const DEMURRAGE_RULES: Record<
       { fromDay: 22, toDay: null, rate20: 50, rate40: 100, label: "Day 22+" },
     ],
   },
+  // EEL charges far more than the other lines — 200-350 USD/day against their
+  // 15-100. The figures are the line's published tariff, not a typo.
+  EEL: {
+    freeDays: 14,
+    tiers: [
+      { fromDay: 1, toDay: 14, rate20: 0, rate40: 0, label: "Days 1-14 (Free)" },
+      { fromDay: 15, toDay: 17, rate20: 200, rate40: 250, label: "Days 15-17" },
+      { fromDay: 18, toDay: null, rate20: 300, rate40: 350, label: "Day 18+" },
+    ],
+  },
 };
 
 // Maps a full container type code to the demurrage size bucket.
@@ -83,7 +93,8 @@ export const toDemurrageContainerType = (
 export const hasDemurrageRules = (
   shippingLine: string,
 ): shippingLine is DemurrageShippingLine =>
-  shippingLine === "SLG" || shippingLine === "SLD" || shippingLine === "WOM" || shippingLine === "SFT";
+  shippingLine === "SLG" || shippingLine === "SLD" || shippingLine === "WOM" ||
+  shippingLine === "SFT" || shippingLine === "EEL";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
