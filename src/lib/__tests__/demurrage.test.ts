@@ -32,6 +32,7 @@ describe("hasDemurrageRules", () => {
     expect(hasDemurrageRules("SLD")).toBe(true);
     expect(hasDemurrageRules("WOM")).toBe(true);
     expect(hasDemurrageRules("SFT")).toBe(true);
+    expect(hasDemurrageRules("EEL")).toBe(true);
   });
 
   it("rejects unknown lines", () => {
@@ -143,7 +144,7 @@ describe("calculateDemurrage — tiered totals", () => {
   });
 
   it("reports the configured free days", () => {
-    for (const line of ["SLG", "SLD", "WOM", "SFT"] as const) {
+    for (const line of ["SLG", "SLD", "WOM", "SFT", "EEL"] as const) {
       const r = calculateDemurrage(line, "20FT", "2026-01-01", d("2026-01-02"));
       expect(r.freeDays).toBe(DEMURRAGE_RULES[line].freeDays);
     }
@@ -153,6 +154,73 @@ describe("calculateDemurrage — tiered totals", () => {
     // SLD day 11 → 1 × $15 = $15 → 15 × 0.712 = 10.68 JOD.
     const r = calculateDemurrage("SLD", "20FT", "2026-01-01", d("2026-01-11"));
     expect(r.totalJOD).toBe(10.68);
+  });
+});
+
+// EEL's published tariff, checked against the line's own worked example:
+// arrival 03/08/2026, 14 free days, last free day 16/08, demurrage from 17/08.
+// First period 17/08-19/08, second period 20/08 onwards.
+describe("calculateDemurrage — EEL", () => {
+  const ARRIVAL = "2026-08-03";
+
+  it("stays free through the 14th day (16/08)", () => {
+    const r = calculateDemurrage("EEL", "40HC", ARRIVAL, d("2026-08-16"));
+    expect(r.daysElapsed).toBe(14);
+    expect(r.freeDays).toBe(14);
+    expect(r.totalUSD).toBe(0);
+    expect(r.breakdown).toEqual([]);
+  });
+
+  it("starts charging on 17/08, the 15th day", () => {
+    const hc = calculateDemurrage("EEL", "40HC", ARRIVAL, d("2026-08-17"));
+    expect(hc.daysElapsed).toBe(15);
+    expect(hc.totalUSD).toBe(250);
+
+    const sd = calculateDemurrage("EEL", "20GP", ARRIVAL, d("2026-08-17"));
+    expect(sd.totalUSD).toBe(200);
+  });
+
+  it("charges the full first period at the lower rate (17/08-19/08)", () => {
+    // 3 days: 40' HC 3 × $250 = $750; 20' SD 3 × $200 = $600.
+    const hc = calculateDemurrage("EEL", "40HC", ARRIVAL, d("2026-08-19"));
+    expect(hc.daysElapsed).toBe(17);
+    expect(hc.totalUSD).toBe(750);
+    expect(hc.breakdown).toHaveLength(1);
+
+    const sd = calculateDemurrage("EEL", "20GP", ARRIVAL, d("2026-08-19"));
+    expect(sd.totalUSD).toBe(600);
+  });
+
+  it("steps up to the second period on 20/08", () => {
+    // Day 18 → first period 3 × $250 = $750, plus 1 × $350 → $1100 (40' HC).
+    const r = calculateDemurrage("EEL", "40HC", ARRIVAL, d("2026-08-20"));
+    expect(r.daysElapsed).toBe(18);
+    expect(r.totalUSD).toBe(1100);
+    expect(r.breakdown.map((b) => b.rateUSD)).toEqual([250, 350]);
+  });
+
+  it("spans both periods", () => {
+    // As-of 25/08 → 3 × $250 + 6 × $350 = $2850 (40' HC).
+    const hc = calculateDemurrage("EEL", "40HC", ARRIVAL, d("2026-08-25"));
+    expect(hc.daysElapsed).toBe(23);
+    expect(hc.totalUSD).toBe(2850);
+    expect(hc.breakdown.map((b) => b.subtotalUSD)).toEqual([750, 2100]);
+    expect(hc.totalJOD).toBe(Math.round(2850 * USD_TO_JOD * 100) / 100);
+
+    // 20' SD over the same window: 3 × $200 + 6 × $300 = $2400.
+    const sd = calculateDemurrage("EEL", "20GP", ARRIVAL, d("2026-08-25"));
+    expect(sd.totalUSD).toBe(2400);
+    expect(sd.breakdown.map((b) => b.subtotalUSD)).toEqual([600, 1800]);
+  });
+
+  it("buckets every container type by size", () => {
+    const asOf = d("2026-08-19"); // 3 chargeable days in the first period
+    for (const type of ["20GP", "20RF", "20FR", "20OT", "20TK"]) {
+      expect(calculateDemurrage("EEL", type, ARRIVAL, asOf).totalUSD).toBe(600);
+    }
+    for (const type of ["40GP", "40HC", "40RF", "40RH", "45HC"]) {
+      expect(calculateDemurrage("EEL", type, ARRIVAL, asOf).totalUSD).toBe(750);
+    }
   });
 });
 
