@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Crown, Users, Shield, ShieldCheck, ClipboardCheck, UserPlus, Ship } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
+import { createUser as createUserRequest, validateNewUser, MIN_PASSWORD_LENGTH } from "@/lib/createUser";
 import { PageHeader } from "@/components/PageHeader";
 
 type AppRole = "super_admin" | "admin" | "inspector" | "line_rep" | "user";
@@ -108,8 +109,9 @@ const UserManagement = () => {
   }, [isSuperAdmin]);
 
   const createUser = async () => {
-    if (!newUser.username.trim() || !newUser.password || !newUser.fullName.trim()) {
-      toast({ title: "Missing fields", description: "Full name, username and password are required.", variant: "destructive" });
+    const invalid = validateNewUser(newUser);
+    if (invalid) {
+      toast({ title: "Check the form", description: invalid, variant: "destructive" });
       return;
     }
     const yardId = isSuperAdmin() ? newUser.yard_id : currentYardId();
@@ -117,24 +119,11 @@ const UserManagement = () => {
       toast({ title: "No yard", description: isSuperAdmin() ? "Please select a yard." : "You are not assigned to a yard.", variant: "destructive" });
       return;
     }
-    if (newUser.role === "line_rep" && !newUser.shipping_line) {
-      toast({ title: "Missing shipping line", description: "Select which shipping line this representative belongs to.", variant: "destructive" });
-      return;
-    }
     setCreating(true);
-    const { data, error } = await supabase.functions.invoke("create-user", {
-      body: {
-        username: newUser.username.trim().toLowerCase(),
-        password: newUser.password,
-        fullName: newUser.fullName.trim(),
-        role: newUser.role,
-        yard_id: yardId,
-        shipping_line: newUser.role === "line_rep" ? newUser.shipping_line : undefined,
-      },
-    });
+    const failure = await createUserRequest({ ...newUser, yard_id: yardId });
     setCreating(false);
-    if (error || (data as { error?: string })?.error) {
-      toast({ title: "Failed", description: error?.message || (data as { error?: string })?.error, variant: "destructive" });
+    if (failure) {
+      toast({ title: "Failed", description: failure, variant: "destructive" });
       return;
     }
     toast({ title: "User created successfully" });
@@ -305,6 +294,7 @@ const UserManagement = () => {
             <div className="space-y-1">
               <Label>Password</Label>
               <Input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} placeholder="temporary password" />
+              <p className="text-xs text-muted-foreground">At least {MIN_PASSWORD_LENGTH} characters.</p>
             </div>
             <div className="space-y-1">
               <Label>Role</Label>

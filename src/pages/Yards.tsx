@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Plus, UserPlus } from "lucide-react";
+import { createUser as createUserRequest, validateNewUser, MIN_PASSWORD_LENGTH } from "@/lib/createUser";
 
 interface Yard { id: string; name: string; code: string; created_at: string; }
 
@@ -54,19 +55,13 @@ const Yards = () => {
 
   const createUser = async () => {
     if (!userForm.yard_id) { toast({ title: "Pick a yard", variant: "destructive" }); return; }
+    const invalid = validateNewUser(userForm);
+    if (invalid) { toast({ title: "Check the form", description: invalid, variant: "destructive" }); return; }
     setBusy(true);
-    const { data, error } = await supabase.functions.invoke("create-user", {
-      body: {
-        username: userForm.username.trim().toLowerCase(),
-        password: userForm.password,
-        fullName: userForm.fullName.trim(),
-        role: userForm.role,
-        yard_id: userForm.yard_id,
-      },
-    });
+    const failure = await createUserRequest(userForm);
     setBusy(false);
-    if (error || (data as { error?: string })?.error) {
-      toast({ title: "Failed", description: error?.message || (data as { error?: string })?.error, variant: "destructive" });
+    if (failure) {
+      toast({ title: "Failed", description: failure, variant: "destructive" });
       return;
     }
     toast({ title: "User created" });
@@ -135,7 +130,11 @@ const Yards = () => {
           <div className="space-y-3">
             <div><Label>Full Name</Label><Input value={userForm.fullName} onChange={e => setUserForm({ ...userForm, fullName: e.target.value })} /></div>
             <div><Label>Username</Label><Input value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} /></div>
-            <div><Label>Password</Label><Input type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} /></div>
+            <div>
+              <Label>Password</Label>
+              <Input type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} />
+              <p className="text-xs text-muted-foreground">At least {MIN_PASSWORD_LENGTH} characters.</p>
+            </div>
             <div>
               <Label>Yard</Label>
               <Select value={userForm.yard_id} onValueChange={v => setUserForm({ ...userForm, yard_id: v })}>
