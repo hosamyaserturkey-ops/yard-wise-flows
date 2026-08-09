@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
+import { edgeResult } from "@/lib/edgeFunction";
+import { MIN_PASSWORD_LENGTH, validatePassword } from "@/lib/password";
 
-/** Mirrors the create-user Edge Function's own minimum. */
-export const MIN_PASSWORD_LENGTH = 10;
+export { MIN_PASSWORD_LENGTH };
 
 export interface CreateUserInput {
   username: string;
@@ -30,39 +31,12 @@ export function validateNewUser(input: {
   if (username.length < 3 || !/^[a-z0-9_]+$/.test(username)) {
     return "Username must be at least 3 characters and use only lowercase letters, numbers or underscores.";
   }
-  if (input.password.length < MIN_PASSWORD_LENGTH) {
-    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-  }
+  const weakPassword = validatePassword(input.password);
+  if (weakPassword) return weakPassword;
   if (input.role === "line_rep" && !input.shipping_line) {
     return "Select which shipping line this representative belongs to.";
   }
   return null;
-}
-
-/**
- * supabase-js rejects any non-2xx Edge Function response with the generic
- * "Edge Function returned a non-2xx status code" and keeps the actual
- * response on `error.context`. Read the JSON body so the real reason
- * ("Password must be at least 10 characters", "Username already taken", …)
- * reaches the user instead of that placeholder.
- */
-async function edgeErrorMessage(error: unknown): Promise<string> {
-  const context = (error as { context?: unknown })?.context;
-  if (context instanceof Response) {
-    try {
-      const body = await context.clone().json();
-      const message = (body as { error?: string })?.error;
-      if (message) return message;
-    } catch {
-      try {
-        const text = (await context.clone().text()).trim();
-        if (text) return text;
-      } catch {
-        /* fall through to the generic message */
-      }
-    }
-  }
-  return error instanceof Error ? error.message : "Unknown error";
 }
 
 /**
@@ -80,7 +54,5 @@ export async function createUser(input: CreateUserInput): Promise<string | null>
       shipping_line: input.role === "line_rep" ? input.shipping_line : undefined,
     },
   });
-  if (error) return await edgeErrorMessage(error);
-  const bodyError = (data as { error?: string } | null)?.error;
-  return bodyError ?? null;
+  return await edgeResult(data, error);
 }

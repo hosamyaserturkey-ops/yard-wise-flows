@@ -28,6 +28,7 @@ const Inspector = lazy(() => import("./pages/Inspector"));
 const ActivityLog = lazy(() => import("./pages/ActivityLog"));
 const YardMap = lazy(() => import("./pages/YardMap"));
 const PhotoArchive = lazy(() => import("./pages/PhotoArchive"));
+const Account = lazy(() => import("./pages/Account"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -83,6 +84,12 @@ const App = () => (
                 <Route path="accounting" element={
                   <ProtectedRoute adminOnly>
                     <Accounting />
+                  </ProtectedRoute>
+                } />
+                {/* Everyone manages their own password here, line reps included. */}
+                <Route path="account" element={
+                  <ProtectedRoute lineRepAllowed>
+                    <Account />
                   </ProtectedRoute>
                 } />
                 <Route path="admin/users" element={
