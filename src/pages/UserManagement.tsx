@@ -13,10 +13,11 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Users, Shield, ShieldCheck, ClipboardCheck, UserPlus, Ship } from "lucide-react";
+import { Crown, Users, Shield, ShieldCheck, ClipboardCheck, UserPlus, Ship, KeyRound } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
-import { createUser as createUserRequest, validateNewUser, MIN_PASSWORD_LENGTH } from "@/lib/createUser";
+import { createUser as createUserRequest, validateNewUser } from "@/lib/createUser";
+import { resetUserPassword, MIN_PASSWORD_LENGTH } from "@/lib/password";
 import { PageHeader } from "@/components/PageHeader";
 
 type AppRole = "super_admin" | "admin" | "inspector" | "line_rep" | "user";
@@ -53,6 +54,9 @@ const UserManagement = () => {
     fullName: "", username: "", password: "", role: "user", yard_id: "", shipping_line: "",
   });
   const [creating, setCreating] = useState(false);
+  const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -130,6 +134,23 @@ const UserManagement = () => {
     setCreateOpen(false);
     setNewUser({ fullName: "", username: "", password: "", role: "user", yard_id: "", shipping_line: "" });
     load();
+  };
+
+  const submitReset = async () => {
+    if (!resetTarget) return;
+    setResetting(true);
+    const failure = await resetUserPassword(resetTarget.user_id, resetPassword);
+    setResetting(false);
+    if (failure) {
+      toast({ title: "Password not reset", description: failure, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Password reset",
+      description: `Give the new password to ${resetTarget.username || resetTarget.full_name || "the user"}.`,
+    });
+    setResetTarget(null);
+    setResetPassword("");
   };
 
   const toggleRole = async (row: UserRow) => {
@@ -240,7 +261,20 @@ const UserManagement = () => {
                     <TableCell>
                       {new Date(r.created_at).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        // Your own password goes through My Account, which asks
+                        // for the current one first.
+                        disabled={
+                          r.user_id === user?.id ||
+                          (!isSuperAdmin() && (r.role === "admin" || r.role === "super_admin"))
+                        }
+                        onClick={() => { setResetTarget(r); setResetPassword(""); }}
+                      >
+                        <KeyRound className="h-3.5 w-3.5 mr-1" /> Reset Password
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -336,6 +370,40 @@ const UserManagement = () => {
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button onClick={createUser} disabled={creating}>
               {creating ? "Creating..." : "Create User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!resetTarget} onOpenChange={open => { if (!open) setResetTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              Set a new password for{" "}
+              <span className="font-medium text-foreground">
+                {resetTarget?.full_name || resetTarget?.username}
+              </span>
+              . They are not notified — pass it on yourself.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="reset-password">New Password</Label>
+              <Input
+                id="reset-password"
+                type="password"
+                autoComplete="new-password"
+                value={resetPassword}
+                onChange={e => setResetPassword(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">At least {MIN_PASSWORD_LENGTH} characters.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetTarget(null)}>Cancel</Button>
+            <Button onClick={submitReset} disabled={resetting}>
+              {resetting ? "Resetting..." : "Reset Password"}
             </Button>
           </DialogFooter>
         </DialogContent>
