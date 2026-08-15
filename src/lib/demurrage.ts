@@ -81,7 +81,10 @@ export const DEMURRAGE_RULES: Record<
   },
 };
 
-// Maps a full container type code to the demurrage size bucket.
+// Maps a full container type code to the demurrage size bucket. Deliberately
+// separate from `sizeBucketOf` in dashboardStats.ts: this picks a billing rate
+// column, so a reefer bills at its length's rate and 45ft bills as 40ft, where
+// the dashboard splits both out. Keep the money path independent of the table.
 export const toDemurrageContainerType = (
   containerType: string,
 ): DemurrageContainerType => {

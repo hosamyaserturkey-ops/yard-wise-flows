@@ -45,7 +45,7 @@ describe("scopeContainers", () => {
     make({ shippingLine: "SLD", containerType: "20FT", gateInTime: daysAgo(1) }),
     make({ shippingLine: "SLD", containerType: "40HC", gateInTime: daysAgo(40) }),
     make({ shippingLine: "WOM", containerType: "20FT", gateInTime: daysAgo(1) }),
-    make({ shippingLine: "WOM", containerType: "40FR", gateInTime: daysAgo(40), status: "out" }),
+    make({ shippingLine: "WOM", containerType: "40RH", gateInTime: daysAgo(40), status: "out" }),
   ];
 
   it("returns everything when no filter is active", () => {
@@ -62,6 +62,25 @@ describe("scopeContainers", () => {
     const result = scopeContainers(containers, filters({ size: "small" }), {}, NOW);
     expect(result).toHaveLength(2);
     expect(result.every((c) => c.containerType === "20FT")).toBe(true);
+  });
+
+  it("filters by size bucket on ISO codes", () => {
+    const iso = [
+      make({ containerType: "20GP" }),
+      make({ containerType: "40GP" }),
+      make({ containerType: "45HC" }),
+    ];
+    expect(scopeContainers(iso, filters({ size: "small" }), {}, NOW)).toHaveLength(1);
+    expect(scopeContainers(iso, filters({ size: "large" }), {}, NOW)).toHaveLength(1);
+    expect(scopeContainers(iso, filters({ size: "hc" }), {}, NOW)).toHaveLength(1);
+  });
+
+  it("treats RF/RH as reefers and FR as a flat rack", () => {
+    const mixed = [make({ containerType: "40RH" }), make({ containerType: "40FR" })];
+    const reefers = scopeContainers(mixed, filters({ size: "reefer" }), {}, NOW);
+    expect(reefers.map((c) => c.containerType)).toEqual(["40RH"]);
+    const large = scopeContainers(mixed, filters({ size: "large" }), {}, NOW);
+    expect(large.map((c) => c.containerType)).toEqual(["40FR"]);
   });
 
   it("filters by gate-in day", () => {
