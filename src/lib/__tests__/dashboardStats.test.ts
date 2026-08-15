@@ -10,7 +10,9 @@ import {
   daysInYard,
   sizeBucketOf,
   timeAgo,
+  type SizeBucket,
 } from "../dashboardStats";
+import { ALL_ACCEPTED_TYPE_CODES } from "../containerTypes";
 
 const NOW = new Date("2026-07-15T12:00:00");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -84,13 +86,46 @@ describe("agingBucketOf", () => {
 });
 
 describe("sizeBucketOf", () => {
-  it("maps container types onto stock-table buckets", () => {
-    expect(sizeBucketOf("20FT")).toBe("small");
+  // Every code the app can store — the 13 current ISO 6346 group codes plus the
+  // three legacy ones still accepted by validation.
+  const cases: [string, SizeBucket][] = [
+    ["20GP", "small"],
+    ["20OT", "small"],
+    ["20FR", "small"], // FR is Flat Rack, not Reefer
+    ["20TK", "small"],
+    ["20FT", "small"], // legacy
+    ["40GP", "large"],
+    ["40OT", "large"],
+    ["40FR", "large"], // FR is Flat Rack, not Reefer
+    ["40TK", "large"],
+    ["40FT", "large"], // legacy
+    ["40HC", "hc"],
+    ["45HC", "hc"],
+    ["45FT", "hc"], // legacy
+    ["20RF", "reefer"],
+    ["40RF", "reefer"],
+    ["40RH", "reefer"],
+  ];
+
+  it.each(cases)("maps %s onto the %s bucket", (type, bucket) => {
+    expect(sizeBucketOf(type)).toBe(bucket);
+  });
+
+  it("covers every code accepted by validation", () => {
+    for (const code of ALL_ACCEPTED_TYPE_CODES) {
+      expect(sizeBucketOf(code), `${code} should bucket`).not.toBeNull();
+    }
+    expect(cases.map(([type]) => type).sort()).toEqual([...ALL_ACCEPTED_TYPE_CODES].sort());
+  });
+
+  it("is case-insensitive and tolerates surrounding space", () => {
     expect(sizeBucketOf("40ft")).toBe("large");
-    expect(sizeBucketOf("40HC")).toBe("hc");
-    expect(sizeBucketOf("45FT")).toBe("hc");
-    expect(sizeBucketOf("40FR")).toBe("reefer");
+    expect(sizeBucketOf(" 20gp ")).toBe("small");
+  });
+
+  it("returns null for an unrecognisable type", () => {
     expect(sizeBucketOf("SOMETHING-ELSE")).toBeNull();
+    expect(sizeBucketOf("")).toBeNull();
   });
 });
 
@@ -127,18 +162,44 @@ describe("computeLineDistribution", () => {
 describe("computeStockByLine", () => {
   it("splits in-yard stock by size bucket and ignores gated-out units", () => {
     const containers = [
-      { status: "in-yard", shippingLine: "SLD", containerType: "20FT" },
-      { status: "in-yard", shippingLine: "SLD", containerType: "40FT" },
-      { status: "in-yard", shippingLine: "SLD", containerType: "40HC" },
-      { status: "in-yard", shippingLine: "SLD", containerType: "45FT" },
-      { status: "in-yard", shippingLine: "SLD", containerType: "40FR" },
-      { status: "out", shippingLine: "SLD", containerType: "20FT" },
-      { status: "in-yard", shippingLine: "WOM", containerType: "20FT" },
+      { status: "in-yard", shippingLine: "SLD", containerType: "20GP" }, // small
+      { status: "in-yard", shippingLine: "SLD", containerType: "40GP" }, // large
+      { status: "in-yard", shippingLine: "SLD", containerType: "40FR" }, // large — flat rack
+      { status: "in-yard", shippingLine: "SLD", containerType: "40HC" }, // hc
+      { status: "in-yard", shippingLine: "SLD", containerType: "45HC" }, // hc
+      { status: "in-yard", shippingLine: "SLD", containerType: "20RF" }, // reefer
+      { status: "in-yard", shippingLine: "SLD", containerType: "40RH" }, // reefer
+      { status: "out", shippingLine: "SLD", containerType: "20GP" },
+      { status: "in-yard", shippingLine: "WOM", containerType: "20FT" }, // legacy
     ];
     expect(computeStockByLine(containers)).toEqual([
-      { line: "SLD", small: 1, large: 1, hc: 2, reefer: 1, total: 5 },
+      { line: "SLD", small: 1, large: 2, hc: 2, reefer: 2, total: 7 },
       { line: "WOM", small: 1, large: 0, hc: 0, reefer: 0, total: 1 },
     ]);
+  });
+
+  // The reported bug: a line stocked entirely with 20GP showed 0 in every size
+  // column while Total read 25, because sizeBucketOf only matched legacy codes.
+  it("counts a line stocked entirely with one ISO code", () => {
+    const containers = Array.from({ length: 25 }, () => ({
+      status: "in-yard",
+      shippingLine: "7Seas",
+      containerType: "20GP",
+    }));
+    expect(computeStockByLine(containers)).toEqual([
+      { line: "7Seas", small: 25, large: 0, hc: 0, reefer: 0, total: 25 },
+    ]);
+  });
+
+  it("keeps the size columns summing to the row total", () => {
+    const containers = ALL_ACCEPTED_TYPE_CODES.map((containerType) => ({
+      status: "in-yard",
+      shippingLine: "SLD",
+      containerType,
+    }));
+    const [row] = computeStockByLine(containers);
+    expect(row.small + row.large + row.hc + row.reefer).toBe(row.total);
+    expect(row.total).toBe(ALL_ACCEPTED_TYPE_CODES.length);
   });
 });
 

@@ -84,13 +84,24 @@ export function agingBucketOf(gateInTime: Date, now: Date = new Date()): AgingBu
   return (AGING_BUCKETS.find((b) => d <= b.maxDays) ?? AGING_BUCKETS[AGING_BUCKETS.length - 1]).key;
 }
 
-/** Map a raw container type onto a stock-table size bucket. */
+/**
+ * Map a raw container type onto a stock-table size bucket.
+ *
+ * Types are ISO 6346 group codes (see containerTypes.ts): a two-character size
+ * prefix (20/40/45) plus a two-character type suffix (GP/HC/RF/RH/FR/OT/TK),
+ * alongside the legacy 20FT/40FT/45FT codes. Matching is on prefix and suffix
+ * rather than whole codes so a new group code buckets correctly on its own.
+ *
+ * Buckets are mutually exclusive, so the stock table's columns always sum to
+ * its total: reefers count as Reefer rather than under their size, and every
+ * other type falls to its size. Note FR is Flat Rack — a reefer is RF or RH.
+ */
 export function sizeBucketOf(containerType: string): SizeBucket | null {
-  const t = containerType.toUpperCase();
-  if (t === "20FT") return "small";
-  if (t === "40FT") return "large";
-  if (t === "40HC" || t === "45FT") return "hc";
-  if (t.endsWith("FR")) return "reefer";
+  const t = containerType.toUpperCase().trim();
+  if (t.endsWith("RF") || t.endsWith("RH")) return "reefer";
+  if (t.startsWith("45") || t === "40HC") return "hc";
+  if (t.startsWith("20")) return "small";
+  if (t.startsWith("40")) return "large";
   return null;
 }
 
@@ -164,6 +175,9 @@ export function computeStockByLine<
       const row = map.get(c.shippingLine) ?? { small: 0, large: 0, hc: 0, reefer: 0, total: 0 };
       const bucket = sizeBucketOf(c.containerType);
       if (bucket) row[bucket] += 1;
+      // `total` is the authoritative in-yard count, so it matches the KPI cards
+      // and the by-line donut. Every type the app can store buckets, so the four
+      // columns reconcile with it; only unrecognisable data would break the sum.
       row.total += 1;
       map.set(c.shippingLine, row);
     });
