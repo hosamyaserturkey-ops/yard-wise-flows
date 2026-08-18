@@ -122,7 +122,7 @@ export function useContainerLookup(
       // trip, so an approval from a previous visit can't satisfy this one.
       let inspectionQuery = supabase
         .from("inspector_checks")
-        .select("status, grade")
+        .select("status, grade, container_type")
         .eq("container_number", containerNum);
       if (lastGateOutIso) inspectionQuery = inspectionQuery.gt("created_at", lastGateOutIso);
       const { data: inspectionRow } = await inspectionQuery
@@ -131,7 +131,11 @@ export function useContainerLookup(
         .maybeSingle();
       setInspectionStatus(
         inspectionRow
-          ? { status: inspectionRow.status as InspectionStatus["status"], grade: inspectionRow.grade }
+          ? {
+              status: inspectionRow.status as InspectionStatus["status"],
+              grade: inspectionRow.grade,
+              container_type: inspectionRow.container_type,
+            }
           : null,
       );
 

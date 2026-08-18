@@ -13,7 +13,7 @@ export const PendingGateInsCard = ({
   onSelect,
 }: {
   items: PendingGateIn[];
-  onSelect: (containerNumber: string) => void;
+  onSelect: (item: PendingGateIn) => void;
 }) => {
   if (items.length === 0) return null;
 
@@ -30,14 +30,21 @@ export const PendingGateInsCard = ({
           <div
             key={item.container_number}
             className="flex items-center justify-between bg-card rounded-lg border border-success/20 px-4 py-3 cursor-pointer hover:bg-success/10 transition-colors"
-            onClick={() => onSelect(item.container_number)}
+            onClick={() => onSelect(item)}
           >
             <div className="flex items-center gap-3">
               <Badge className={`${GRADE_COLORS[item.grade] ?? "bg-muted-foreground"} text-white`}>
                 {item.grade}
               </Badge>
               <div>
-                <div className="font-mono font-semibold text-foreground">{item.container_number}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-semibold text-foreground">{item.container_number}</span>
+                  {item.container_type && (
+                    <Badge variant="outline" className="font-mono text-[0.7rem] px-1.5 py-0">
+                      {item.container_type}
+                    </Badge>
+                  )}
+                </div>
                 {item.notes && (
                   <div className="text-xs text-muted-foreground truncate max-w-[18rem]">{item.notes}</div>
                 )}

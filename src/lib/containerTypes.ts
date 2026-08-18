@@ -56,3 +56,21 @@ export const ISO_DESCRIPTIONS: Record<string, string> = {
   ...LEGACY_TYPE_DESCRIPTIONS,
   ...Object.fromEntries(CONTAINER_TYPES.map((t) => [t.code, t.description])),
 };
+
+/**
+ * Container lengths offered to the inspector, who picks a size first and then
+ * the type within it — two quick taps on a phone instead of one long list.
+ */
+export const CONTAINER_SIZES: { code: string; label: string }[] = [
+  { code: "20", label: "20ft" },
+  { code: "40", label: "40ft" },
+  { code: "45", label: "45ft" },
+];
+
+/**
+ * The types belonging to one length, derived from CONTAINER_TYPES so the
+ * inspector's picker and the gate-in dropdown can never drift apart. An
+ * unknown size yields an empty list.
+ */
+export const typesForSize = (size: string): ContainerTypeOption[] =>
+  CONTAINER_TYPES.filter((t) => t.code.startsWith(size));

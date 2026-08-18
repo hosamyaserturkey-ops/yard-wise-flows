@@ -112,6 +112,16 @@ const GateIn = () => {
 
   const { pendingGateIns, reload: reloadPending } = usePendingGateIns(currentYardId);
 
+  // The inspector records the container's ISO type at the container itself, so
+  // a number typed by hand (rather than tapped from the queue) fills the type
+  // too. Only ever into an empty field: port data, when there is any, is what
+  // the size-aware demurrage bills against and must not be overwritten.
+  useEffect(() => {
+    const inspected = inspectionStatus?.container_type;
+    if (!inspected) return;
+    setFormData((prev) => (prev.containerType ? prev : { ...prev, containerType: inspected }));
+  }, [inspectionStatus]);
+
   // Auto-fill free days when shipping line changes (if rules exist for it)
   useEffect(() => {
     if (hasDemurrageRules(formData.shippingLine)) {
@@ -170,7 +180,7 @@ const GateIn = () => {
   const inspectionAdminOverride =
     lookupDone && !isInspectionApproved && canOverrideInspection;
 
-  // Lines with no tiered demurrage formula (e.g. 7Seas, BaBa, SaM) aren't
+  // Lines with no tiered demurrage formula (e.g. 7Seas, Gezairi, SaM) aren't
   // charged, so they need no port data to gate in. Formula lines still require a
   // valid, non-future arrival date to anchor the demurrage clock.
   const lineChargesDemurrage = hasDemurrageRules(formData.shippingLine);
@@ -463,8 +473,15 @@ const GateIn = () => {
         <>
       <PendingGateInsCard
         items={pendingGateIns}
-        onSelect={(containerNumber) =>
-          setFormData((prev) => ({ ...prev, containerNumber }))
+        onSelect={(item) =>
+          setFormData((prev) => ({
+            ...prev,
+            containerNumber: item.container_number,
+            // The inspector recorded the type at the container; port data (if
+            // any) still overrides it when the lookup lands, since that value
+            // is what the size-aware demurrage bills against.
+            containerType: item.container_type ?? prev.containerType,
+          }))
         }
       />
 
