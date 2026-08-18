@@ -16,7 +16,7 @@ export function usePendingGateIns(currentYardId: () => string | null) {
     // Latest inspection per container
     const { data: checks } = await supabase
       .from("inspector_checks")
-      .select("container_number, grade, status, notes, created_at")
+      .select("container_number, container_type, grade, status, notes, created_at")
       .eq("yard_id", yardId)
       .order("created_at", { ascending: false });
 
@@ -64,6 +64,7 @@ export function usePendingGateIns(currentYardId: () => string | null) {
         })
         .map((c) => ({
           container_number: c.container_number,
+          container_type: c.container_type,
           grade: c.grade,
           notes: c.notes,
           inspected_at: c.created_at,

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 import { uploadPhotoFiles } from "@/lib/photoUpload";
+import { CONTAINER_SIZES, typesForSize, ISO_DESCRIPTIONS } from "@/lib/containerTypes";
 
 type Grade = "A" | "B" | "C" | "D";
 type Decision = "approved" | "rejected";
@@ -36,6 +37,10 @@ const Inspector = () => {
 
   const [step, setStep] = useState(1);
   const [containerNumber, setContainerNumber] = useState("");
+  // Size is picked first, then the type within it — two quick taps beat one
+  // thirteen-item list on a phone. Only `containerType` is stored.
+  const [size, setSize] = useState<string | null>(null);
+  const [containerType, setContainerType] = useState<string | null>(null);
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [grade, setGrade] = useState<Grade | null>(null);
   const [notes, setNotes] = useState("");
@@ -60,7 +65,7 @@ const Inspector = () => {
   };
 
   const handleSubmit = async (decision: Decision) => {
-    if (!grade || !user) return;
+    if (!grade || !containerType || !user) return;
     const yardId = currentYardId();
     if (!yardId) {
       toast({ title: "Error", description: "No yard assigned to your account.", variant: "destructive" });
@@ -77,6 +82,7 @@ const Inspector = () => {
 
       const { error } = await supabase.from("inspector_checks").insert({
         container_number: containerNumber.trim().toUpperCase(),
+        container_type: containerType,
         grade,
         status: decision,
         notes: notes.trim() || null,
@@ -99,6 +105,8 @@ const Inspector = () => {
   const reset = () => {
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setContainerNumber("");
+    setSize(null);
+    setContainerType(null);
     setPhotos([]);
     setGrade(null);
     setNotes("");
@@ -198,9 +206,59 @@ const Inspector = () => {
                 autoCapitalize="characters"
               />
             </div>
+
+            {/* Size, then the types within it */}
+            <section>
+              <h2 className="text-xl font-bold mb-1">Container Size</h2>
+              <p className="text-muted-foreground text-sm mb-3">How long is the container?</p>
+              <div className="grid grid-cols-3 gap-3">
+                {CONTAINER_SIZES.map((s) => (
+                  <button
+                    key={s.code}
+                    onClick={() => {
+                      setSize(s.code);
+                      // A new size invalidates the type chosen under the old one.
+                      setContainerType(null);
+                    }}
+                    className={`h-20 rounded-2xl border-2 font-bold text-xl transition-all active:scale-95 ${
+                      size === s.code
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card text-foreground"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {size && (
+              <section>
+                <h2 className="text-xl font-bold mb-1">Container Type</h2>
+                <p className="text-muted-foreground text-sm mb-3">What kind of {size}ft container is it?</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {typesForSize(size).map((t) => (
+                    <button
+                      key={t.code}
+                      onClick={() => setContainerType(t.code)}
+                      className={`h-20 rounded-2xl border-2 transition-all active:scale-95 ${
+                        containerType === t.code
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-card text-foreground"
+                      }`}
+                    >
+                      <div className="text-xl font-bold font-mono">{t.code}</div>
+                      {/* "20TK — 20ft Tank" → "20ft Tank" */}
+                      <div className="text-xs font-normal mt-0.5 px-1">{t.label.split("—")[1]?.trim()}</div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <Button
               className="w-full h-14 text-lg"
-              disabled={containerNumber.trim().length < 4}
+              disabled={containerNumber.trim().length < 4 || !containerType}
               onClick={() => setStep(2)}
             >
               Continue <ChevronRight className="ml-2 h-5 w-5" />
@@ -325,12 +383,13 @@ const Inspector = () => {
         )}
 
         {/* Step 3: Review + Approve / Reject */}
-        {step === 3 && grade && (
+        {step === 3 && grade && containerType && (
           <div className="space-y-6 pt-4">
             <h2 className="text-2xl font-bold">Confirm Inspection</h2>
 
             <div className="bg-white rounded-2xl border p-4 space-y-3">
               <Row label="Container" value={<span className="font-mono font-bold">{containerNumber.toUpperCase()}</span>} />
+              {containerType && <Row label="Type" value={ISO_DESCRIPTIONS[containerType] ?? containerType} />}
               <Row label="Photos" value={`${photos.length} photo${photos.length !== 1 ? "s" : ""}`} />
               <Row
                 label="Grade"

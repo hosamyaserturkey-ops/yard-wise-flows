@@ -9,7 +9,7 @@ export const SHIPPING_LINES = [
   "7Seas",
   "WOM",
   "EEL",
-  "BaBa",
+  "Gezairi",
   "SaM",
 ] as const;
 

@@ -394,6 +394,7 @@ export type Database = {
       inspector_checks: {
         Row: {
           container_number: string
+          container_type: string | null
           created_at: string
           grade: string
           id: string
@@ -406,6 +407,7 @@ export type Database = {
         }
         Insert: {
           container_number: string
+          container_type?: string | null
           created_at?: string
           grade: string
           id?: string
@@ -418,6 +420,7 @@ export type Database = {
         }
         Update: {
           container_number?: string
+          container_type?: string | null
           created_at?: string
           grade?: string
           id?: string

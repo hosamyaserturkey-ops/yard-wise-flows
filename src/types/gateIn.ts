@@ -2,6 +2,8 @@
 
 export interface PendingGateIn {
   container_number: string;
+  /** ISO type recorded by the inspector. Null on checks predating the field. */
+  container_type: string | null;
   grade: string;
   notes: string | null;
   inspected_at: string;
@@ -10,6 +12,8 @@ export interface PendingGateIn {
 export interface InspectionStatus {
   status: "approved" | "rejected" | "pending";
   grade: string;
+  /** ISO type recorded by the inspector. Null on checks predating the field. */
+  container_type: string | null;
 }
 
 export interface InsertedContainerRow {

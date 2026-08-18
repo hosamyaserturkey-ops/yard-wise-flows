@@ -42,6 +42,7 @@ interface PortData {
 
 interface InspectionData {
   grade: string;
+  container_type: string | null;
   notes: string | null;
   created_at: string;
   status: string;
@@ -134,7 +135,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
 
           supabase
             .from("inspector_checks")
-            .select("grade, notes, created_at, status, photo_urls")
+            .select("grade, notes, created_at, status, photo_urls, container_type")
             .eq("container_number", num)
             .order("created_at", { ascending: false })
             .limit(1)
@@ -237,7 +238,13 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
             paymentMethod: payment.payment_method ?? "cash",
           }
         : undefined,
-      inspection ? { status: inspection.status as "approved" | "rejected" | "pending", grade: inspection.grade } : null,
+      inspection
+        ? {
+            status: inspection.status as "approved" | "rejected" | "pending",
+            grade: inspection.grade,
+            container_type: inspection.container_type,
+          }
+        : null,
       profile,
       { operatorName: operators.receivedBy, isReprint: true },
     );
