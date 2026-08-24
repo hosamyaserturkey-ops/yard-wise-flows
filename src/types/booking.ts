@@ -2,6 +2,8 @@ export interface Booking {
   id: string;
   booking_number: string;
   customer_name: string;
+  /** Line the booking belongs to. Null on legacy bookings with no line on file. */
+  shipping_line: string | null;
   total_containers: number;
   gated_out_containers: number;
   status: 'active' | 'completed' | 'cancelled';
@@ -14,6 +16,7 @@ export interface Booking {
 export interface CreateBookingData {
   booking_number: string;
   customer_name: string;
+  shipping_line: string;
   total_containers: number;
 }
 

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Package, Users, CheckCircle, ArrowRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +13,7 @@ import { useYards } from "@/hooks/useYards";
 import { useToast } from "@/hooks/use-toast";
 import { bookingSchema } from "@/lib/validation";
 import type { Booking, CreateBookingData } from "@/types/booking";
+import { fetchShippingLines, type ShippingLineRow } from "@/lib/shippingLines";
 import { PageHeader } from "@/components/PageHeader";
 import { YardSelectionGuard } from "@/components/YardSelectionGuard";
 
@@ -22,14 +24,20 @@ export default function Bookings() {
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [shippingLines, setShippingLines] = useState<ShippingLineRow[]>([]);
   const [formData, setFormData] = useState<CreateBookingData>({
     booking_number: "",
     customer_name: "",
+    shipping_line: "",
     total_containers: 1,
   });
   const { user, currentYardId, isAdmin, isSuperAdmin, isLineRep, selectedYardId } = useAuth();
   const { nameOf: yardName } = useYards();
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetchShippingLines().then(setShippingLines).catch((e) => console.error(e));
+  }, []);
 
   const fetchBookings = useCallback(async () => {
     try {
@@ -119,6 +127,7 @@ export default function Bookings() {
       setFormData({
         booking_number: "",
         customer_name: "",
+        shipping_line: "",
         total_containers: 1,
       });
       setShowCreateForm(false);
@@ -221,6 +230,27 @@ export default function Bookings() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="shipping_line">Shipping Line</Label>
+                  <Select
+                    value={formData.shipping_line}
+                    onValueChange={(value) => setFormData({ ...formData, shipping_line: value })}
+                  >
+                    <SelectTrigger id="shipping_line">
+                      <SelectValue placeholder="Select the line…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shippingLines.map((line) => (
+                        <SelectItem key={line.code} value={line.code}>
+                          {line.code} — {line.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Only containers on this line can be reserved or gated out against the booking.
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="total_containers">Total Containers</Label>
                   <Input
                     id="total_containers"
@@ -298,6 +328,9 @@ export default function Bookings() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {booking.shipping_line || "No line"}
+                    </Badge>
                     {isSuperAdmin() && (
                       <Badge variant="outline" className="text-xs">
                         {yardName(booking.yard_id)}

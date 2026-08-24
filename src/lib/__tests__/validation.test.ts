@@ -116,11 +116,19 @@ describe("bookingSchema", () => {
   const validBooking = {
     booking_number: "BK-2026_001",
     customer_name: "Acme Shipping",
+    shipping_line: "WOM",
     total_containers: 12,
   };
 
   it("accepts a valid booking", () => {
     expect(bookingSchema.safeParse(validBooking).success).toBe(true);
+  });
+
+  it("requires a shipping line — it scopes which containers may use the booking", () => {
+    expect(bookingSchema.safeParse({ ...validBooking, shipping_line: "" }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, shipping_line: "   " }).success).toBe(false);
+    const { shipping_line: _omitted, ...withoutLine } = validBooking;
+    expect(bookingSchema.safeParse(withoutLine).success).toBe(false);
   });
 
   it("rejects booking numbers with spaces or symbols", () => {

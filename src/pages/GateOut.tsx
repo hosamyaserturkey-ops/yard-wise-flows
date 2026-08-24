@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { Ship, Search, RefreshCw, X, PackageSearch, ArrowRight } from "lucide-react";
 import type { Booking } from "@/types/booking";
+import { bookingOptionLabel, bookingsForLine } from "@/lib/bookingScope";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -146,11 +147,18 @@ const GateOut = () => {
   const handleContainerSelect = (container: ContainerType) => {
     setSelectedContainer(container);
     // A reserved container already names its booking — preselect it, but leave
-    // it editable: the container may be released against a different one.
+    // it editable: the container may be released against a different one on
+    // the same line.
     setBookingId(container.bookingId ?? "");
     setErrors({});
   };
 
+  // A booking belongs to one shipping line — an EEL container must not be
+  // released against a WOM booking, so the list is scoped to the container's
+  // line before it ever reaches the dropdown.
+  const selectableBookings = selectedContainer
+    ? bookingsForLine(bookings, selectedContainer.shippingLine)
+    : [];
   const selectedBooking = bookings.find((b) => b.id === bookingId);
   // The reservation's booking may be missing from the dropdown (completed or
   // cancelled since). Keep its number so the operator sees what is attached.
@@ -570,7 +578,9 @@ const GateOut = () => {
                         aria-invalid={!!errors.bookingNumber}
                         aria-describedby={errors.bookingNumber ? "bookingNumber-error" : undefined}
                       >
-                        <SelectValue placeholder="Attach a booking…" />
+                        <SelectValue
+                          placeholder={`Attach a booking on the ${selectedContainer.shippingLine} line…`}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {/* A reservation against a booking that has since been
@@ -578,15 +588,14 @@ const GateOut = () => {
                             container can leave under the number it was held for. */}
                         {selectedContainer.bookingId &&
                           selectedContainer.bookingNumber &&
-                          !bookings.some((b) => b.id === selectedContainer.bookingId) && (
+                          !selectableBookings.some((b) => b.id === selectedContainer.bookingId) && (
                             <SelectItem value={selectedContainer.bookingId}>
                               {selectedContainer.bookingNumber} — reserved (inactive)
                             </SelectItem>
                           )}
-                        {bookings.map((booking) => (
+                        {selectableBookings.map((booking) => (
                           <SelectItem key={booking.id} value={booking.id}>
-                            {booking.booking_number} — {booking.customer_name} (
-                            {booking.gated_out_containers}/{booking.total_containers} out)
+                            {bookingOptionLabel(booking)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -595,9 +604,10 @@ const GateOut = () => {
                       <p id="bookingNumber-error" className="text-sm text-destructive">
                         {errors.bookingNumber}
                       </p>
-                    ) : bookings.length === 0 && !selectedContainer.bookingNumber ? (
+                    ) : selectableBookings.length === 0 && !selectedContainer.bookingNumber ? (
                       <p className="text-sm text-muted-foreground">
-                        No active bookings in this yard — create one on the Bookings page first.
+                        No active bookings on the {selectedContainer.shippingLine} line in this
+                        yard — create one on the Bookings page first.
                       </p>
                     ) : selectedContainer.bookingId && bookingId !== selectedContainer.bookingId ? (
                       <p className="text-sm text-warning">

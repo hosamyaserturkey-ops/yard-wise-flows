@@ -74,6 +74,11 @@ export const bookingSchema = z.object({
     .trim()
     .min(1, 'Customer name is required')
     .max(200, 'Customer name is too long'),
+  // A booking belongs to one line: it gates which containers may be reserved
+  // or released against it. Validated against shipping_lines at runtime.
+  shipping_line: z.string()
+    .trim()
+    .min(1, 'Shipping line is required'),
   total_containers: z.number()
     .int('Must be a whole number')
     .min(1, 'At least 1 container required')
