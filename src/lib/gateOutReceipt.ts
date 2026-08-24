@@ -29,6 +29,8 @@ export interface GateOutReceiptData {
   container_type: string;
   shipping_line: string;
   booking_number: string | null;
+  /** Seal fitted at the gate. Null on visits released before seals were recorded. */
+  seal_number: string | null;
   truck_number: string | null;
   driver_name: string | null;
   gate_in_time: Date;
@@ -73,6 +75,7 @@ export const printGateOutReceipt = (
   const containerNumberSafe = escapeHtml(data.container_number);
   const shippingLineSafe = escapeHtml(data.shipping_line);
   const bookingNumberSafe = escapeHtml(data.booking_number || "—");
+  const sealNumberSafe = escapeHtml(data.seal_number || "—");
   const truckNumberSafe = escapeHtml(data.truck_number || "—");
   const driverNameSafe = escapeHtml(data.driver_name || "—");
 
@@ -131,6 +134,10 @@ export const printGateOutReceipt = (
         <div class="field">
           <div class="field-label">BOOKING NUMBER</div>
           <div class="field-value mono">${bookingNumberSafe}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">SEAL NUMBER</div>
+          <div class="field-value mono">${sealNumberSafe}</div>
         </div>
       </div>
     </div>

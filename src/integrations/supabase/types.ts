@@ -174,6 +174,7 @@ export type Database = {
           gated_out_by: string | null
           id: string
           port_arrival_date: string | null
+          seal_number: string | null
           status: string
           truck_number: string | null
           updated_at: string
@@ -196,6 +197,7 @@ export type Database = {
           gated_out_by?: string | null
           id?: string
           port_arrival_date?: string | null
+          seal_number?: string | null
           status?: string
           truck_number?: string | null
           updated_at?: string
@@ -218,6 +220,7 @@ export type Database = {
           gated_out_by?: string | null
           id?: string
           port_arrival_date?: string | null
+          seal_number?: string | null
           status?: string
           truck_number?: string | null
           updated_at?: string

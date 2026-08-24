@@ -22,6 +22,8 @@ export interface Container {
   status: "in-yard" | "out" | "reserved";
   bookingNumber?: string;
   bookingId?: string;
+  /** Seal fitted at gate-out. Undefined while the container is still in the yard. */
+  sealNumber?: string;
   fees?: number;
   yardBlock?: string;
   yardRow?: string;

@@ -8,9 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { Ship, Search, RefreshCw, X, PackageSearch, ArrowRight } from "lucide-react";
+import type { Booking } from "@/types/booking";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,13 +28,18 @@ import {
   normalizeFees,
 } from "@/lib/gateOut";
 
-type FieldErrors = Partial<Record<"driverName" | "truckNumber" | "fees", string>>;
+type FieldErrors = Partial<
+  Record<"bookingNumber" | "sealNumber" | "driverName" | "truckNumber" | "fees", string>
+>;
 
 const GateOut = () => {
   const { user, profile, currentYardId } = useAuth();
   const { toast } = useToast();
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [selectedContainer, setSelectedContainer] = useState<ContainerType | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingId, setBookingId] = useState("");
+  const [sealNumber, setSealNumber] = useState("");
   const [fees, setFees] = useState("");
   const [driverName, setDriverName] = useState("");
   const [truckNumber, setTruckNumber] = useState("");
@@ -87,13 +94,47 @@ const GateOut = () => {
     [toast, currentYardId]
   );
 
+  // Bookings a container can be released against. Only 'active' ones: the
+  // Bookings page auto-completes a booking once its containers are all out.
+  const fetchBookings = useCallback(async () => {
+    try {
+      const yardId = currentYardId();
+      let query = supabase
+        .from("bookings")
+        .select("*")
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+      if (yardId) query = query.eq("yard_id", yardId);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      setBookings(
+        (data ?? []).map((booking) => ({
+          ...booking,
+          status: booking.status as "active" | "completed" | "cancelled",
+          created_at: new Date(booking.created_at),
+          updated_at: new Date(booking.updated_at),
+        })),
+      );
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load bookings. You can still search, but gate-out needs one.",
+        variant: "destructive",
+      });
+    }
+  }, [toast, currentYardId]);
+
   useEffect(() => {
     fetchContainers();
-  }, [fetchContainers]);
+    fetchBookings();
+  }, [fetchContainers, fetchBookings]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchContainers({ silent: true });
+    await Promise.all([fetchContainers({ silent: true }), fetchBookings()]);
     setRefreshing(false);
   };
 
@@ -104,11 +145,25 @@ const GateOut = () => {
 
   const handleContainerSelect = (container: ContainerType) => {
     setSelectedContainer(container);
+    // A reserved container already names its booking — preselect it, but leave
+    // it editable: the container may be released against a different one.
+    setBookingId(container.bookingId ?? "");
     setErrors({});
   };
 
+  const selectedBooking = bookings.find((b) => b.id === bookingId);
+  // The reservation's booking may be missing from the dropdown (completed or
+  // cancelled since). Keep its number so the operator sees what is attached.
+  const attachedBookingNumber =
+    selectedBooking?.booking_number ??
+    (bookingId && bookingId === selectedContainer?.bookingId
+      ? selectedContainer?.bookingNumber ?? ""
+      : "");
+
   const resetForm = () => {
     setSelectedContainer(null);
+    setBookingId("");
+    setSealNumber("");
     setFees("");
     setDriverName("");
     setTruckNumber("");
@@ -128,10 +183,18 @@ const GateOut = () => {
     }
 
     // Validate with zod — errors land next to the field that caused them.
-    const result = gateOutSchema.safeParse({ driverName, truckNumber, fees });
+    const result = gateOutSchema.safeParse({
+      bookingNumber: attachedBookingNumber,
+      sealNumber,
+      driverName,
+      truckNumber,
+      fees,
+    });
     if (!result.success) {
       const fieldErrors = result.error.flatten().fieldErrors;
       setErrors({
+        bookingNumber: fieldErrors.bookingNumber?.[0],
+        sealNumber: fieldErrors.sealNumber?.[0],
         driverName: fieldErrors.driverName?.[0],
         truckNumber: fieldErrors.truckNumber?.[0],
         fees: fieldErrors.fees?.[0],
@@ -148,6 +211,8 @@ const GateOut = () => {
 
     const driver = result.data.driverName;
     const truck = result.data.truckNumber.trim();
+    const seal = result.data.sealNumber;
+    const booking = result.data.bookingNumber;
 
     if (!user) {
       toast({
@@ -176,6 +241,11 @@ const GateOut = () => {
           fees: feeAmount,
           driver_name: driver,
           truck_number: truck,
+          // Attached at the gate: the container leaves against this booking and
+          // under this seal, whether or not it was reserved beforehand.
+          booking_id: bookingId || selectedContainer.bookingId || null,
+          booking_number: booking,
+          seal_number: seal,
           yard_block: null,
           yard_row: null,
         })
@@ -196,22 +266,21 @@ const GateOut = () => {
         return;
       }
 
-      // Update the booking's gated-out count. Only reserved containers carry a
-      // booking; a walk-in leaves without one. The container is already out at
-      // this point, so a counter failure is reported but doesn't fail gate-out.
-      if (selectedContainer.bookingNumber) {
-        const { error: bookingError } = await supabase.rpc("increment_gated_out_containers", {
-          booking_num: selectedContainer.bookingNumber
-        });
+      // Bump the count on the booking the container actually left against,
+      // which is not necessarily the one it was reserved for. The container is
+      // already out at this point, so a counter failure is reported on its own
+      // rather than failing the gate-out and losing the ticket.
+      const { error: bookingError } = await supabase.rpc("increment_gated_out_containers", {
+        booking_num: booking
+      });
 
-        if (bookingError) {
-          console.error('Error incrementing booking count:', bookingError);
-          toast({
-            title: "Booking count not updated",
-            description: `Container released, but booking ${selectedContainer.bookingNumber} could not be updated. Check the booking.`,
-            variant: "destructive",
-          });
-        }
+      if (bookingError) {
+        console.error('Error incrementing booking count:', bookingError);
+        toast({
+          title: "Booking count not updated",
+          description: `Container released, but booking ${booking} could not be updated. Check the booking.`,
+          variant: "destructive",
+        });
       }
 
       // Activity log — prefer the visit's own yard so a super admin viewing
@@ -225,7 +294,8 @@ const GateOut = () => {
           containerId: selectedContainer.id,
           containerNumber: selectedContainer.containerNumber,
           metadata: {
-            booking_number: selectedContainer.bookingNumber ?? null,
+            booking_number: booking,
+            seal_number: seal,
             fees_jod: feeAmount,
           },
         });
@@ -238,7 +308,7 @@ const GateOut = () => {
       setGateMotion(selectedContainer.containerNumber);
 
       // Print receipt
-      printReceipt(selectedContainer, driver, truck, feeAmount);
+      printReceipt(selectedContainer, { driver, truck, seal, booking, feeAmount });
 
       // Reset form and refresh containers
       resetForm();
@@ -259,17 +329,17 @@ const GateOut = () => {
 
   const printReceipt = (
     container: ContainerType,
-    driver: string,
-    truck: string,
-    feeAmount: number,
+    released: { driver: string; truck: string; seal: string; booking: string; feeAmount: number },
   ) => {
+    const { driver, truck, seal, booking, feeAmount } = released;
     const printed = printGateOutReceipt(
       {
         ticket_number: container.ticketNumber,
         container_number: container.containerNumber,
         container_type: container.containerType,
         shipping_line: container.shippingLine,
-        booking_number: container.bookingNumber || null,
+        booking_number: booking,
+        seal_number: seal,
         truck_number: truck,
         driver_name: driver,
         gate_in_time: container.gateInTime,
@@ -454,8 +524,8 @@ const GateOut = () => {
                     <dd className="font-mono font-medium">{selectedContainer.containerNumber}</dd>
                     <dt className="text-muted-foreground">Type / Line</dt>
                     <dd>{selectedContainer.containerType} • {selectedContainer.shippingLine}</dd>
-                    <dt className="text-muted-foreground">Booking</dt>
-                    <dd>{selectedContainer.bookingNumber || "— (no booking)"}</dd>
+                    <dt className="text-muted-foreground">Reserved for</dt>
+                    <dd>{selectedContainer.bookingNumber || "— (not reserved)"}</dd>
                     <dt className="text-muted-foreground">In yard</dt>
                     <dd>
                       {formatDwell(dwellDays(selectedContainer.gateInTime))} · since{" "}
@@ -485,6 +555,79 @@ const GateOut = () => {
                 </div>
 
                 <div className="space-y-4">
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bookingNumber">Booking Number *</Label>
+                    <Select
+                      value={bookingId}
+                      onValueChange={(value) => {
+                        setBookingId(value);
+                        setErrors((prev) => ({ ...prev, bookingNumber: undefined }));
+                      }}
+                    >
+                      <SelectTrigger
+                        id="bookingNumber"
+                        aria-invalid={!!errors.bookingNumber}
+                        aria-describedby={errors.bookingNumber ? "bookingNumber-error" : undefined}
+                      >
+                        <SelectValue placeholder="Attach a booking…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* A reservation against a booking that has since been
+                            completed or cancelled is still shown, so the
+                            container can leave under the number it was held for. */}
+                        {selectedContainer.bookingId &&
+                          selectedContainer.bookingNumber &&
+                          !bookings.some((b) => b.id === selectedContainer.bookingId) && (
+                            <SelectItem value={selectedContainer.bookingId}>
+                              {selectedContainer.bookingNumber} — reserved (inactive)
+                            </SelectItem>
+                          )}
+                        {bookings.map((booking) => (
+                          <SelectItem key={booking.id} value={booking.id}>
+                            {booking.booking_number} — {booking.customer_name} (
+                            {booking.gated_out_containers}/{booking.total_containers} out)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.bookingNumber ? (
+                      <p id="bookingNumber-error" className="text-sm text-destructive">
+                        {errors.bookingNumber}
+                      </p>
+                    ) : bookings.length === 0 && !selectedContainer.bookingNumber ? (
+                      <p className="text-sm text-muted-foreground">
+                        No active bookings in this yard — create one on the Bookings page first.
+                      </p>
+                    ) : selectedContainer.bookingId && bookingId !== selectedContainer.bookingId ? (
+                      <p className="text-sm text-warning">
+                        Releasing against a different booking than the reservation
+                        ({selectedContainer.bookingNumber}).
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="sealNumber">Seal Number *</Label>
+                    <Input
+                      id="sealNumber"
+                      value={sealNumber}
+                      onChange={(e) => {
+                        setSealNumber(e.target.value.toUpperCase().trim());
+                        setErrors((prev) => ({ ...prev, sealNumber: undefined }));
+                      }}
+                      placeholder="Seal fitted to the container doors"
+                      autoComplete="off"
+                      className="font-mono"
+                      aria-invalid={!!errors.sealNumber}
+                      aria-describedby={errors.sealNumber ? "sealNumber-error" : undefined}
+                    />
+                    {errors.sealNumber && (
+                      <p id="sealNumber-error" className="text-sm text-destructive">
+                        {errors.sealNumber}
+                      </p>
+                    )}
+                  </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="driverName">Collecting Driver *</Label>
