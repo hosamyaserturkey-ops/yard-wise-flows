@@ -8,6 +8,8 @@ import type { ShippingLine } from "@/lib/shippingLines";
 export interface Container {
   id: string;
   containerId?: string;
+  /** Yard this visit belongs to — needed to log actions when a super admin is viewing all yards. */
+  yardId?: string;
   /** Sequential reception/gate-out ticket number for this visit (shared by both tickets). */
   ticketNumber: number;
   containerNumber: string;
@@ -20,6 +22,8 @@ export interface Container {
   status: "in-yard" | "out" | "reserved";
   bookingNumber?: string;
   bookingId?: string;
+  /** Seal fitted at gate-out. Undefined while the container is still in the yard. */
+  sealNumber?: string;
   fees?: number;
   yardBlock?: string;
   yardRow?: string;

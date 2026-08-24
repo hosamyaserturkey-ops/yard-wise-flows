@@ -17,6 +17,7 @@ export interface VisitJoinRow {
   truck_number: string | null;
   booking_id: string | null;
   booking_number: string | null;
+  seal_number: string | null;
   fees: number | string | null;
   port_arrival_date: string | null;
   free_days: number;
@@ -44,6 +45,7 @@ export function mapVisit(v: VisitJoinRow): Container {
   return {
     id: v.id,
     containerId: master.id ?? v.container_id,
+    yardId: v.yard_id,
     ticketNumber: v.ticket_number,
     containerNumber: master.container_number,
     containerType: master.container_type,
@@ -55,6 +57,7 @@ export function mapVisit(v: VisitJoinRow): Container {
     status: v.status as "in-yard" | "out" | "reserved",
     bookingNumber: v.booking_number ?? undefined,
     bookingId: v.booking_id ?? undefined,
+    sealNumber: v.seal_number ?? undefined,
     fees: v.fees != null ? Number(v.fees) : undefined,
     yardBlock: v.yard_block ?? undefined,
     yardRow: v.yard_row ?? undefined,

@@ -22,6 +22,7 @@ import {
   Camera,
   Printer,
   History,
+  Lock,
 } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
@@ -268,6 +269,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
         container_type: container.containerType,
         shipping_line: container.shippingLine,
         booking_number: container.bookingNumber || null,
+        seal_number: container.sealNumber || null,
         truck_number: container.truckNumber || null,
         driver_name: container.driverName || null,
         gate_in_time: container.gateInTime,
@@ -327,6 +329,12 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
               {container.bookingNumber && (
                 <InfoBlock icon={<ClipboardCheck className="h-4 w-4 text-maritime" />} label="Booking #">
                   <span className="font-mono">{container.bookingNumber}</span>
+                </InfoBlock>
+              )}
+
+              {container.sealNumber && (
+                <InfoBlock icon={<Lock className="h-4 w-4 text-maritime" />} label="Seal #">
+                  <span className="font-mono">{container.sealNumber}</span>
                 </InfoBlock>
               )}
             </div>

@@ -32,7 +32,23 @@ export const gateInSchema = z.object({
   dailyDemurrage: z.string().optional(),
 });
 
+// Seals are stamped alphanumeric (some lines hyphenate). Kept permissive on
+// length because seal formats vary by line, strict on the character set so a
+// mistyped plate or note can't end up on the delivery note as a seal.
+export const SEAL_NUMBER_REGEX = /^[A-Z0-9][A-Z0-9-]*$/;
+
 export const gateOutSchema = z.object({
+  // Attached at gate-out: a container may be released against a booking it was
+  // never reserved for, so the number is chosen at the gate, not inherited.
+  bookingNumber: z.string()
+    .trim()
+    .min(1, 'Booking number is required')
+    .max(50, 'Booking number is too long'),
+  sealNumber: z.string()
+    .trim()
+    .min(1, 'Seal number is required')
+    .max(20, 'Seal number is too long')
+    .regex(SEAL_NUMBER_REGEX, 'Only uppercase letters, numbers and hyphens allowed'),
   driverName: z.string()
     .trim()
     .min(1, 'Driver name is required')
@@ -58,6 +74,11 @@ export const bookingSchema = z.object({
     .trim()
     .min(1, 'Customer name is required')
     .max(200, 'Customer name is too long'),
+  // A booking belongs to one line: it gates which containers may be reserved
+  // or released against it. Validated against shipping_lines at runtime.
+  shipping_line: z.string()
+    .trim()
+    .min(1, 'Shipping line is required'),
   total_containers: z.number()
     .int('Must be a whole number')
     .min(1, 'At least 1 container required')

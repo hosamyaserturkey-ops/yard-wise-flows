@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { logActivity } from "@/lib/activityLog";
 import type { Booking } from "@/types/booking";
 import type { Container } from "@/types/container";
+import { bookingOptionLabel, bookingsForLine } from "@/lib/bookingScope";
 
 interface ReserveContainerDialogProps {
   open: boolean;
@@ -37,11 +38,15 @@ export default function ReserveContainerDialog({
 
   const fetchActiveBookings = async () => {
     try {
-      const { data, error } = await supabase
+      const yardId = currentYardId();
+      let query = supabase
         .from("bookings")
         .select("*")
         .eq("status", "active")
         .order("created_at", { ascending: false });
+      if (yardId) query = query.eq("yard_id", yardId);
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -61,10 +66,15 @@ export default function ReserveContainerDialog({
     }
   };
 
+  // A container can only be held against a booking on its own shipping line.
+  const selectableBookings = container
+    ? bookingsForLine(bookings, container.shippingLine)
+    : [];
+
   const handleReserve = async () => {
     if (!container || !selectedBookingId || !user) return;
 
-    const selectedBooking = bookings.find(b => b.id === selectedBookingId);
+    const selectedBooking = selectableBookings.find(b => b.id === selectedBookingId);
     if (!selectedBooking) return;
 
     setLoading(true);
@@ -204,14 +214,21 @@ export default function ReserveContainerDialog({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="booking">Select Booking</Label>
+              {selectableBookings.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No active bookings on the {container?.shippingLine} line in this yard.
+                </p>
+              )}
               <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a booking..." />
+                  <SelectValue
+                    placeholder={`Choose a booking on the ${container?.shippingLine ?? ""} line...`}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {bookings.map((booking) => (
+                  {selectableBookings.map((booking) => (
                     <SelectItem key={booking.id} value={booking.id}>
-                      {booking.booking_number} - {booking.customer_name}
+                      {bookingOptionLabel(booking)}
                     </SelectItem>
                   ))}
                 </SelectContent>

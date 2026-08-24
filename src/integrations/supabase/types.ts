@@ -69,6 +69,7 @@ export type Database = {
           customer_name: string
           gated_out_containers: number
           id: string
+          shipping_line: string | null
           status: string
           total_containers: number
           updated_at: string
@@ -81,6 +82,7 @@ export type Database = {
           customer_name: string
           gated_out_containers?: number
           id?: string
+          shipping_line?: string | null
           status?: string
           total_containers: number
           updated_at?: string
@@ -93,6 +95,7 @@ export type Database = {
           customer_name?: string
           gated_out_containers?: number
           id?: string
+          shipping_line?: string | null
           status?: string
           total_containers?: number
           updated_at?: string
@@ -174,6 +177,7 @@ export type Database = {
           gated_out_by: string | null
           id: string
           port_arrival_date: string | null
+          seal_number: string | null
           status: string
           truck_number: string | null
           updated_at: string
@@ -196,6 +200,7 @@ export type Database = {
           gated_out_by?: string | null
           id?: string
           port_arrival_date?: string | null
+          seal_number?: string | null
           status?: string
           truck_number?: string | null
           updated_at?: string
@@ -218,6 +223,7 @@ export type Database = {
           gated_out_by?: string | null
           id?: string
           port_arrival_date?: string | null
+          seal_number?: string | null
           status?: string
           truck_number?: string | null
           updated_at?: string

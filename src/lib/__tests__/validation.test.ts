@@ -63,7 +63,13 @@ describe("gateInSchema", () => {
 });
 
 describe("gateOutSchema", () => {
-  const validGateOut = { driverName: "Ali", truckNumber: "TRK1", fees: "120.50" };
+  const validGateOut = {
+    bookingNumber: "BK-4417",
+    sealNumber: "SL123456",
+    driverName: "Ali",
+    truckNumber: "TRK1",
+    fees: "120.50",
+  };
 
   it("accepts a valid gate-out payload", () => {
     expect(gateOutSchema.safeParse(validGateOut).success).toBe(true);
@@ -77,6 +83,29 @@ describe("gateOutSchema", () => {
     expect(gateOutSchema.safeParse({ ...validGateOut, fees: "" }).success).toBe(false);
   });
 
+  it("requires a booking number to attach", () => {
+    expect(gateOutSchema.safeParse({ ...validGateOut, bookingNumber: "" }).success).toBe(false);
+    expect(gateOutSchema.safeParse({ ...validGateOut, bookingNumber: "   " }).success).toBe(false);
+    expect(gateOutSchema.safeParse({ ...validGateOut, bookingNumber: "B".repeat(51) }).success).toBe(false);
+  });
+
+  it("requires a seal number of uppercase letters, numbers and hyphens", () => {
+    expect(gateOutSchema.safeParse({ ...validGateOut, sealNumber: "" }).success).toBe(false);
+    expect(gateOutSchema.safeParse({ ...validGateOut, sealNumber: "  " }).success).toBe(false);
+    expect(gateOutSchema.safeParse({ ...validGateOut, sealNumber: "ABC-123" }).success).toBe(true);
+    expect(gateOutSchema.safeParse({ ...validGateOut, sealNumber: "1234567" }).success).toBe(true);
+    expect(gateOutSchema.safeParse({ ...validGateOut, sealNumber: "sl123456" }).success).toBe(false);
+    expect(gateOutSchema.safeParse({ ...validGateOut, sealNumber: "SL 123 456" }).success).toBe(false);
+    expect(gateOutSchema.safeParse({ ...validGateOut, sealNumber: "-SL123" }).success).toBe(false);
+    expect(gateOutSchema.safeParse({ ...validGateOut, sealNumber: "S".repeat(21) }).success).toBe(false);
+  });
+
+  it("trims the booking and seal it hands back", () => {
+    const parsed = gateOutSchema.safeParse({ ...validGateOut, sealNumber: " SL123456 ", bookingNumber: " BK-4417 " });
+    expect(parsed.success && parsed.data.sealNumber).toBe("SL123456");
+    expect(parsed.success && parsed.data.bookingNumber).toBe("BK-4417");
+  });
+
   it("requires driver name and truck number", () => {
     expect(gateOutSchema.safeParse({ ...validGateOut, driverName: "  " }).success).toBe(false);
     expect(gateOutSchema.safeParse({ ...validGateOut, truckNumber: "" }).success).toBe(false);
@@ -87,11 +116,19 @@ describe("bookingSchema", () => {
   const validBooking = {
     booking_number: "BK-2026_001",
     customer_name: "Acme Shipping",
+    shipping_line: "WOM",
     total_containers: 12,
   };
 
   it("accepts a valid booking", () => {
     expect(bookingSchema.safeParse(validBooking).success).toBe(true);
+  });
+
+  it("requires a shipping line — it scopes which containers may use the booking", () => {
+    expect(bookingSchema.safeParse({ ...validBooking, shipping_line: "" }).success).toBe(false);
+    expect(bookingSchema.safeParse({ ...validBooking, shipping_line: "   " }).success).toBe(false);
+    const { shipping_line: _omitted, ...withoutLine } = validBooking;
+    expect(bookingSchema.safeParse(withoutLine).success).toBe(false);
   });
 
   it("rejects booking numbers with spaces or symbols", () => {
