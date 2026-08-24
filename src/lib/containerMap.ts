@@ -44,6 +44,7 @@ export function mapVisit(v: VisitJoinRow): Container {
   return {
     id: v.id,
     containerId: master.id ?? v.container_id,
+    yardId: v.yard_id,
     ticketNumber: v.ticket_number,
     containerNumber: master.container_number,
     containerType: master.container_type,

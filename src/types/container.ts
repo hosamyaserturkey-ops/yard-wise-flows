@@ -8,6 +8,8 @@ import type { ShippingLine } from "@/lib/shippingLines";
 export interface Container {
   id: string;
   containerId?: string;
+  /** Yard this visit belongs to — needed to log actions when a super admin is viewing all yards. */
+  yardId?: string;
   /** Sequential reception/gate-out ticket number for this visit (shared by both tickets). */
   ticketNumber: number;
   containerNumber: string;
