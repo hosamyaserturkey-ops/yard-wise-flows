@@ -14,10 +14,14 @@ export function usePendingGateIns(currentYardId: () => string | null) {
     if (!yardId) return;
 
     // Latest inspection per container
+    // Cancelled checks are excluded in the query, not filtered afterwards: the
+    // "latest per container" pass below would otherwise let a cancelled row
+    // shadow an older, still-valid approval for the same number.
     const { data: checks } = await supabase
       .from("inspector_checks")
-      .select("container_number, container_type, grade, status, notes, created_at")
+      .select("id, container_number, container_type, grade, status, notes, created_at")
       .eq("yard_id", yardId)
+      .neq("status", "cancelled")
       .order("created_at", { ascending: false });
 
     // All visits for this yard: open visits mark containers currently in yard
@@ -63,6 +67,7 @@ export function usePendingGateIns(currentYardId: () => string | null) {
           return true;
         })
         .map((c) => ({
+          id: c.id,
           container_number: c.container_number,
           container_type: c.container_type,
           grade: c.grade,

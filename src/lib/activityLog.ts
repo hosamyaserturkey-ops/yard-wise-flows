@@ -6,7 +6,9 @@ export type ActivityAction =
   | "gate_out"
   | "reserve"
   | "unreserve"
-  | "demurrage_collected";
+  | "demurrage_collected"
+  | "inspection_cancelled"
+  | "container_renamed";
 
 export interface LogActivityInput {
   userId: string;

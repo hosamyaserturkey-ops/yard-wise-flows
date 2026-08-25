@@ -8,13 +8,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Container, AlertTriangle, Building2 } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { GateInData } from "@/types/container";
-import type { DemurragePaymentData, PortLookupData } from "@/types/gateIn";
+import type { DemurragePaymentData, PendingGateIn, PortLookupData } from "@/types/gateIn";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { gateInSchema } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
 import DemurrageCollectionDialog, { getServiceFeeConfig } from "@/components/DemurrageCollectionDialog";
 import { logActivity } from "@/lib/activityLog";
+import { cancelInspection } from "@/lib/inspections";
 import { printGateInReceipt } from "@/lib/gateInReceipt";
 import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 import { useYards } from "@/hooks/useYards";
@@ -179,6 +180,29 @@ const GateIn = () => {
   // True when an admin is proceeding without a fresh approved inspection.
   const inspectionAdminOverride =
     lookupDone && !isInspectionApproved && canOverrideInspection;
+
+  // Voiding a mistaken inspection. An approval typed against a wrong container
+  // number can never be gated in, so without this it sits in the queue forever.
+  const handleCancelInspection = async (item: PendingGateIn, reason: string) => {
+    const yardId = currentYardId();
+    if (!user || !yardId) return;
+    const { ok, error } = await cancelInspection({
+      checkId: item.id,
+      reason,
+      userId: user.id,
+      yardId,
+      containerNumber: item.container_number,
+    });
+    if (!ok) {
+      toast({ title: "Could not cancel", description: error, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Inspection cancelled",
+      description: `${item.container_number} removed from the gate-in queue.`,
+    });
+    await reloadPending();
+  };
 
   // Lines with no tiered demurrage formula (e.g. 7Seas, Gezairi, SaM) aren't
   // charged, so they need no port data to gate in. Formula lines still require a
@@ -483,6 +507,8 @@ const GateIn = () => {
             containerType: item.container_type ?? prev.containerType,
           }))
         }
+        canCancel={canOverrideInspection}
+        onCancel={handleCancelInspection}
       />
 
       <Card>
