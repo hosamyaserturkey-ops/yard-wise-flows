@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Search, Plus } from "lucide-react";
+import { Camera, Search, Plus, Ban } from "lucide-react";
+import { CancelInspectionDialog } from "@/components/CancelInspectionDialog";
+import { cancelInspection } from "@/lib/inspections";
 import { useSearchParams } from "react-router-dom";
 
 interface Check {
@@ -21,6 +23,8 @@ interface Check {
   photo_urls: string[] | null;
   created_at: string;
   inspector_id: string | null;
+  cancel_reason: string | null;
+  yard_id: string;
 }
 
 interface EnrichedCheck extends Check {
@@ -41,7 +45,7 @@ const GRADE_COLOR: Record<string, string> = {
 };
 
 const PhotoArchive = () => {
-  const { currentYardId, isInspector, isAdmin, isSuperAdmin } = useAuth();
+  const { user, currentYardId, isInspector, isAdmin, isSuperAdmin } = useAuth();
   const { toast } = useToast();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get("q") ?? "");
@@ -55,6 +59,9 @@ const PhotoArchive = () => {
   const galleryInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const canAddPhotos = isInspector() || isAdmin() || isSuperAdmin();
+  // Voiding a check is admin-only: it decides whether a container may gate in.
+  const canCancelChecks = isAdmin() || isSuperAdmin();
+  const [pendingCancel, setPendingCancel] = useState<EnrichedCheck | null>(null);
 
   const runSearch = useCallback(async (q: string) => {
     setLoading(true);
@@ -62,7 +69,7 @@ const PhotoArchive = () => {
       const yardId = currentYardId();
       let query = supabase
         .from("inspector_checks")
-        .select("id, container_number, grade, status, notes, photo_urls, created_at, inspector_id")
+        .select("id, container_number, grade, status, notes, photo_urls, created_at, inspector_id, cancel_reason, yard_id")
         .ilike("container_number", `%${q}%`)
         .order("created_at", { ascending: false })
         .limit(200);
@@ -209,6 +216,7 @@ const PhotoArchive = () => {
                     <Badge className={`border ${GRADE_COLOR[c.grade] ?? ""}`}>{c.grade}</Badge>
                     <Badge
                       variant={c.status === "approved" ? "default" : c.status === "rejected" ? "destructive" : "outline"}
+                      className={c.status === "cancelled" ? "text-muted-foreground line-through" : undefined}
                     >
                       {c.status}
                     </Badge>
@@ -222,6 +230,22 @@ const PhotoArchive = () => {
                     )}
                   </div>
                   {c.notes && <p className="text-sm text-muted-foreground">{c.notes}</p>}
+                  {c.status === "cancelled" && c.cancel_reason && (
+                    <p className="text-xs text-muted-foreground italic">
+                      Cancelled — {c.cancel_reason}
+                    </p>
+                  )}
+                  {canCancelChecks && c.status === "approved" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive px-2"
+                      onClick={() => setPendingCancel(c)}
+                    >
+                      <Ban className="h-4 w-4 mr-1.5" />
+                      Cancel inspection
+                    </Button>
+                  )}
                   {c.signedPhotos.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {c.signedPhotos.map((url, i) => (
@@ -292,6 +316,33 @@ const PhotoArchive = () => {
           </CardContent>
         </Card>
       ))}
+
+      <CancelInspectionDialog
+        containerNumber={pendingCancel?.container_number ?? null}
+        open={pendingCancel !== null}
+        onOpenChange={(o) => !o && setPendingCancel(null)}
+        onConfirm={async (reason) => {
+          if (!pendingCancel || !user) return;
+          const { ok, error } = await cancelInspection({
+            checkId: pendingCancel.id,
+            reason,
+            userId: user.id,
+            // currentYardId() is null for a super admin viewing all yards, so
+            // the check's own yard is the reliable source here.
+            yardId: pendingCancel.yard_id,
+            containerNumber: pendingCancel.container_number,
+          });
+          if (!ok) {
+            toast({ title: "Could not cancel", description: error, variant: "destructive" });
+            return;
+          }
+          toast({
+            title: "Inspection cancelled",
+            description: `${pendingCancel.container_number} no longer clears gate-in.`,
+          });
+          await runSearch(search.trim());
+        }}
+      />
     </div>
   );
 };

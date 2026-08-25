@@ -23,6 +23,7 @@ import {
   Printer,
   History,
   Lock,
+  Pencil,
 } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +35,7 @@ import { printGateOutReceipt } from "@/lib/gateOutReceipt";
 import { fetchVisitOperators, type VisitOperators } from "@/lib/gateOperators";
 import { resolveSignedUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
+import { RenameContainerDialog } from "@/components/RenameContainerDialog";
 
 interface PortData {
   port_arrival_date: string | null;
@@ -77,6 +79,8 @@ interface Props {
   container: ContainerType | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called after the container number is corrected, so the caller can refetch. */
+  onUpdated?: () => void;
 }
 
 const GRADE_COLOR: Record<string, string> = {
@@ -92,8 +96,8 @@ const STATUS_LABEL: Record<string, { label: string; variant: "default" | "outlin
   out: { label: "OUT", variant: "secondary" },
 };
 
-const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
-  const { currentYardId, profile } = useAuth();
+const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Props) => {
+  const { currentYardId, profile, isAdmin, isSuperAdmin } = useAuth();
   const { toast } = useToast();
   const [portData, setPortData] = useState<PortData | null>(null);
   const [inspection, setInspection] = useState<InspectionData | null>(null);
@@ -104,6 +108,11 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
   // not by the user doing the reprint.
   const [operators, setOperators] = useState<VisitOperators>({ receivedBy: null, releasedBy: null });
   const [loading, setLoading] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  // Renaming is admin-only and only makes sense while the box is still here:
+  // a closed trip has printed tickets and settled demurrage against the number.
+  const canRename =
+    (isAdmin() || isSuperAdmin()) && container?.status === "in-yard" && !!container?.containerId;
 
   useEffect(() => {
     if (!open || !container) {
@@ -289,12 +298,25 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <Container className="h-5 w-5 text-maritime" />
             <span className="font-mono text-lg">{container.containerNumber}</span>
+            {canRename && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Correct container number"
+                title="Correct container number"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setRenameOpen(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
             <Badge variant="outline" className="ml-auto font-mono text-xs">
               {container.containerType}
@@ -598,6 +620,22 @@ const ContainerDetailDialog = ({ container, open, onOpenChange }: Props) => {
         )}
       </DialogContent>
     </Dialog>
+
+    {canRename && container.containerId && (
+      <RenameContainerDialog
+        containerId={container.containerId}
+        currentNumber={container.containerNumber}
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        onRenamed={() => {
+          // The container prop is owned by the caller's list, so the detail
+          // view closes and the list refetches under the corrected number.
+          onOpenChange(false);
+          onUpdated?.();
+        }}
+      />
+    )}
+    </>
   );
 };
 

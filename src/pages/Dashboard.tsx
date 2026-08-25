@@ -821,6 +821,7 @@ const Dashboard = () => {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         container={detailContainer}
+        onUpdated={fetchContainers}
       />
     </div>
   );

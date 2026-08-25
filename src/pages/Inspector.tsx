@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Camera, CheckCircle, XCircle, ChevronRight, Trash2, ClipboardCheck, LogOut, ImagePlus } from "lucide-react";
+import { Camera, CheckCircle, XCircle, ChevronRight, Trash2, ClipboardCheck, LogOut, ImagePlus, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,6 +45,10 @@ const Inspector = () => {
   const [grade, setGrade] = useState<Grade | null>(null);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Set when this container already has a fresh inspection or is already in the
+  // yard. A warning, never a block — re-inspecting after a repair is normal.
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [submitted, setSubmitted] = useState<{ decision: Decision; grade: Grade } | null>(null);
   // Holds the just-completed result while the gate-motion animation plays;
   // `submitted` (the static result screen) is revealed once it finishes.
@@ -62,6 +66,76 @@ const Inspector = () => {
       URL.revokeObjectURL(prev[index].preview);
       return prev.filter((_, i) => i !== index);
     });
+  };
+
+  /**
+   * Before leaving step 1, look for signs this container has already been done:
+   * an inspection from the current trip, or an open visit meaning it is already
+   * in the yard. Both are the shapes a mistyped or duplicated number takes.
+   */
+  const checkForDuplicate = async () => {
+    const num = containerNumber.trim().toUpperCase();
+    const yardId = currentYardId();
+    if (!yardId) {
+      setStep(2);
+      return;
+    }
+    setCheckingDuplicate(true);
+    try {
+      // Anchor to the current trip: an inspection from before the last gate-out
+      // belongs to a previous visit and is not a duplicate.
+      const { data: visits } = await supabase
+        .from("container_visits")
+        .select("gate_out_time, yard_block, yard_row, containers!inner(container_number)")
+        .eq("containers.container_number", num)
+        .eq("yard_id", yardId);
+
+      const openVisit = (visits ?? []).find((v) => !v.gate_out_time);
+      const lastGateOut = (visits ?? [])
+        .map((v) => v.gate_out_time)
+        .filter((t): t is string => !!t)
+        .sort()
+        .pop();
+
+      let checkQuery = supabase
+        .from("inspector_checks")
+        .select("grade, status, created_at")
+        .eq("container_number", num)
+        .eq("yard_id", yardId)
+        .neq("status", "cancelled");
+      if (lastGateOut) checkQuery = checkQuery.gt("created_at", lastGateOut);
+      const { data: prior } = await checkQuery
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const parts: string[] = [];
+      if (prior) {
+        const at = new Date(prior.created_at).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        parts.push(`already inspected at ${at} (grade ${prior.grade}, ${prior.status})`);
+      }
+      if (openVisit) {
+        const where = openVisit.yard_block
+          ? `block ${openVisit.yard_block}-${openVisit.yard_row}`
+          : "the yard";
+        parts.push(`already in ${where}`);
+      }
+
+      if (parts.length > 0) {
+        setDuplicateWarning(`${num} is ${parts.join(", and ")}.`);
+        return;
+      }
+      setStep(2);
+    } catch (err) {
+      // A failed lookup must never stand between the inspector and the job.
+      console.error(err);
+      setStep(2);
+    } finally {
+      setCheckingDuplicate(false);
+    }
   };
 
   const handleSubmit = async (decision: Decision) => {
@@ -111,6 +185,7 @@ const Inspector = () => {
     setGrade(null);
     setNotes("");
     setStep(1);
+    setDuplicateWarning(null);
     setSubmitted(null);
     setPendingResult(null);
   };
@@ -198,7 +273,10 @@ const Inspector = () => {
               <p className="text-muted-foreground text-sm mb-5">Enter the container number to begin the inspection</p>
               <Input
                 value={containerNumber}
-                onChange={(e) => setContainerNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                onChange={(e) => {
+                  setContainerNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                  setDuplicateWarning(null);
+                }}
                 placeholder="e.g. SLDX1234567"
                 className="text-xl font-mono h-16 text-center uppercase tracking-widest"
                 autoComplete="off"
@@ -256,12 +334,54 @@ const Inspector = () => {
               </section>
             )}
 
+            {duplicateWarning && (
+              <div className="rounded-2xl border-2 border-warning bg-warning/10 p-4 space-y-3">
+                <div className="flex gap-2">
+                  <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-foreground">Already done?</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">{duplicateWarning}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Check the number on the container before continuing.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    className="h-12"
+                    onClick={() => setDuplicateWarning(null)}
+                  >
+                    Change number
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="h-12"
+                    onClick={() => {
+                      setDuplicateWarning(null);
+                      setStep(2);
+                    }}
+                  >
+                    Continue anyway
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <Button
               className="w-full h-14 text-lg"
-              disabled={containerNumber.trim().length < 4 || !containerType}
-              onClick={() => setStep(2)}
+              disabled={
+                containerNumber.trim().length < 4 || !containerType || checkingDuplicate
+              }
+              onClick={() => void checkForDuplicate()}
             >
-              Continue <ChevronRight className="ml-2 h-5 w-5" />
+              {checkingDuplicate ? (
+                "Checking…"
+              ) : (
+                <>
+                  Continue <ChevronRight className="ml-2 h-5 w-5" />
+                </>
+              )}
             </Button>
           </div>
         )}

@@ -1,6 +1,8 @@
 // Shared types for the gate-in flow (page, hooks, receipt printing).
 
 export interface PendingGateIn {
+  /** inspector_checks row id — needed to cancel the check from the queue. */
+  id: string;
   container_number: string;
   /** ISO type recorded by the inspector. Null on checks predating the field. */
   container_type: string | null;
@@ -10,7 +12,8 @@ export interface PendingGateIn {
 }
 
 export interface InspectionStatus {
-  status: "approved" | "rejected" | "pending";
+  /** 'cancelled' is a check an admin voided as a mistake; it never gates anything. */
+  status: "approved" | "rejected" | "pending" | "cancelled";
   grade: string;
   /** ISO type recorded by the inspector. Null on checks predating the field. */
   container_type: string | null;

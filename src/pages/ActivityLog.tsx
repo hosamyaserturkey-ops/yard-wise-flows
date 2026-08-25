@@ -35,6 +35,8 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   reserve: "Reserve",
   unreserve: "Unreserve",
   demurrage_collected: "Demurrage",
+  inspection_cancelled: "Inspection Cancelled",
+  container_renamed: "Renamed",
 };
 
 const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline" | "destructive"> = {
@@ -43,6 +45,8 @@ const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline"
   reserve: "outline",
   unreserve: "outline",
   demurrage_collected: "destructive",
+  inspection_cancelled: "outline",
+  container_renamed: "outline",
 };
 
 function todayISO(offsetDays = 0) {

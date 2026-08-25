@@ -184,6 +184,8 @@ export function CommandPalette() {
       open={detailOpen}
       onOpenChange={setDetailOpen}
       container={detailContainer}
+      // Nothing to refresh here: the palette searches on demand, so the next
+      // search already reads the corrected number.
     />
     </>
   );

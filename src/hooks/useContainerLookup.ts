@@ -120,10 +120,13 @@ export function useContainerLookup(
 
       // Latest inspection check for this container — scoped to the current
       // trip, so an approval from a previous visit can't satisfy this one.
+      // A cancelled check is one an admin voided as a mistake — it must not
+      // become "the latest" and shadow an older, still-valid approval.
       let inspectionQuery = supabase
         .from("inspector_checks")
         .select("status, grade, container_type")
-        .eq("container_number", containerNum);
+        .eq("container_number", containerNum)
+        .neq("status", "cancelled");
       if (lastGateOutIso) inspectionQuery = inspectionQuery.gt("created_at", lastGateOutIso);
       const { data: inspectionRow } = await inspectionQuery
         .order("created_at", { ascending: false })

@@ -399,6 +399,9 @@ export type Database = {
       }
       inspector_checks: {
         Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           container_number: string
           container_type: string | null
           created_at: string
@@ -412,6 +415,9 @@ export type Database = {
           yard_id: string
         }
         Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           container_number: string
           container_type?: string | null
           created_at?: string
@@ -425,6 +431,9 @@ export type Database = {
           yard_id: string
         }
         Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           container_number?: string
           container_type?: string | null
           created_at?: string
@@ -665,6 +674,14 @@ export type Database = {
       }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
       is_yard_admin: { Args: { _uid: string; _yard: string }; Returns: boolean }
+      rename_container: {
+        Args: {
+          _container_id: string
+          _new_number: string
+          _reason?: string | null
+        }
+        Returns: { new_number: string; old_number: string }[]
+      }
     }
     Enums: {
       activity_action:
@@ -673,6 +690,8 @@ export type Database = {
         | "reserve"
         | "unreserve"
         | "demurrage_collected"
+        | "inspection_cancelled"
+        | "container_renamed"
       app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
@@ -809,6 +828,8 @@ export const Constants = {
         "reserve",
         "unreserve",
         "demurrage_collected",
+        "inspection_cancelled",
+        "container_renamed",
       ],
       app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
       container_status: ["in-yard", "out", "reserved"],
