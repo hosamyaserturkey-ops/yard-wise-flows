@@ -24,6 +24,9 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis } from "recharts";
+import {
+  buildShippingLineBreakdown, summarizePayments, yardEarned, type ShippingLineOwed,
+} from "@/lib/accounting";
 
 interface PaymentRow {
   id: string;
@@ -35,15 +38,6 @@ interface PaymentRow {
   payment_method: string;
   collected_by: string;
   created_at: string;
-  yard_share: number;
-  shipping_line_share: number;
-  transferred: boolean;
-}
-
-interface ShippingLineBreakdown {
-  shipping_line: string;
-  count: number;
-  totalOwed: number;
   transferred: boolean;
 }
 
@@ -55,7 +49,7 @@ interface TransferRow {
 
 const chartConfig: ChartConfig = {
   collected: { label: "Collected (JOD)", color: "hsl(var(--chart-1))" },
-  yard: { label: "Yard Share (JOD)", color: "hsl(var(--chart-3))" },
+  yard: { label: "Service Fees (JOD)", color: "hsl(var(--chart-3))" },
 };
 
 const Accounting = () => {
@@ -102,32 +96,14 @@ const Accounting = () => {
   }, [payments, dateFrom, dateTo]);
 
   const summaryCards = useMemo(() => {
-    const totalCollected = filteredPayments.reduce((s, p) => s + Number(p.total_collected), 0);
-    const yardEarnings = filteredPayments.reduce((s, p) => s + Number(p.yard_share), 0);
-    const pendingTransfers = filteredPayments.filter(p => !p.transferred).reduce((s, p) => s + Number(p.shipping_line_share), 0);
     const completedTransfers = transfers.reduce((s, t) => s + Number(t.amount_transferred), 0);
-    return { totalCollected, yardEarnings, pendingTransfers, completedTransfers };
+    return { ...summarizePayments(filteredPayments), completedTransfers };
   }, [filteredPayments, transfers]);
 
-  const shippingLineBreakdown = useMemo(() => {
-    const pending = new Map<string, { count: number; totalOwed: number }>();
-    const transferredLines = new Set<string>();
-    filteredPayments.forEach(p => {
-      if (!p.transferred) {
-        const existing = pending.get(p.shipping_line) || { count: 0, totalOwed: 0 };
-        existing.count++;
-        existing.totalOwed += Number(p.shipping_line_share);
-        pending.set(p.shipping_line, existing);
-      }
-    });
-    transfers.forEach(t => transferredLines.add(t.shipping_line));
-    const rows: ShippingLineBreakdown[] = [];
-    pending.forEach((v, k) => rows.push({ shipping_line: k, ...v, transferred: false }));
-    transferredLines.forEach(sl => {
-      if (!pending.has(sl)) rows.push({ shipping_line: sl, count: 0, totalOwed: 0, transferred: true });
-    });
-    return rows;
-  }, [filteredPayments, transfers]);
+  const shippingLineBreakdown = useMemo<ShippingLineOwed[]>(
+    () => buildShippingLineBreakdown(filteredPayments, new Set(transfers.map(t => t.shipping_line))),
+    [filteredPayments, transfers],
+  );
 
   // Monthly chart data — last 6 months
   const monthlyData = useMemo(() => {
@@ -143,7 +119,7 @@ const Accounting = () => {
       months.push({
         month: key,
         collected: monthPayments.reduce((s, p) => s + Number(p.total_collected), 0),
-        yard: monthPayments.reduce((s, p) => s + Number(p.yard_share), 0),
+        yard: monthPayments.reduce((s, p) => s + yardEarned(p), 0),
       });
     }
     return months;
@@ -228,7 +204,7 @@ const Accounting = () => {
           loading={loading}
         />
         <StatCard
-          label="Yard Earnings"
+          label="Yard Earnings (Fees)"
           value={`${summaryCards.yardEarnings.toFixed(2)} JOD`}
           color="success"
           icon={<TrendingUp className="h-5 w-5 text-success" />}
@@ -265,7 +241,7 @@ const Accounting = () => {
                 <YAxis tick={{ fontSize: 11 }} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar dataKey="collected" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} name="Total Collected" />
-                <Bar dataKey="yard" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} name="Yard Share" />
+                <Bar dataKey="yard" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} name="Service Fees" />
               </BarChart>
             </ChartContainer>
           )}
@@ -284,7 +260,7 @@ const Accounting = () => {
                 <TableRow>
                   <TableHead>Shipping Line</TableHead>
                   <TableHead>Payments</TableHead>
-                  <TableHead>Owed</TableHead>
+                  <TableHead>Demurrage Owed</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Action</TableHead>
                 </TableRow>
