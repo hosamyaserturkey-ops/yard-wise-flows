@@ -865,8 +865,10 @@ const GateIn = () => {
                 total_collected: totalCollected,
                 collected_by: user!.id,
                 service_fee: feeCfg.total,
-                yard_share: feeCfg.yard,
-                shipping_line_share: feeCfg.shippingLine,
+                // The yard keeps the service fee; the demurrage is collected on
+                // the shipping line's behalf and owed onward in full.
+                yard_share: feeCfg.total,
+                shipping_line_share: demurrageAmount,
                 payment_method: paymentMethod,
                 yard_id: yardIdPay,
               })

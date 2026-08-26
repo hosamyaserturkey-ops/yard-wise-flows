@@ -12,20 +12,16 @@ import { AlertTriangle, DollarSign, CheckCircle2, CreditCard, Banknote } from "l
 import { useState } from "react";
 
 const SERVICE_FEE = 7;
-const YARD_SHARE = 5;
-const SHIPPING_LINE_SHARE = 2;
 
-// Per-shipping-line overrides. Splits keep the shipping line share and
-// give the remainder to the yard.
-const SERVICE_FEE_BY_LINE: Record<string, { total: number; yard: number; shippingLine: number }> = {
-  WOM: { total: 5, yard: 3, shippingLine: 2 },
+// Per-shipping-line service fee overrides. The whole fee is the yard's
+// earning — demurrage is separate and owed to the shipping line in full.
+const SERVICE_FEE_BY_LINE: Record<string, number> = {
+  WOM: 5,
 };
 
-export const getServiceFeeConfig = (shippingLine?: string | null) => {
-  const override = shippingLine ? SERVICE_FEE_BY_LINE[shippingLine] : undefined;
-  if (override) return override;
-  return { total: SERVICE_FEE, yard: YARD_SHARE, shippingLine: SHIPPING_LINE_SHARE };
-};
+export const getServiceFeeConfig = (shippingLine?: string | null) => ({
+  total: (shippingLine ? SERVICE_FEE_BY_LINE[shippingLine] : undefined) ?? SERVICE_FEE,
+});
 
 interface DemurrageCollectionDialogProps {
   open: boolean;
@@ -181,5 +177,5 @@ const DemurrageCollectionDialog = ({
   );
 };
 
-export { SERVICE_FEE, YARD_SHARE, SHIPPING_LINE_SHARE };
+export { SERVICE_FEE };
 export default DemurrageCollectionDialog;
