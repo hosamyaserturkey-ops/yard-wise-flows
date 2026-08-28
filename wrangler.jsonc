@@ -34,14 +34,16 @@
     "SUPABASE_URL": "https://qctvjwlaxnidprhcxodj.supabase.co",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdHZqd2xheG5pZHByaGN4b2RqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MDg1ODMsImV4cCI6MjA3MzE4NDU4M30.b0mOM6i2Go3qOvwgQytz_4TZcY3S4vOGzE_YmR0zxZc",
     // APM Terminals empty-return lookup (/api/terminal/empty-returns).
-    // Sandbox serves test data with no credentials; point this at
-    // https://api.apmterminals.com and set the two secrets below to go live:
-    //   npx wrangler secret put APM_CLIENT_ID       (Consumer Key)
-    //   npx wrangler secret put APM_CLIENT_SECRET   (Consumer Secret)
-    // Secrets are never listed here — that would put them in the repo.
-    "APM_BASE_URL": "https://api-sandbox.apmterminals.com",
-    // Used when the gate screen leaves the facility field blank. SEGOT is the
-    // sandbox test facility; use the real terminal code in production.
-    "APM_DEFAULT_FACILITY": "SEGOT"
+    // Production needs the Consumer Key/Secret from developer.apmterminals.com,
+    // held as Worker secrets so they stay out of the repo (set them in the
+    // Cloudflare dashboard, or with `npx wrangler secret put APM_CLIENT_ID`
+    // and `... APM_CLIENT_SECRET`). Secrets survive a deploy; these vars do
+    // not, which is why the URL and facility live here rather than there.
+    // To go back to test data, point this at
+    // https://api-sandbox.apmterminals.com with facility SEGOT — the sandbox
+    // needs no credentials and knows only its four test containers.
+    "APM_BASE_URL": "https://api.apmterminals.com",
+    // Used when Terminal Check leaves the facility field blank: ACT Aqaba.
+    "APM_DEFAULT_FACILITY": "JOAQJ"
   }
 }
