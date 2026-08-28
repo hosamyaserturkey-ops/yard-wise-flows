@@ -20,7 +20,7 @@ export const MAX_CONTAINERS_PER_LOOKUP = 10;
 
 /** ISO 6346 number as it appears in a terminal payload (check digit sometimes dropped). */
 const CONTAINER_VALUE = /^[A-Z]{4}[0-9]{6,7}$/;
-/** Facility/terminal codes are short alphanumerics, e.g. SEGOT, USLAX. */
+/** Facility/terminal codes are short alphanumerics, e.g. JOAQJ, SEGOT, USLAX. */
 const FACILITY_VALUE = /^[A-Z0-9]{3,12}$/;
 /** Enough of a date to be worth showing: an ISO-ish or d/m/y string. */
 const DATE_VALUE = /\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/;
@@ -34,6 +34,10 @@ export interface EmptyReturnRecord {
   terminalStatus: string | null;
   /** The terminal's own "we accept this empty back" flag, when it carries one. */
   accepted: boolean | null;
+  /** Start of the window in which the empty may be returned, when given. */
+  openFrom: string | null;
+  /** End of that window, when given. */
+  openUntil: string | null;
   /** Return / gate-in timestamp, when the payload carries one. */
   returnedAt: string | null;
   /** Human-readable note, reason or error attached to the record. */
@@ -66,38 +70,39 @@ export const TERMINAL_CHECK_LABELS: Record<TerminalCheckStatus, string> = {
 };
 
 // ── Payload walking ────────────────────────────────────────────────────────
-// The published spec leaves room for the records to sit under different
-// wrappers ("containers", "emptyReturns", a bare array…), so rather than
-// pinning one shape we walk the whole payload and read every object that
-// carries a container number.
+// The records sit under wrappers the published spec doesn't pin down, and the
+// part that matters — which facility takes the empty, and when — is typically
+// a list nested *under* the container rather than beside its number. So each
+// object carrying a container number is treated as a root, and the whole
+// subtree beneath it is read as that container's detail.
 
 type Obj = Record<string, unknown>;
 
 const MAX_DEPTH = 8;
 const MAX_OBJECTS = 500;
 
-function collectObjects(value: unknown, out: Obj[], depth = 0): void {
-  if (out.length >= MAX_OBJECTS || depth > MAX_DEPTH || value == null) return;
-  if (Array.isArray(value)) {
-    for (const item of value) collectObjects(item, out, depth + 1);
-    return;
-  }
-  if (typeof value !== "object") return;
-  out.push(value as Obj);
-  for (const nested of Object.values(value as Obj)) {
-    collectObjects(nested, out, depth + 1);
-  }
-}
-
 const normKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const CONTAINER_NAMES = [
+  "containerid", "containernumber", "containerno", "containercode",
+  "assetid", "equipmentnumber", "equipmentid", "unitnumber",
+];
+const CONTAINER_FUZZY = /(container|asset|equipment|unit)(id|number|no|nbr|code)?$/;
+
+const FACILITY_NAMES = [
+  "facilitycode", "facilityid", "terminalcode", "terminalid",
+  "depotcode", "sitecode", "facility", "terminal", "depot",
+];
+const FACILITY_FUZZY = /(facility|terminal|depot|site)(code|id)$/;
 
 /**
  * Read a string field: exact key names first (so `status` wins over
  * `statusDescription`), then a looser key match, and only values that look
- * like the field (a facility code isn't the word "ACCEPTED").
+ * like the field (a facility code isn't the word "ACCEPTED"). Scans the
+ * objects in order, so the caller decides which layer answers first.
  */
 function pickString(
-  obj: Obj,
+  objs: Obj[],
   names: string[],
   fuzzy?: RegExp,
   valueShape?: RegExp,
@@ -112,17 +117,21 @@ function pickString(
   };
 
   for (const name of names) {
-    for (const [k, v] of Object.entries(obj)) {
-      if (normKey(k) !== name) continue;
-      const hit = fits(v);
-      if (hit) return hit;
+    for (const obj of objs) {
+      for (const [k, v] of Object.entries(obj)) {
+        if (normKey(k) !== name) continue;
+        const hit = fits(v);
+        if (hit) return hit;
+      }
     }
   }
   if (!fuzzy) return null;
-  for (const [k, v] of Object.entries(obj)) {
-    if (!fuzzy.test(normKey(k))) continue;
-    const hit = fits(v);
-    if (hit) return hit;
+  for (const obj of objs) {
+    for (const [k, v] of Object.entries(obj)) {
+      if (!fuzzy.test(normKey(k))) continue;
+      const hit = fits(v);
+      if (hit) return hit;
+    }
   }
   return null;
 }
@@ -130,7 +139,7 @@ function pickString(
 const TRUE_WORDS = /^(true|yes|y|1|accepted|accept|open|available|allowed|eligible)$/;
 const FALSE_WORDS = /^(false|no|n|0|notaccepted|rejected|closed|unavailable|notallowed|ineligible)$/;
 
-function pickBoolean(obj: Obj, names: string[], fuzzy?: RegExp): boolean | null {
+function pickBoolean(objs: Obj[], names: string[], fuzzy?: RegExp): boolean | null {
   const fits = (v: unknown): boolean | null => {
     if (typeof v === "boolean") return v;
     if (typeof v !== "string") return null;
@@ -141,28 +150,27 @@ function pickBoolean(obj: Obj, names: string[], fuzzy?: RegExp): boolean | null 
   };
 
   for (const name of names) {
-    for (const [k, v] of Object.entries(obj)) {
-      if (normKey(k) !== name) continue;
-      const hit = fits(v);
-      if (hit !== null) return hit;
+    for (const obj of objs) {
+      for (const [k, v] of Object.entries(obj)) {
+        if (normKey(k) !== name) continue;
+        const hit = fits(v);
+        if (hit !== null) return hit;
+      }
     }
   }
   if (!fuzzy) return null;
-  for (const [k, v] of Object.entries(obj)) {
-    if (!fuzzy.test(normKey(k))) continue;
-    const hit = fits(v);
-    if (hit !== null) return hit;
+  for (const obj of objs) {
+    for (const [k, v] of Object.entries(obj)) {
+      if (!fuzzy.test(normKey(k))) continue;
+      const hit = fits(v);
+      if (hit !== null) return hit;
+    }
   }
   return null;
 }
 
 function readContainerNumber(obj: Obj): string | null {
-  const keyed = pickString(
-    obj,
-    ["containerid", "containernumber", "containerno", "containercode", "assetid", "equipmentnumber", "equipmentid", "unitnumber"],
-    /(container|asset|equipment|unit)(id|number|no|nbr|code)?$/,
-    CONTAINER_VALUE,
-  );
+  const keyed = pickString([obj], CONTAINER_NAMES, CONTAINER_FUZZY, CONTAINER_VALUE);
   if (keyed) return keyed.toUpperCase();
   // Nothing else in these payloads looks like AAAA1234567, so an unkeyed
   // match is still safe as a fallback.
@@ -174,49 +182,127 @@ function readContainerNumber(obj: Obj): string | null {
   return null;
 }
 
-function toRecord(obj: Obj): EmptyReturnRecord | null {
-  const containerNumber = readContainerNumber(obj);
-  if (!containerNumber) return null;
+const readFacility = (obj: Obj) =>
+  pickString([obj], FACILITY_NAMES, FACILITY_FUZZY, FACILITY_VALUE);
+
+/** Objects that carry a container number, without descending into one another. */
+function collectRoots(value: unknown, out: Obj[], depth = 0): void {
+  if (out.length >= MAX_OBJECTS || depth > MAX_DEPTH || value == null) return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectRoots(item, out, depth + 1);
+    return;
+  }
+  if (typeof value !== "object") return;
+  const obj = value as Obj;
+  if (readContainerNumber(obj)) {
+    out.push(obj);
+    return;
+  }
+  for (const nested of Object.values(obj)) collectRoots(nested, out, depth + 1);
+}
+
+/** Everything under a root that isn't itself another container's record. */
+function collectDetail(value: unknown, out: Obj[], depth = 0): void {
+  if (out.length >= MAX_OBJECTS || depth > MAX_DEPTH || value == null) return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectDetail(item, out, depth + 1);
+    return;
+  }
+  if (typeof value !== "object") return;
+  const obj = value as Obj;
+  if (readContainerNumber(obj)) return;
+  out.push(obj);
+  for (const nested of Object.values(obj)) collectDetail(nested, out, depth + 1);
+}
+
+/**
+ * The root first, then its detail objects — the ones for the facility we
+ * asked about ahead of the rest, so a payload listing several return
+ * locations is read against the one the operator queried.
+ */
+function scopeFor(root: Obj, preferredFacility?: string): Obj[] {
+  const detail: Obj[] = [];
+  for (const nested of Object.values(root)) collectDetail(nested, detail);
+  if (!preferredFacility) return [root, ...detail];
+
+  const wanted = preferredFacility.trim().toUpperCase();
+  const matches = (obj: Obj) => readFacility(obj)?.toUpperCase() === wanted;
+  return [root, ...detail.filter(matches), ...detail.filter((o) => !matches(o))];
+}
+
+function toRecord(containerNumber: string, scope: Obj[]): EmptyReturnRecord {
   return {
     containerNumber,
-    facilityCode: pickString(
-      obj,
-      ["facilitycode", "facilityid", "terminalcode", "terminalid", "depotcode", "sitecode", "facility", "terminal", "depot"],
-      /(facility|terminal|depot|site)(code|id)$/,
-      FACILITY_VALUE,
-    ),
+    facilityCode: pickString(scope, FACILITY_NAMES, FACILITY_FUZZY, FACILITY_VALUE),
     shippingLine: pickString(
-      obj,
+      scope,
       ["shippingline", "shippinglinecode", "carriercode", "carrier", "linecode", "line", "scac", "operator"],
       /(shippingline|carrier|linecode|scac)$/,
     ),
     containerIsoCode: pickString(
-      obj,
+      scope,
       ["containerisocode", "isocode", "isotype", "equipmenttype", "containertype", "sizetype", "typecode"],
       /(isocode|isotype|equipmenttype|containertype|sizetype)$/,
     ),
     terminalStatus: pickString(
-      obj,
-      ["status", "emptyreturnstatus", "returnstatus", "acceptancestatus", "state", "availability"],
+      scope,
+      ["status", "emptyreturnstatus", "returnstatus", "acceptancestatus", "state", "availability", "statusdescription"],
       /(status|acceptance|availability)$/,
     ),
     accepted: pickBoolean(
-      obj,
+      scope,
       ["accepted", "isaccepted", "accept", "acceptreturn", "acceptingreturns", "allowed", "isallowed", "eligible", "returnable", "canreturn", "available"],
       /(accept|allow|eligib|returnable|canreturn)/,
     ),
+    openFrom: pickString(
+      scope,
+      ["validfrom", "startdate", "effectivefrom", "openfrom", "returnfrom", "fromdate", "datefrom"],
+      /(validfrom|startdate|effectivefrom|openfrom|returnfrom|fromdate|datefrom)$/,
+      DATE_VALUE,
+    ),
+    openUntil: pickString(
+      scope,
+      ["validto", "validuntil", "enddate", "effectiveto", "openuntil", "returnuntil", "todate", "dateto", "expirydate"],
+      /(validto|validuntil|enddate|effectiveto|openuntil|returnuntil|todate|dateto|expiry)$/,
+      DATE_VALUE,
+    ),
     returnedAt: pickString(
-      obj,
+      scope,
       ["gateindate", "gateintime", "gatedindate", "returndate", "returneddate", "actualreturndate", "receiveddate", "ingatedate"],
-      /(gatein|gatedin|returned|returndate|ingate|received)(date|time|at)?$/,
+      /(gatein|gatedin|returned|ingate|received)(date|time|at)?$/,
       DATE_VALUE,
     ),
     message: pickString(
-      obj,
+      scope,
       ["message", "reason", "description", "note", "notes", "comment", "errormessage", "detail", "details"],
       /(message|reason|description|note|comment|detail)s?$/,
     ),
   };
+}
+
+/**
+ * Every container the payload carries, first mention of each number wins.
+ * `preferredFacility` is the facility the lookup asked about; when the
+ * response lists several, that one's detail is read first.
+ */
+export function normalizeEmptyReturns(
+  payload: unknown,
+  preferredFacility?: string,
+): EmptyReturnRecord[] {
+  const roots: Obj[] = [];
+  collectRoots(payload, roots);
+
+  // One container can appear as several roots (a summary plus a detail
+  // block); read them as one scope so neither half is lost.
+  const scopes = new Map<string, Obj[]>();
+  for (const root of roots) {
+    const containerNumber = readContainerNumber(root)!;
+    const scope = scopeFor(root, preferredFacility);
+    const existing = scopes.get(containerNumber);
+    scopes.set(containerNumber, existing ? [...existing, ...scope] : scope);
+  }
+
+  return [...scopes].map(([containerNumber, scope]) => toRecord(containerNumber, scope));
 }
 
 /**
@@ -228,36 +314,6 @@ export function parseContainerNumbers(raw: string): string[] {
     .split(/[\s,;]+/)
     .map((c) => c.trim().toUpperCase())
     .filter(Boolean);
-}
-
-/** Every container record the payload carries, first mention of each number wins. */
-export function normalizeEmptyReturns(payload: unknown): EmptyReturnRecord[] {
-  const objects: Obj[] = [];
-  collectObjects(payload, objects);
-
-  const byContainer = new Map<string, EmptyReturnRecord>();
-  for (const obj of objects) {
-    const record = toRecord(obj);
-    if (!record) continue;
-    const existing = byContainer.get(record.containerNumber);
-    if (!existing) {
-      byContainer.set(record.containerNumber, record);
-      continue;
-    }
-    // Nested wrappers repeat the number with different halves of the detail;
-    // keep the first non-null value seen for each field.
-    byContainer.set(record.containerNumber, {
-      containerNumber: existing.containerNumber,
-      facilityCode: existing.facilityCode ?? record.facilityCode,
-      shippingLine: existing.shippingLine ?? record.shippingLine,
-      containerIsoCode: existing.containerIsoCode ?? record.containerIsoCode,
-      terminalStatus: existing.terminalStatus ?? record.terminalStatus,
-      accepted: existing.accepted ?? record.accepted,
-      returnedAt: existing.returnedAt ?? record.returnedAt,
-      message: existing.message ?? record.message,
-    });
-  }
-  return [...byContainer.values()];
 }
 
 const RETURNED_WORDS = /returned|gated ?in|gate ?in|received|in ?gate|delivered|dropped ?off|on ?terminal|in ?depot/i;
@@ -307,6 +363,21 @@ export function deriveTerminalCheck(
       record,
     };
   }
+  // A return window is the acceptance, stated as dates rather than a flag:
+  // the terminal only publishes one for an empty it is still expecting.
+  if (record.openFrom || record.openUntil) {
+    const window = record.openFrom && record.openUntil
+      ? `${record.openFrom} to ${record.openUntil}`
+      : record.openFrom
+        ? `from ${record.openFrom}`
+        : `until ${record.openUntil}`;
+    return {
+      containerNumber: wanted,
+      status: "not_returned",
+      detail: `Terminal lists an open return window${at} (${window}), so this empty has not been handed back yet.`,
+      record,
+    };
+  }
   if (record.accepted === false) {
     return {
       containerNumber: wanted,
@@ -320,7 +391,7 @@ export function deriveTerminalCheck(
     status: "unknown",
     detail: record.message
       ? `Terminal answered without a return status — ${record.message}`
-      : "Terminal answered without a return status for this container.",
+      : "Terminal answered without a return status for this container. Open the raw response below to see everything it sent.",
     record,
   };
 }

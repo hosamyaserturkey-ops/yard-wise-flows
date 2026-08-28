@@ -112,7 +112,7 @@ describe("fetchEmptyReturns", () => {
     const { calls, fetchImpl } = stubFetch([
       () => jsonResponse({ containers: [{ containerId: "MRKU7137914", accepted: true }] }),
     ]);
-    const records = await fetchEmptyReturns(
+    const { records, raw } = await fetchEmptyReturns(
       SANDBOX,
       ["MRKU7137914", "UACU8175070"],
       "SEGOT",
@@ -125,6 +125,8 @@ describe("fetchEmptyReturns", () => {
     expect((calls[0].init?.headers as Record<string, string>).Authorization).toBeUndefined();
     expect(records).toHaveLength(1);
     expect(records[0].accepted).toBe(true);
+    // The terminal's answer is passed through untouched for the screen.
+    expect(raw).toEqual({ containers: [{ containerId: "MRKU7137914", accepted: true }] });
   });
 
   it("sends the bearer token in production", async () => {

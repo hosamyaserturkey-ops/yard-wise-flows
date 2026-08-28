@@ -36,6 +36,8 @@ export interface TerminalLookup {
   facilityCode: string;
   checkedAt: string;
   checks: TerminalCheck[];
+  /** The terminal's answer verbatim, for when the reading is inconclusive. */
+  raw: unknown;
   /** Set when the lookup itself failed; every check then reads "error". */
   error: string | null;
 }
@@ -54,6 +56,7 @@ function failed(
       detail: message,
       record: null,
     })),
+    raw: null,
     error: message,
   };
 }
@@ -104,6 +107,7 @@ export async function checkTerminalReturns(
     facilityCode?: string;
     checkedAt?: string;
     records?: EmptyReturnRecord[];
+    raw?: unknown;
     error?: string;
   };
   if (!res.ok || body.error) {
@@ -115,6 +119,7 @@ export async function checkTerminalReturns(
     facilityCode: body.facilityCode ?? facility,
     checkedAt: body.checkedAt ?? new Date().toISOString(),
     checks: wanted.map((containerNumber) => deriveTerminalCheck(containerNumber, records)),
+    raw: body.raw ?? null,
     error: null,
   };
 }
