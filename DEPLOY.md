@@ -78,9 +78,12 @@ stores the snapshot as a workflow artifact. To enable it:
 
 ## 5. Terminal empty-return check (APM Terminals API)
 
-The Gate In screen can ask APM Terminals whether a container's empty return is
-still open at a terminal — the closest that API comes to "has this box been
-handed back yet?". The call runs in the Worker
+**Terminal Check** (`/terminal-check`, in the sidebar) asks APM Terminals
+whether a container's empty return is still open at a terminal — the closest
+that API comes to "has this box been handed back yet?". It is a page of its
+own: a read-only lookup that writes nothing and that no gate-in, gate-out or
+demurrage step depends on, so the existing yard workflow is untouched whether
+or not the API is configured or reachable. The call runs in the Worker
 (`/api/terminal/empty-returns`), so the API credentials never reach the
 browser and the terminal's CORS policy never applies.
 
@@ -123,9 +126,9 @@ answers 503 and the card reports the check as unavailable.
    (proves the SPA rewrite).
 3. Gate a test container in and out; collect demurrage; print and reprint a
    receipt.
-4. On `/gate-in`, type `MRKU7137914`, leave the facility field blank and press
-   **Check terminal** — the card should report what the sandbox says, not an
-   "unavailable" error.
+4. On `/terminal-check`, enter `MRKU7137914`, leave the facility field blank
+   and press **Check terminal** — the result should report what the sandbox
+   says, not an "unavailable" error.
 5. Confirm HTTPS on the custom domain.
 6. Run the backup workflow once by hand; confirm the artifact restores.
 

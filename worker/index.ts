@@ -9,6 +9,7 @@
 // all, just the public URL + anon key (both already public in the built
 // frontend).
 import { ApmError, fetchEmptyReturns } from "./apmTerminals";
+import { MAX_CONTAINERS_PER_LOOKUP } from "../src/lib/emptyReturns";
 
 // Minimal local shapes for the Workers runtime bindings actually used here —
 // not pulling in @cloudflare/workers-types as a real npm dependency keeps
@@ -169,7 +170,6 @@ async function handleDelete(req: Request, env: Env): Promise<Response> {
 // (see src/lib/emptyReturns.ts for how the answer is read). Kept on the
 // server so the API credentials stay out of the frontend bundle and so the
 // browser never has to deal with the terminal's CORS policy.
-const MAX_CONTAINERS_PER_LOOKUP = 10;
 const FACILITY_CODE_REGEX = /^[A-Z0-9]{3,12}$/;
 // ISO 6346, same shape as CONTAINER_NUMBER_REGEX in src/lib/validation.ts —
 // spelled out again here because that module pulls in zod and the "@/" alias,

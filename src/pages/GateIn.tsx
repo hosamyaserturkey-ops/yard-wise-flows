@@ -28,7 +28,6 @@ import { usePendingGateIns } from "@/hooks/usePendingGateIns";
 import { GateInStepper } from "@/components/gate-in/GateInStepper";
 import { PendingGateInsCard } from "@/components/gate-in/PendingGateInsCard";
 import { DemurragePreviewCard } from "@/components/gate-in/DemurragePreviewCard";
-import { TerminalReturnCheckCard } from "@/components/gate-in/TerminalReturnCheckCard";
 import { DemurrageTierRulesTable } from "@/components/gate-in/DemurrageTierRulesTable";
 import {
   calculateDemurrage,
@@ -838,11 +837,6 @@ const GateIn = () => {
           </form>
         </CardContent>
       </Card>
-
-      {/* Terminal-side cross-check: with the container number already typed
-          above, the operator can ask APM Terminals whether the empty is still
-          due back there before accepting the box into the yard. */}
-      <TerminalReturnCheckCard containerNumber={formData.containerNumber} />
         </>
       )}
       </div>

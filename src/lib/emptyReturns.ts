@@ -15,6 +15,9 @@
  * screen shows.
  */
 
+/** How many containers one lookup may carry — enforced by the Worker route too. */
+export const MAX_CONTAINERS_PER_LOOKUP = 10;
+
 /** ISO 6346 number as it appears in a terminal payload (check digit sometimes dropped). */
 const CONTAINER_VALUE = /^[A-Z]{4}[0-9]{6,7}$/;
 /** Facility/terminal codes are short alphanumerics, e.g. SEGOT, USLAX. */
@@ -214,6 +217,17 @@ function toRecord(obj: Obj): EmptyReturnRecord | null {
       /(message|reason|description|note|comment|detail)s?$/,
     ),
   };
+}
+
+/**
+ * Split a typed or pasted list of container numbers. Operators paste from a
+ * manifest, so commas, spaces and new lines all separate.
+ */
+export function parseContainerNumbers(raw: string): string[] {
+  return raw
+    .split(/[\s,;]+/)
+    .map((c) => c.trim().toUpperCase())
+    .filter(Boolean);
 }
 
 /** Every container record the payload carries, first mention of each number wins. */

@@ -2,8 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   deriveTerminalCheck,
   normalizeEmptyReturns,
+  parseContainerNumbers,
   type EmptyReturnRecord,
 } from "../emptyReturns";
+
+describe("parseContainerNumbers", () => {
+  it("splits a pasted list on commas, spaces and new lines", () => {
+    expect(parseContainerNumbers("MRKU7137914, UACU8175070\nCXRU1082246 MRKU0562064"))
+      .toEqual(["MRKU7137914", "UACU8175070", "CXRU1082246", "MRKU0562064"]);
+  });
+
+  it("upper-cases and drops the empties around stray separators", () => {
+    expect(parseContainerNumbers("  mrku7137914 ,, ")).toEqual(["MRKU7137914"]);
+    expect(parseContainerNumbers("   ")).toEqual([]);
+  });
+});
 
 describe("normalizeEmptyReturns", () => {
   it("reads a record out of a wrapped response", () => {
