@@ -8,7 +8,8 @@
 // with the caller's own JWT — no service-role key needed in this Worker at
 // all, just the public URL + anon key (both already public in the built
 // frontend).
-//
+import { ApmError, fetchEmptyReturns } from "./apmTerminals";
+
 // Minimal local shapes for the Workers runtime bindings actually used here —
 // not pulling in @cloudflare/workers-types as a real npm dependency keeps
 // this file's package.json footprint at zero (Wrangler bundles/deploys this
@@ -35,6 +36,14 @@ export interface Env {
   ASSETS: Fetcher;
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
+  // APM Terminals lookup (see handleEmptyReturns). The base URL and the
+  // default facility are plain vars in wrangler.jsonc; the credentials are
+  // Wrangler secrets, so they never reach the browser bundle. Production
+  // needs them; the sandbox answers without.
+  APM_BASE_URL?: string;
+  APM_DEFAULT_FACILITY?: string;
+  APM_CLIENT_ID?: string;
+  APM_CLIENT_SECRET?: string;
 }
 
 const ALLOWED_UPLOAD_ROLES = ["inspector", "admin", "super_admin"] as const;
@@ -47,6 +56,10 @@ const ALLOWED_VIEW_ROLES = ["inspector", "admin", "super_admin", "user", "line_r
 // Deleting is yard-admin-only, matching the "only yard admin can delete a
 // container" rule enforced on container_visits in the database.
 const ALLOWED_DELETE_ROLES = ["admin", "super_admin"] as const;
+// The terminal lookup is read-only and useful to whoever is standing at the
+// gate, so it matches the (wider) photo-viewing list rather than the
+// admin-only ones.
+const ALLOWED_TERMINAL_ROLES = ALLOWED_VIEW_ROLES;
 
 async function authorize(
   req: Request,
@@ -151,6 +164,75 @@ async function handleDelete(req: Request, env: Env): Promise<Response> {
   return json({ deleted: keys.length });
 }
 
+// Asking APM Terminals whether a container's empty return is still open at a
+// facility — the closest that API comes to "has this box gated in there yet?"
+// (see src/lib/emptyReturns.ts for how the answer is read). Kept on the
+// server so the API credentials stay out of the frontend bundle and so the
+// browser never has to deal with the terminal's CORS policy.
+const MAX_CONTAINERS_PER_LOOKUP = 10;
+const FACILITY_CODE_REGEX = /^[A-Z0-9]{3,12}$/;
+// ISO 6346, same shape as CONTAINER_NUMBER_REGEX in src/lib/validation.ts —
+// spelled out again here because that module pulls in zod and the "@/" alias,
+// neither of which the Worker bundle should carry.
+const CONTAINER_NUMBER_REGEX = /^[A-Z]{4}[0-9]{7}$/;
+
+async function handleEmptyReturns(req: Request, env: Env, url: URL): Promise<Response> {
+  const authResult = await authorize(req, env, ALLOWED_TERMINAL_ROLES);
+  if (authResult instanceof Response) return authResult;
+
+  const baseUrl = (env.APM_BASE_URL || "").replace(/\/+$/, "");
+  if (!baseUrl) {
+    return json(
+      { error: "Terminal lookup is not configured on this deployment." },
+      503,
+    );
+  }
+
+  const containerNumbers = (url.searchParams.get("assetId") || "")
+    .split(",")
+    .map((c) => c.trim().toUpperCase())
+    .filter(Boolean);
+  if (containerNumbers.length === 0) {
+    return json({ error: "Give at least one container number" }, 400);
+  }
+  if (containerNumbers.length > MAX_CONTAINERS_PER_LOOKUP) {
+    return json(
+      { error: `Too many containers (max ${MAX_CONTAINERS_PER_LOOKUP})` },
+      400,
+    );
+  }
+  const malformed = containerNumbers.find((c) => !CONTAINER_NUMBER_REGEX.test(c));
+  if (malformed) {
+    return json({ error: `"${malformed}" is not a container number` }, 400);
+  }
+
+  const facilityCode = (
+    url.searchParams.get("facilityCode") || env.APM_DEFAULT_FACILITY || ""
+  ).trim().toUpperCase();
+  if (!FACILITY_CODE_REGEX.test(facilityCode)) {
+    return json({ error: "A facility code is required (e.g. SEGOT)" }, 400);
+  }
+
+  try {
+    const records = await fetchEmptyReturns(
+      {
+        baseUrl,
+        clientId: env.APM_CLIENT_ID,
+        clientSecret: env.APM_CLIENT_SECRET,
+      },
+      containerNumbers,
+      facilityCode,
+      { fetch, now: () => Date.now() },
+    );
+    return json({ facilityCode, checkedAt: new Date().toISOString(), records });
+  } catch (err) {
+    const status = err instanceof ApmError ? err.status : 502;
+    const message = err instanceof Error ? err.message : "Terminal lookup failed";
+    console.error("Empty-container-returns lookup failed:", message);
+    return json({ error: message }, status);
+  }
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -170,6 +252,9 @@ export default {
     }
     if (url.pathname === "/api/photos/delete" && req.method === "POST") {
       return handleDelete(req, env);
+    }
+    if (url.pathname === "/api/terminal/empty-returns" && req.method === "GET") {
+      return handleEmptyReturns(req, env, url);
     }
 
     return env.ASSETS.fetch(req);
