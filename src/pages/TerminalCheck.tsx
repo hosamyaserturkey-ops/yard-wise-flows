@@ -11,6 +11,7 @@ import { CONTAINER_NUMBER_REGEX } from "@/lib/validation";
 import {
   MAX_CONTAINERS_PER_LOOKUP,
   TERMINAL_CHECK_LABELS,
+  formatTerminalTime,
   parseContainerNumbers,
   type TerminalCheck as TerminalCheckResult,
 } from "@/lib/emptyReturns";
@@ -59,6 +60,12 @@ const ResultCard = ({ check, checkedAt }: { check: TerminalCheckResult; checkedA
       <p className="text-xs opacity-90">{check.detail}</p>
       {record && (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs opacity-90 sm:grid-cols-4">
+          {record.returnedAt && (
+            <>
+              <dt className="font-medium">Gate-in (terminal local)</dt>
+              <dd>{formatTerminalTime(record.returnedAt)}</dd>
+            </>
+          )}
           {record.facilityCode && (
             <>
               <dt className="font-medium">Facility</dt>
@@ -75,6 +82,12 @@ const ResultCard = ({ check, checkedAt }: { check: TerminalCheckResult; checkedA
             <>
               <dt className="font-medium">ISO type</dt>
               <dd className="font-mono">{record.containerIsoCode}</dd>
+            </>
+          )}
+          {record.sizeType && (
+            <>
+              <dt className="font-medium">Size / type</dt>
+              <dd className="font-mono">{record.sizeType}</dd>
             </>
           )}
           {record.terminalStatus && (
