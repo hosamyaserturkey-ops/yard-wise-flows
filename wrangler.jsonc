@@ -32,6 +32,16 @@
     // no secret needed. Used only to verify the caller's Supabase JWT and
     // check their role before allowing R2 access.
     "SUPABASE_URL": "https://qctvjwlaxnidprhcxodj.supabase.co",
-    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdHZqd2xheG5pZHByaGN4b2RqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MDg1ODMsImV4cCI6MjA3MzE4NDU4M30.b0mOM6i2Go3qOvwgQytz_4TZcY3S4vOGzE_YmR0zxZc"
+    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdHZqd2xheG5pZHByaGN4b2RqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MDg1ODMsImV4cCI6MjA3MzE4NDU4M30.b0mOM6i2Go3qOvwgQytz_4TZcY3S4vOGzE_YmR0zxZc",
+    // APM Terminals empty-return lookup (/api/terminal/empty-returns).
+    // Sandbox serves test data with no credentials; point this at
+    // https://api.apmterminals.com and set the two secrets below to go live:
+    //   npx wrangler secret put APM_CLIENT_ID       (Consumer Key)
+    //   npx wrangler secret put APM_CLIENT_SECRET   (Consumer Secret)
+    // Secrets are never listed here — that would put them in the repo.
+    "APM_BASE_URL": "https://api-sandbox.apmterminals.com",
+    // Used when the gate screen leaves the facility field blank. SEGOT is the
+    // sandbox test facility; use the real terminal code in production.
+    "APM_DEFAULT_FACILITY": "SEGOT"
   }
 }

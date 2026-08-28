@@ -31,6 +31,7 @@ const NAV_COMMANDS = [
   { label: "Users",       href: "/admin/users",    icon: Users        },
   { label: "Yards",       href: "/admin/yards",    icon: Building2    },
   { label: "Inspect",     href: "/inspector",      icon: ClipboardCheck },
+  { label: "Terminal Check", href: "/terminal-check", icon: Search    },
 ];
 
 export function CommandPalette() {
@@ -52,6 +53,9 @@ export function CommandPalette() {
     if (item.href === "/port-data" || item.href === "/admin/yards") return superAdmin;
     if (["/accounting", "/admin/users"].includes(item.href)) return admin;
     if (item.href === "/inspector") return admin || superAdmin || inspector;
+    // The terminal lookup is an ops tool, and super admins keep it too — it is
+    // the one ops page that reads nothing from a single yard.
+    if (item.href === "/terminal-check") return !inspector;
     return !superAdmin && !inspector; // ops pages hidden from super/inspector
   });
 

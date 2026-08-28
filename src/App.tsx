@@ -28,6 +28,7 @@ const Inspector = lazy(() => import("./pages/Inspector"));
 const ActivityLog = lazy(() => import("./pages/ActivityLog"));
 const YardMap = lazy(() => import("./pages/YardMap"));
 const PhotoArchive = lazy(() => import("./pages/PhotoArchive"));
+const TerminalCheck = lazy(() => import("./pages/TerminalCheck"));
 const Account = lazy(() => import("./pages/Account"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -125,6 +126,13 @@ const App = () => (
                 <Route path="photos" element={
                   <ProtectedRoute>
                     <PhotoArchive />
+                  </ProtectedRoute>
+                } />
+                {/* Read-only lookup against the terminal's own records; it
+                    stands apart from the gate flow and changes nothing. */}
+                <Route path="terminal-check" element={
+                  <ProtectedRoute>
+                    <TerminalCheck />
                   </ProtectedRoute>
                 } />
                 <Route path="*" element={<NotFound />} />

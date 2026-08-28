@@ -76,15 +76,61 @@ stores the snapshot as a workflow artifact. To enable it:
 - Confirm every table has Row-Level Security enabled (run the security advisor in
   the Supabase dashboard after any schema change).
 
-## 5. Smoke test (go-live checklist)
+## 5. Terminal empty-return check (APM Terminals API)
+
+**Terminal Check** (`/terminal-check`, in the sidebar) asks APM Terminals
+whether a container's empty return is still open at a terminal — the closest
+that API comes to "has this box been handed back yet?". It is a page of its
+own: a read-only lookup that writes nothing and that no gate-in, gate-out or
+demurrage step depends on, so the existing yard workflow is untouched whether
+or not the API is configured or reachable. The call runs in the Worker
+(`/api/terminal/empty-returns`), so the API credentials never reach the
+browser and the terminal's CORS policy never applies.
+
+**What it can and cannot tell you.** Empty Container Returns reports whether a
+facility currently *accepts* an empty back, not gate events. An open return
+means the container has not been returned there yet; no record means the
+terminal said nothing about it (it may already be back, or the facility may
+not handle that box). A definitive "gated in at 14:20" needs a different APM
+product (Track & Trace / container tracking), which can be added behind the
+same route later.
+
+**Sandbox (default).** `wrangler.jsonc` ships pointing at
+`https://api-sandbox.apmterminals.com` with `APM_DEFAULT_FACILITY: "SEGOT"`.
+The sandbox needs no credentials and answers with test data for
+`MRKU7137914`, `MRKU0562064`, `UACU8175070` and `CXRU1082246`.
+
+**Production.**
+
+1. Register the app at <https://developer.apmterminals.com> and accept a plan
+   covering Empty Container Returns to get a Consumer Key and Secret.
+2. Set `APM_BASE_URL` to `https://api.apmterminals.com` and
+   `APM_DEFAULT_FACILITY` to your terminal code (e.g. `USLAX`) in
+   `wrangler.jsonc`.
+3. Store the credentials as Worker secrets — never in the repo:
+
+   ```
+   npx wrangler secret put APM_CLIENT_ID       # Consumer Key
+   npx wrangler secret put APM_CLIENT_SECRET   # Consumer Secret
+   ```
+
+The Worker requests the OAuth 2.0 client-credentials token itself and reuses
+it until it nears the 30-minute expiry. Leave the secrets unset and it keeps
+calling the sandbox unauthenticated; leave `APM_BASE_URL` empty and the route
+answers 503 and the card reports the check as unavailable.
+
+## 6. Smoke test (go-live checklist)
 
 1. Open the deployed site; log in.
 2. Visit `/gate-in` **directly** in the address bar — should load, not 404
    (proves the SPA rewrite).
 3. Gate a test container in and out; collect demurrage; print and reprint a
    receipt.
-4. Confirm HTTPS on the custom domain.
-5. Run the backup workflow once by hand; confirm the artifact restores.
+4. On `/terminal-check`, enter `MRKU7137914`, leave the facility field blank
+   and press **Check terminal** — the result should report what the sandbox
+   says, not an "unavailable" error.
+5. Confirm HTTPS on the custom domain.
+6. Run the backup workflow once by hand; confirm the artifact restores.
 
 ---
 
