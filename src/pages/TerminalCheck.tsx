@@ -83,6 +83,12 @@ const ResultCard = ({ check, checkedAt }: { check: TerminalCheckResult; checkedA
               <dd>{record.terminalStatus}</dd>
             </>
           )}
+          {(record.openFrom || record.openUntil) && (
+            <>
+              <dt className="font-medium">Return window</dt>
+              <dd>{[record.openFrom, record.openUntil].filter(Boolean).join(" → ")}</dd>
+            </>
+          )}
         </dl>
       )}
       <p className="text-[11px] opacity-70">Checked {new Date(checkedAt).toLocaleString()}</p>
@@ -208,6 +214,19 @@ const TerminalCheck = () => {
                 checkedAt={lookup.checkedAt}
               />
             ))}
+
+            {/* The terminal's answer verbatim. Worth having in reach: when a
+                reading comes back inconclusive, this is what says why. */}
+            {lookup.raw != null && (
+              <details className="rounded-md border bg-card p-3 text-xs">
+                <summary className="cursor-pointer font-medium text-muted-foreground">
+                  Raw terminal response
+                </summary>
+                <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px]">
+                  {JSON.stringify(lookup.raw, null, 2)}
+                </pre>
+              </details>
+            )}
           </div>
         )}
       </div>

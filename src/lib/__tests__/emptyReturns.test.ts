@@ -40,6 +40,8 @@ describe("normalizeEmptyReturns", () => {
         containerIsoCode: "42G1",
         terminalStatus: "ACCEPTED",
         accepted: true,
+        openFrom: null,
+        openUntil: null,
         returnedAt: null,
         message: null,
       },
@@ -63,15 +65,56 @@ describe("normalizeEmptyReturns", () => {
     expect(record.terminalStatus).toBe("ACCEPTED");
   });
 
-  it("merges halves of one container split across nested objects", () => {
+  it("merges halves of one container split across sibling records", () => {
     const [record] = normalizeEmptyReturns({
-      container: {
-        containerId: "MRKU0562064",
-        detail: { containerId: "MRKU0562064", facilityCode: "SEGOT", reason: "Full quota" },
-      },
+      containers: [
+        { containerId: "MRKU0562064" },
+        { containerId: "MRKU0562064", facilityCode: "SEGOT", reason: "Full quota" },
+      ],
     });
     expect(record.facilityCode).toBe("SEGOT");
     expect(record.message).toBe("Full quota");
+  });
+
+  it("reads return detail nested under the container, not just beside it", () => {
+    // The shape that made a live JOAQJ lookup read as "no answer": the
+    // container carries only its identity, and the acceptance sits in a
+    // nested list of return locations.
+    const [record] = normalizeEmptyReturns({
+      containers: [
+        {
+          containerId: "CAIU4652539",
+          shippingLine: "SLG",
+          containerIsoCode: "4561",
+          emptyReturnLocations: [
+            { facilityCode: "JOAQJ", status: "ACCEPTED", validFrom: "2026-08-20", validTo: "2026-09-05" },
+          ],
+        },
+      ],
+    });
+    expect(record.facilityCode).toBe("JOAQJ");
+    expect(record.terminalStatus).toBe("ACCEPTED");
+    expect(record.openFrom).toBe("2026-08-20");
+    expect(record.openUntil).toBe("2026-09-05");
+    expect(record.shippingLine).toBe("SLG");
+  });
+
+  it("reads the facility that was asked about when several are listed", () => {
+    const payload = {
+      containers: [
+        {
+          containerId: "CAIU4652539",
+          returnLocations: [
+            { facilityCode: "SEGOT", status: "NOT ACCEPTED" },
+            { facilityCode: "JOAQJ", status: "ACCEPTED" },
+          ],
+        },
+      ],
+    };
+    expect(normalizeEmptyReturns(payload, "JOAQJ")[0].terminalStatus).toBe("ACCEPTED");
+    expect(normalizeEmptyReturns(payload, "SEGOT")[0].terminalStatus).toBe("NOT ACCEPTED");
+    // With no preference stated, the first listed location answers.
+    expect(normalizeEmptyReturns(payload)[0].facilityCode).toBe("SEGOT");
   });
 
   it("keeps one entry per container across several containers", () => {
@@ -102,6 +145,8 @@ const record = (over: Partial<EmptyReturnRecord> = {}): EmptyReturnRecord => ({
   containerIsoCode: null,
   terminalStatus: null,
   accepted: null,
+  openFrom: null,
+  openUntil: null,
   returnedAt: null,
   message: null,
   ...over,
@@ -141,6 +186,21 @@ describe("deriveTerminalCheck", () => {
     ]);
     expect(check.status).toBe("unknown");
     expect(check.detail).toContain("Depot full");
+  });
+
+  it("reads an open return window as the empty still being out", () => {
+    const check = deriveTerminalCheck("CAIU4652539", [
+      record({ containerNumber: "CAIU4652539", facilityCode: "JOAQJ", openFrom: "2026-08-20", openUntil: "2026-09-05" }),
+    ]);
+    expect(check.status).toBe("not_returned");
+    expect(check.detail).toContain("2026-08-20 to 2026-09-05");
+  });
+
+  it("prefers a reported return date over an open window", () => {
+    const check = deriveTerminalCheck("MRKU7137914", [
+      record({ openFrom: "2026-08-20", returnedAt: "2026-08-25" }),
+    ]);
+    expect(check.status).toBe("returned");
   });
 
   it("stays unknown when the record carries no return signal at all", () => {

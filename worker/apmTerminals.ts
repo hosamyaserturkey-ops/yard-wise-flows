@@ -114,6 +114,16 @@ export async function getAccessToken(
   return token;
 }
 
+export interface EmptyReturnsResult {
+  records: EmptyReturnRecord[];
+  /**
+   * The terminal's answer exactly as it came back. Passed through so the
+   * screen can show it when the parsed reading is inconclusive — the shape of
+   * this payload is what the parsing has to be corrected against.
+   */
+  raw: unknown;
+}
+
 /**
  * GET /empty-container-returns for up to a handful of containers at one
  * facility, returning the records the response carries.
@@ -123,7 +133,7 @@ export async function fetchEmptyReturns(
   containerNumbers: string[],
   facilityCode: string,
   deps: ApmDeps,
-): Promise<EmptyReturnRecord[]> {
+): Promise<EmptyReturnsResult> {
   const token = await getAccessToken(config, deps);
 
   const url = new URL(`${config.baseUrl}/empty-container-returns`);
@@ -156,5 +166,5 @@ export async function fetchEmptyReturns(
   } catch {
     throw new ApmError("APM Terminals returned a non-JSON response", 502);
   }
-  return normalizeEmptyReturns(payload);
+  return { records: normalizeEmptyReturns(payload, facilityCode), raw: payload };
 }

@@ -214,7 +214,7 @@ async function handleEmptyReturns(req: Request, env: Env, url: URL): Promise<Res
   }
 
   try {
-    const records = await fetchEmptyReturns(
+    const { records, raw } = await fetchEmptyReturns(
       {
         baseUrl,
         clientId: env.APM_CLIENT_ID,
@@ -224,7 +224,7 @@ async function handleEmptyReturns(req: Request, env: Env, url: URL): Promise<Res
       facilityCode,
       { fetch, now: () => Date.now() },
     );
-    return json({ facilityCode, checkedAt: new Date().toISOString(), records });
+    return json({ facilityCode, checkedAt: new Date().toISOString(), records, raw });
   } catch (err) {
     const status = err instanceof ApmError ? err.status : 502;
     const message = err instanceof Error ? err.message : "Terminal lookup failed";
