@@ -95,29 +95,35 @@ not handle that box). A definitive "gated in at 14:20" needs a different APM
 product (Track & Trace / container tracking), which can be added behind the
 same route later.
 
-**Sandbox (default).** `wrangler.jsonc` ships pointing at
-`https://api-sandbox.apmterminals.com` with `APM_DEFAULT_FACILITY: "SEGOT"`.
-The sandbox needs no credentials and answers with test data for
-`MRKU7137914`, `MRKU0562064`, `UACU8175070` and `CXRU1082246`.
-
-**Production.**
+**Production (default).** `wrangler.jsonc` points at
+`https://api.apmterminals.com` with `APM_DEFAULT_FACILITY: "JOAQJ"` (ACT
+Aqaba). That leaves one thing to do by hand — production refuses
+unauthenticated calls, so the check reports "unavailable" until the
+credentials are in place:
 
 1. Register the app at <https://developer.apmterminals.com> and accept a plan
    covering Empty Container Returns to get a Consumer Key and Secret.
-2. Set `APM_BASE_URL` to `https://api.apmterminals.com` and
-   `APM_DEFAULT_FACILITY` to your terminal code (e.g. `USLAX`) in
-   `wrangler.jsonc`.
-3. Store the credentials as Worker secrets — never in the repo:
+2. Store them as **Worker secrets**, never in the repo. In the Cloudflare
+   dashboard: **Workers & Pages → everest-container-terminal → Settings →
+   Variables and Secrets**, added as type *Secret*. Or from a checkout:
 
    ```
    npx wrangler secret put APM_CLIENT_ID       # Consumer Key
    npx wrangler secret put APM_CLIENT_SECRET   # Consumer Secret
    ```
 
+   Secrets survive every deploy. The `vars` above do not — a deploy rewrites
+   them from `wrangler.jsonc` — which is why the URL and facility belong in
+   the repo and the credentials do not.
+
 The Worker requests the OAuth 2.0 client-credentials token itself and reuses
-it until it nears the 30-minute expiry. Leave the secrets unset and it keeps
-calling the sandbox unauthenticated; leave `APM_BASE_URL` empty and the route
-answers 503 and the card reports the check as unavailable.
+it until it nears the 30-minute expiry.
+
+**Back to the sandbox.** To test without credentials, point `APM_BASE_URL` at
+`https://api-sandbox.apmterminals.com` and `APM_DEFAULT_FACILITY` at `SEGOT`.
+It answers unauthenticated, with test data for `MRKU7137914`, `MRKU0562064`,
+`UACU8175070` and `CXRU1082246` only. Leave `APM_BASE_URL` empty and the route
+answers 503 and the page reports the check as unavailable.
 
 ## 6. Smoke test (go-live checklist)
 
@@ -126,9 +132,10 @@ answers 503 and the card reports the check as unavailable.
    (proves the SPA rewrite).
 3. Gate a test container in and out; collect demurrage; print and reprint a
    receipt.
-4. On `/terminal-check`, enter `MRKU7137914`, leave the facility field blank
-   and press **Check terminal** — the result should report what the sandbox
-   says, not an "unavailable" error.
+4. On `/terminal-check`, enter a container currently out for return, leave the
+   facility field blank (that is `JOAQJ`) and press **Check terminal** — the
+   result should report what ACT Aqaba says, not an "unavailable" error. An
+   "unavailable" here usually means the two API secrets are not set.
 5. Confirm HTTPS on the custom domain.
 6. Run the backup workflow once by hand; confirm the artifact restores.
 

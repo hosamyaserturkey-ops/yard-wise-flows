@@ -171,7 +171,7 @@ const TerminalCheck = () => {
                   id="facility"
                   value={facility}
                   onChange={(e) => setFacility(e.target.value.toUpperCase())}
-                  placeholder="e.g., SEGOT"
+                  placeholder="e.g., JOAQJ"
                   className="font-mono"
                   maxLength={12}
                 />
