@@ -39,7 +39,9 @@ describe("normalizeEmptyReturns", () => {
         shippingLine: "MAEU",
         containerIsoCode: "42G1",
         terminalStatus: "ACCEPTED",
+        sizeType: null,
         accepted: true,
+        returnedFlag: null,
         openFrom: null,
         openUntil: null,
         returnedAt: null,
@@ -144,12 +146,60 @@ const record = (over: Partial<EmptyReturnRecord> = {}): EmptyReturnRecord => ({
   shippingLine: null,
   containerIsoCode: null,
   terminalStatus: null,
+  sizeType: null,
   accepted: null,
+  returnedFlag: null,
   openFrom: null,
   openUntil: null,
   returnedAt: null,
   message: null,
   ...over,
+});
+
+// The exact answer ACT Aqaba (JOAQJ) gave for a two-container lookup — one
+// box the terminal knows, one it has never heard of.
+const ACT_AQABA_RESPONSE = [
+  {
+    containerId: "TFLU4976041",
+    shippingLine: "SLG",
+    containerIsoCode: "45G1",
+    sizeTypeHeight: "40/GP/96",
+    isContainerReturned: "false",
+    gateInDateTimeLocal: "2026-08-28T01:23:53+03:00",
+  },
+  {
+    AssetName: "TFLU4926565",
+    message: "Asset Details Not Found",
+  },
+];
+
+describe("the live ACT Aqaba response", () => {
+  const records = normalizeEmptyReturns(ACT_AQABA_RESPONSE, "JOAQJ");
+
+  it("reads the gate-in timestamp, the returned flag and the size", () => {
+    const [container] = records;
+    expect(container).toMatchObject({
+      containerNumber: "TFLU4976041",
+      shippingLine: "SLG",
+      containerIsoCode: "45G1",
+      sizeType: "40/GP/96",
+      returnedFlag: false,
+      returnedAt: "2026-08-28T01:23:53+03:00",
+    });
+  });
+
+  it("calls the gated-in container gated in, despite the unbooked return", () => {
+    const check = deriveTerminalCheck("TFLU4976041", records);
+    expect(check.status).toBe("returned");
+    expect(check.detail).toContain("2026-08-28 01:23");
+    expect(check.detail).toContain("not marked the empty return itself as complete");
+  });
+
+  it("says plainly that the terminal has never heard of the other one", () => {
+    const check = deriveTerminalCheck("TFLU4926565", records);
+    expect(check.status).toBe("unknown");
+    expect(check.detail).toContain("no record of this container");
+  });
 });
 
 describe("deriveTerminalCheck", () => {
@@ -159,12 +209,20 @@ describe("deriveTerminalCheck", () => {
     expect(check.detail).toContain("SEGOT");
   });
 
-  it("treats a return date as the empty already being back", () => {
+  it("treats a gate-in date as the empty already being back", () => {
     const check = deriveTerminalCheck("MRKU7137914", [
       record({ accepted: true, returnedAt: "2026-08-21" }),
     ]);
     expect(check.status).toBe("returned");
     expect(check.detail).toContain("2026-08-21");
+  });
+
+  it("reads a returned flag on its own, with no timestamp", () => {
+    expect(deriveTerminalCheck("MRKU7137914", [record({ returnedFlag: true })]).status)
+      .toBe("returned");
+    const notBack = deriveTerminalCheck("MRKU7137914", [record({ returnedFlag: false })]);
+    expect(notBack.status).toBe("not_returned");
+    expect(notBack.detail).toContain("no gate-in on record");
   });
 
   it("treats a returned/gated-in status word as the empty being back", () => {

@@ -32,13 +32,17 @@ export interface EmptyReturnRecord {
   containerIsoCode: string | null;
   /** Free-text status/state the terminal reported, when it carries one. */
   terminalStatus: string | null;
+  /** Size/type/height as the terminal words it, e.g. "40/GP/96". */
+  sizeType: string | null;
   /** The terminal's own "we accept this empty back" flag, when it carries one. */
   accepted: boolean | null;
+  /** The terminal's own isContainerReturned flag, when it carries one. */
+  returnedFlag: boolean | null;
   /** Start of the window in which the empty may be returned, when given. */
   openFrom: string | null;
   /** End of that window, when given. */
   openUntil: string | null;
-  /** Return / gate-in timestamp, when the payload carries one. */
+  /** Gate-in / return timestamp at the terminal, when the payload carries one. */
   returnedAt: string | null;
   /** Human-readable note, reason or error attached to the record. */
   message: string | null;
@@ -249,10 +253,22 @@ function toRecord(containerNumber: string, scope: Obj[]): EmptyReturnRecord {
       ["status", "emptyreturnstatus", "returnstatus", "acceptancestatus", "state", "availability", "statusdescription"],
       /(status|acceptance|availability)$/,
     ),
+    sizeType: pickString(
+      scope,
+      ["sizetypeheight", "sizetype", "sizetypecode", "equipmentsizetype"],
+      /(sizetype)/,
+    ),
     accepted: pickBoolean(
       scope,
       ["accepted", "isaccepted", "accept", "acceptreturn", "acceptingreturns", "allowed", "isallowed", "eligible", "returnable", "canreturn", "available"],
       /(accept|allow|eligib|returnable|canreturn)/,
+    ),
+    // ACT Aqaba answers with isContainerReturned: "false" — the terminal's
+    // own word on whether the empty is back, separate from any status text.
+    returnedFlag: pickBoolean(
+      scope,
+      ["iscontainerreturned", "containerreturned", "isreturned", "returned", "hasbeenreturned"],
+      /(isreturned|containerreturned|hasbeenreturned)$/,
     ),
     openFrom: pickString(
       scope,
@@ -268,8 +284,11 @@ function toRecord(containerNumber: string, scope: Obj[]): EmptyReturnRecord {
     ),
     returnedAt: pickString(
       scope,
-      ["gateindate", "gateintime", "gatedindate", "returndate", "returneddate", "actualreturndate", "receiveddate", "ingatedate"],
-      /(gatein|gatedin|returned|ingate|received)(date|time|at)?$/,
+      ["gateindatetimelocal", "gateindatetime", "gateindate", "gateintime", "gatedindate", "returndate", "returneddate", "actualreturndate", "receiveddate", "ingatedate"],
+      // Not anchored: the live keys carry suffixes (gateInDateTimeLocal), and
+      // the date-shaped value is what keeps a flag like isContainerReturned
+      // out of this field.
+      /(gatein|gatedin|ingate|returndate|returneddate|receiveddate|actualreturn)/,
       DATE_VALUE,
     ),
     message: pickString(
@@ -318,6 +337,16 @@ export function parseContainerNumbers(raw: string): string[] {
 
 const RETURNED_WORDS = /returned|gated ?in|gate ?in|received|in ?gate|delivered|dropped ?off|on ?terminal|in ?depot/i;
 const OPEN_WORDS = /accept|open|available|allowed|eligible|due|outstanding|expected/i;
+const NOT_FOUND_WORDS = /not found|no (details|record|data)|unknown (asset|container)/i;
+
+/**
+ * "2026-08-28T01:23:53+03:00" reads badly at a gate desk. Trim it to the
+ * minute and drop the T; anything that isn't an ISO timestamp is left alone.
+ */
+export function formatTerminalTime(value: string): string {
+  const iso = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(value);
+  return iso ? `${iso[1]} ${iso[2]}` : value;
+}
 
 /** Read one container's records the way the gate needs to read them. */
 export function deriveTerminalCheck(
@@ -339,11 +368,26 @@ export function deriveTerminalCheck(
 
   const at = record.facilityCode ? ` at ${record.facilityCode}` : "";
 
+  // A gate-in timestamp is the strongest thing this API gives: the box went
+  // through that terminal's gate at that moment. It outranks every flag —
+  // including a return the terminal has not finished booking in.
   if (record.returnedAt) {
+    const pending =
+      record.returnedFlag === false
+        ? " The terminal has not marked the empty return itself as complete."
+        : "";
     return {
       containerNumber: wanted,
       status: "returned",
-      detail: `Terminal reports this empty back${at} on ${record.returnedAt}.`,
+      detail: `Terminal recorded a gate-in${at} on ${formatTerminalTime(record.returnedAt)} terminal local time.${pending}`,
+      record,
+    };
+  }
+  if (record.returnedFlag === true) {
+    return {
+      containerNumber: wanted,
+      status: "returned",
+      detail: `Terminal reports this empty as returned${at}.`,
       record,
     };
   }
@@ -375,6 +419,24 @@ export function deriveTerminalCheck(
       containerNumber: wanted,
       status: "not_returned",
       detail: `Terminal lists an open return window${at} (${window}), so this empty has not been handed back yet.`,
+      record,
+    };
+  }
+  // No gate-in on record and the terminal says the empty isn't back: it is
+  // still out with the merchant.
+  if (record.returnedFlag === false) {
+    return {
+      containerNumber: wanted,
+      status: "not_returned",
+      detail: `Terminal has no gate-in on record${at} and reports this empty as not yet returned.`,
+      record,
+    };
+  }
+  if (record.message && NOT_FOUND_WORDS.test(record.message)) {
+    return {
+      containerNumber: wanted,
+      status: "unknown",
+      detail: `The terminal has no record of this container${at} — "${record.message}". Check the number, or the container may belong to another facility.`,
       record,
     };
   }
