@@ -17,17 +17,29 @@ const PRODUCTION = {
 interface Call {
   url: string;
   init?: RequestInit;
+  /**
+   * What `this` was at the call site. The Workers runtime refuses its own
+   * fetch when it is invoked as a method of another object, so this must stay
+   * undefined — a plain function call in a strict-mode module.
+   */
+  thisArg: unknown;
 }
 
 /** A fetch stub that records calls and answers from a queue of responses. */
 function stubFetch(responses: Array<() => Response>) {
   const calls: Call[] = [];
-  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ url: String(input), init });
+  // A real function, not an arrow: an arrow's lexical `this` would hide the
+  // very mistake this records.
+  const fetchImpl = async function (
+    this: unknown,
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) {
+    calls.push({ url: String(input), init, thisArg: this });
     const next = responses.shift();
     if (!next) throw new Error(`Unexpected call to ${String(input)}`);
     return next();
-  }) as unknown as typeof fetch;
+  } as unknown as typeof fetch;
   return { calls, fetchImpl };
 }
 
@@ -143,6 +155,18 @@ describe("fetchEmptyReturns", () => {
     ).catch((e) => e);
     expect(error).toBeInstanceOf(ApmError);
     expect((error as ApmError).status).toBe(502);
+  });
+
+  it("calls fetch unbound, never as a method of the deps object", async () => {
+    // Workers rejects `deps.fetch(...)` with "Illegal invocation: function
+    // called with incorrect `this` reference", which took the live lookup down.
+    const { calls, fetchImpl } = stubFetch([
+      () => jsonResponse({ access_token: "tok-1", expires_in: 1799 }),
+      () => jsonResponse([]),
+    ]);
+    await fetchEmptyReturns(PRODUCTION, ["MRKU7137914"], "JOAQJ", depsFrom(fetchImpl));
+    expect(calls).toHaveLength(2);
+    for (const call of calls) expect(call.thisArg).toBeUndefined();
   });
 
   it("reports a non-JSON answer instead of throwing a parse error", async () => {

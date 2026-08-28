@@ -23,6 +23,12 @@ export interface ApmConfig {
 }
 
 export interface ApmDeps {
+  /**
+   * The runtime's fetch. Never call it as `deps.fetch(...)`: the Workers
+   * runtime rejects its own fetch when it is invoked as a method of some
+   * other object ("Illegal invocation: function called with incorrect `this`
+   * reference"). Pull it into a local binding first, as both callers below do.
+   */
   fetch: typeof fetch;
   now: () => number;
 }
@@ -71,7 +77,8 @@ export async function getAccessToken(
     client_id: clientId,
     client_secret: clientSecret,
   });
-  const res = await deps.fetch(
+  const httpFetch = deps.fetch;
+  const res = await httpFetch(
     `${config.baseUrl}/oauth/client_credential/accesstoken?grant_type=client_credentials`,
     {
       method: "POST",
@@ -124,7 +131,8 @@ export async function fetchEmptyReturns(
   url.searchParams.set("assetId", containerNumbers.join(","));
   url.searchParams.set("facilityCode", facilityCode);
 
-  const res = await deps.fetch(url.toString(), {
+  const httpFetch = deps.fetch;
+  const res = await httpFetch(url.toString(), {
     method: "GET",
     headers: {
       Accept: "application/json",
