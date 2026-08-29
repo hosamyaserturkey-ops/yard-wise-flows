@@ -148,11 +148,49 @@ export default function BookingDetail() {
 
       if (error) throw error;
       if (!data || data.length === 0) {
-        toast({
-          title: "Container unavailable",
-          description: "This container was just assigned by someone else.",
-          variant: "destructive",
-        });
+        // Zero rows means one of three different things, and Postgres reports
+        // none of them as an error: the guard clauses did not match (someone
+        // took the container), RLS refused the write (this user may not assign
+        // in this yard), or the visit is gone. Re-read the row to say which,
+        // instead of always blaming a race — a permission problem reported as
+        // "someone else assigned it" sends people looking for the wrong thing.
+        const { data: current } = await supabase
+          .from("container_visits")
+          .select("status, booking_id, booking_number")
+          .eq("id", containerId)
+          .maybeSingle();
+
+        if (!current) {
+          toast({
+            title: "Container unavailable",
+            description: "This container is no longer in the yard.",
+            variant: "destructive",
+          });
+        } else if (current.booking_id) {
+          toast({
+            title: "Container unavailable",
+            description: current.booking_number
+              ? `This container was just assigned to booking ${current.booking_number}.`
+              : "This container was just assigned by someone else.",
+            variant: "destructive",
+          });
+        } else if (current.status !== "in-yard") {
+          toast({
+            title: "Container unavailable",
+            description: `This container is ${current.status}, so it cannot be assigned.`,
+            variant: "destructive",
+          });
+        } else {
+          // Still in-yard and unassigned, yet the update changed nothing: the
+          // only remaining explanation is that RLS blocked it.
+          toast({
+            title: "Not allowed",
+            description:
+              "You do not have permission to assign this container. Ask a yard admin.",
+            variant: "destructive",
+          });
+        }
+
         fetchBookingDetails();
         return;
       }
@@ -175,16 +213,29 @@ export default function BookingDetail() {
 
   const handleUnassignContainer = async (containerId: string) => {
     try {
-      const { error } = await supabase
+      // select() so a write RLS refuses is visible: without it the update
+      // reports success while changing nothing.
+      const { data, error } = await supabase
         .from("container_visits")
         .update({
           status: "in-yard",
           booking_id: null,
           booking_number: null,
         })
-        .eq("id", containerId);
+        .eq("id", containerId)
+        .select("id");
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        toast({
+          title: "Not allowed",
+          description:
+            "You do not have permission to unassign this container. Ask a yard admin.",
+          variant: "destructive",
+        });
+        fetchBookingDetails();
+        return;
+      }
 
       toast({
         title: "Success",
