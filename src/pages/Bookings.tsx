@@ -241,7 +241,9 @@ export default function Bookings() {
                     <SelectContent>
                       {shippingLines.map((line) => (
                         <SelectItem key={line.code} value={line.code}>
-                          {line.code} — {line.name}
+                          {line.name && line.name !== line.code
+                            ? `${line.code} — ${line.name}`
+                            : line.code}
                         </SelectItem>
                       ))}
                     </SelectContent>

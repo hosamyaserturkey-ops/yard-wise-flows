@@ -10,7 +10,6 @@ export const SHIPPING_LINES = [
   "WOM",
   "EEL",
   "Gezairi",
-  "SaM",
 ] as const;
 
 export type ShippingLine = (typeof SHIPPING_LINES)[number] | string;
