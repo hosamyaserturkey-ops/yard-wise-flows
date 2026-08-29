@@ -204,7 +204,7 @@ const GateIn = () => {
     await reloadPending();
   };
 
-  // Lines with no tiered demurrage formula (e.g. 7Seas, Gezairi, SaM) aren't
+  // Lines with no tiered demurrage formula (e.g. 7Seas, Gezairi) aren't
   // charged, so they need no port data to gate in. Formula lines still require a
   // valid, non-future arrival date to anchor the demurrage clock.
   const lineChargesDemurrage = hasDemurrageRules(formData.shippingLine);
