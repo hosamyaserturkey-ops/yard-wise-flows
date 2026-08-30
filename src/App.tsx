@@ -124,7 +124,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="photos" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute lineRepAllowed>
                     <PhotoArchive />
                   </ProtectedRoute>
                 } />

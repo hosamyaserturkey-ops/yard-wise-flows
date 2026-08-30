@@ -31,7 +31,7 @@ export default function Bookings() {
     shipping_line: "",
     total_containers: 1,
   });
-  const { user, currentYardId, isAdmin, isSuperAdmin, isLineRep, selectedYardId } = useAuth();
+  const { user, profile, currentYardId, isAdmin, isSuperAdmin, isLineRep, selectedYardId } = useAuth();
   const { nameOf: yardName } = useYards();
   const { toast } = useToast();
 
@@ -170,7 +170,7 @@ export default function Bookings() {
       <PageHeader
         icon={Package}
         title="Bookings"
-        subtitle={isLineRep() ? "Bookings in your yard" : "Manage container bookings and track gate-out progress"}
+        subtitle={isLineRep() ? `${profile?.shipping_line ?? "Your line"} bookings in your yard` : "Manage container bookings and track gate-out progress"}
         action={
           !isLineRep() && (
             <Button onClick={() => setShowCreateForm(true)} className="gap-2">
@@ -294,7 +294,9 @@ export default function Bookings() {
               <h3 className="text-lg font-semibold mb-2">No bookings found</h3>
               <p className="text-muted-foreground text-center mb-4">
                 {isLineRep()
-                  ? "No bookings have been created for this yard yet."
+                  ? profile?.shipping_line
+                    ? `No ${profile.shipping_line} bookings have been created for this yard yet.`
+                    : "No bookings have been created for this yard yet."
                   : "Create your first booking to start managing container gate-outs"}
               </p>
               {!isLineRep() && (

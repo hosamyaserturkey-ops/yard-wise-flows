@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     const fullName = (body.fullName || "").trim();
     const role = body.role;
     const yard_id = body.yard_id;
-    const shipping_line = (body.shipping_line || "").trim().toUpperCase();
+    const shipping_line = (body.shipping_line || "").trim();
 
     if (!username || !password || !fullName || !role || !yard_id) {
       return json({ error: "Missing fields" }, 400);
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid role" }, 400);
     }
     if (role === "line_rep") {
-      if (!shipping_line || !/^[A-Z0-9]{2,10}$/.test(shipping_line)) {
+      if (!shipping_line || !/^[A-Za-z0-9]{2,10}$/.test(shipping_line)) {
         return json({ error: "A valid shipping line code is required for a line representative" }, 400);
       }
     }
@@ -112,6 +112,27 @@ Deno.serve(async (req) => {
       return json({ error: "Username already taken" }, 409);
     }
 
+    // Store the line exactly as shipping_lines spells it. Scoping compares
+    // profiles.shipping_line to the code on containers, port data and payments,
+    // so a rep saved as '7SEAS' against containers marked '7Seas' would see an
+    // empty yard.
+    let repLine = shipping_line;
+    if (role === "line_rep") {
+      const { data: lineRow, error: lineErr } = await admin
+        .from("shipping_lines")
+        .select("code")
+        .ilike("code", shipping_line)
+        .maybeSingle();
+      if (lineErr) {
+        console.error("Shipping line lookup failed:", lineErr);
+        return json({ error: `Shipping line check failed: ${lineErr.message}` }, 500);
+      }
+      if (!lineRow) {
+        return json({ error: `Unknown shipping line "${shipping_line}"` }, 400);
+      }
+      repLine = lineRow.code;
+    }
+
     const email = `${username}@containeryard.app`;
     const { data: created, error: createErr } = await admin.auth.admin
       .createUser({
@@ -123,7 +144,7 @@ Deno.serve(async (req) => {
           username,
           role,
           yard_id,
-          ...(role === "line_rep" ? { shipping_line } : {}),
+          ...(role === "line_rep" ? { shipping_line: repLine } : {}),
         },
       });
     if (createErr) {
