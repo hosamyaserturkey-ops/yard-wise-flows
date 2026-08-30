@@ -7,7 +7,11 @@
 
 import type { Booking } from "@/types/booking";
 
-/** Case-insensitive line comparison; line codes are stored uppercase. */
+/**
+ * Case-insensitive line comparison. Codes are stored as shipping_lines spells
+ * them, which is mixed case for some lines ('7Seas', 'Gezairi') — comparing
+ * them exactly is what once hid a rep's whole yard from them.
+ */
 const sameLine = (a: string, b: string) => a.trim().toUpperCase() === b.trim().toUpperCase();
 
 /**
