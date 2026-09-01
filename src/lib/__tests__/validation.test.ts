@@ -131,9 +131,25 @@ describe("bookingSchema", () => {
     expect(bookingSchema.safeParse(withoutLine).success).toBe(false);
   });
 
+  it("accepts the separators lines actually issue — slashes and dots", () => {
+    expect(bookingSchema.safeParse({ ...validBooking, booking_number: "EEL0030/26" }).success).toBe(true);
+    expect(bookingSchema.safeParse({ ...validBooking, booking_number: "SGN/2026/0012" }).success).toBe(true);
+    expect(bookingSchema.safeParse({ ...validBooking, booking_number: "BK.2026.001" }).success).toBe(true);
+  });
+
   it("rejects booking numbers with spaces or symbols", () => {
     expect(bookingSchema.safeParse({ ...validBooking, booking_number: "BK 001" }).success).toBe(false);
     expect(bookingSchema.safeParse({ ...validBooking, booking_number: "BK#001" }).success).toBe(false);
+  });
+
+  it("trims the booking number and customer name it hands back", () => {
+    const parsed = bookingSchema.safeParse({
+      ...validBooking,
+      booking_number: " EEL0030/26 ",
+      customer_name: " PIONEER CARGO Company ",
+    });
+    expect(parsed.success && parsed.data.booking_number).toBe("EEL0030/26");
+    expect(parsed.success && parsed.data.customer_name).toBe("PIONEER CARGO Company");
   });
 
   it("requires at least one whole container", () => {

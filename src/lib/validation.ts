@@ -64,12 +64,18 @@ export const gateOutSchema = z.object({
     }, 'Fees must be between 0 and 999,999.99'),
 });
 
+// Lines issue booking references with separators in them — a slash for the
+// year suffix (EEL0030/26), dots in some agency formats — so the character set
+// has to cover those. Still no spaces or free-form symbols: the number is
+// matched verbatim against what the driver presents at the gate.
+export const BOOKING_NUMBER_REGEX = /^[A-Za-z0-9\-_./]+$/;
+
 export const bookingSchema = z.object({
   booking_number: z.string()
     .trim()
     .min(1, 'Booking number is required')
     .max(50, 'Booking number is too long')
-    .regex(/^[A-Za-z0-9\-_]+$/, 'Only letters, numbers, hyphens and underscores allowed'),
+    .regex(BOOKING_NUMBER_REGEX, 'Only letters, numbers, hyphens, underscores, dots and slashes allowed'),
   customer_name: z.string()
     .trim()
     .min(1, 'Customer name is required')
