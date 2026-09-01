@@ -113,6 +113,10 @@ export default function Bookings() {
         .from("bookings")
         .insert({
           ...formData,
+          // The schema trims the number and the customer name; the trimmed
+          // values are what gate-out matches on, so insert those, not the raw
+          // field state.
+          ...result.data,
           created_by: user.id,
           yard_id: yardId,
         });
