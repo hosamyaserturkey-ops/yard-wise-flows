@@ -179,6 +179,7 @@ export type Database = {
           port_arrival_date: string | null
           seal_number: string | null
           status: string
+          ticket_number: number
           truck_number: string | null
           updated_at: string
           yard_block: string | null
@@ -202,6 +203,7 @@ export type Database = {
           port_arrival_date?: string | null
           seal_number?: string | null
           status?: string
+          ticket_number?: number
           truck_number?: string | null
           updated_at?: string
           yard_block?: string | null
@@ -225,6 +227,7 @@ export type Database = {
           port_arrival_date?: string | null
           seal_number?: string | null
           status?: string
+          ticket_number?: number
           truck_number?: string | null
           updated_at?: string
           yard_block?: string | null
