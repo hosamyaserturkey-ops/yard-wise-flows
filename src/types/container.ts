@@ -15,8 +15,12 @@ export interface Container {
   containerNumber: string;
   containerType: string;
   shippingLine: ShippingLine;
+  /** Driver and truck that delivered the container at gate-in. */
   driverName: string;
   truckNumber: string;
+  /** Driver and truck that collected it at gate-out. Undefined while it is in the yard. */
+  gateOutDriverName?: string;
+  gateOutTruckNumber?: string;
   gateInTime: Date;
   gateOutTime?: Date;
   status: "in-yard" | "out" | "reserved";

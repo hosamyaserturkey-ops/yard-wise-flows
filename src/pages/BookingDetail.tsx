@@ -415,8 +415,9 @@ export default function BookingDetail() {
                         {container.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{container.driverName}</TableCell>
-                    <TableCell>{container.truckNumber}</TableCell>
+                    {/* A container that has left shows who collected it against this booking. */}
+                    <TableCell>{container.gateOutDriverName || container.driverName}</TableCell>
+                    <TableCell>{container.gateOutTruckNumber || container.truckNumber}</TableCell>
                     <TableCell className="text-sm">
                       {container.gateInTime.toLocaleString()}
                     </TableCell>

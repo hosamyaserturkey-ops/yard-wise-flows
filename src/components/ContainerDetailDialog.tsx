@@ -279,8 +279,10 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
         shipping_line: container.shippingLine,
         booking_number: container.bookingNumber || null,
         seal_number: container.sealNumber || null,
-        truck_number: container.truckNumber || null,
-        driver_name: container.driverName || null,
+        // Visits gated out before gate-out had its own columns only have the
+        // collecting driver on driver_name / truck_number.
+        truck_number: container.gateOutTruckNumber || container.truckNumber || null,
+        driver_name: container.gateOutDriverName || container.driverName || null,
         gate_in_time: container.gateInTime,
         gate_out_time: container.gateOutTime,
         fees: Number(container.fees ?? 0),
