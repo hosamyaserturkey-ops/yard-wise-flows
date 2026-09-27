@@ -7,7 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Download, Calendar, Search, Container, Ship, Boxes, Coins, Wallet } from "lucide-react";
+import {
+  FileText, FileSpreadsheet, ChevronDown, Loader2, Calendar, Search, Container, Ship, Boxes, Coins, Wallet,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Container as ContainerType } from "@/types/container";
 import { CONTAINER_TYPES } from "@/lib/containerTypes";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,9 +29,46 @@ import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
 import ContainerDetailDialog from "@/components/ContainerDetailDialog";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  buildDriversReport,
+  buildFeesReport,
+  buildInYardReport,
+  buildMovementsReport,
+  type ReportContext,
+  type ReportKind,
+} from "@/lib/reports/reportData";
+import { fetchYards, loadReportData } from "@/lib/reports/fetchReportData";
+import { filtersLabel, periodFromFilters, type ReportFilters } from "@/lib/reports/reportFilters";
+
+const EXPORTS: { kind: ReportKind; label: string; description: string; adminOnly?: boolean }[] = [
+  {
+    kind: "in-yard",
+    label: "In-Yard Stock",
+    description: "Everything on site right now: stock by line and size, TEU, time on site. Ignores the date filter.",
+  },
+  {
+    kind: "movements",
+    label: "Gate Movements",
+    description: "Every gate-in and gate-out in the date range, with daily, per-line and per-shift totals.",
+  },
+  {
+    kind: "fees",
+    label: "Fees & Demurrage",
+    description: "Demurrage collected, yard service fees, untransferred amounts and gate-out fees in the date range.",
+    adminOnly: true,
+  },
+  {
+    kind: "drivers",
+    label: "Driver & Truck Activity",
+    description: "Moves per driver and per truck in the date range.",
+  },
+];
 
 const Reports = () => {
   const { toast } = useToast();
+  const { profile, isAdmin } = useAuth();
+  const [exporting, setExporting] = useState<ReportKind | null>(null);
   const [containers, setContainers] = useState<ContainerType[]>([]);
   const [filteredContainers, setFilteredContainers] = useState<ContainerType[]>([]);
   const [detailContainer, setDetailContainer] = useState<ContainerType | null>(null);
@@ -117,6 +164,8 @@ const Reports = () => {
         c.containerNumber.toLowerCase().includes(q) ||
         c.driverName?.toLowerCase().includes(q) ||
         c.truckNumber?.toLowerCase().includes(q) ||
+        c.gateOutDriverName?.toLowerCase().includes(q) ||
+        c.gateOutTruckNumber?.toLowerCase().includes(q) ||
         c.bookingNumber?.toLowerCase().includes(q) ||
         c.shippingLine?.toLowerCase().includes(q),
       );
@@ -136,57 +185,46 @@ const Reports = () => {
     setSearchTerm("");
   };
 
-  const exportToCSV = () => {
-    const headers = [
-      "Container Number",
-      "Type",
-      "Shipping Line",
-      "Driver Name",
-      "Truck Number",
-      "Gate In Time",
-      "Gate Out Time",
-      "Status",
-      "Booking Number",
-      "Gate-Out Fees (JOD)",
-      "Demurrage Paid (JOD)"
-    ];
-
-    const escape = (v: unknown) => {
-      const s = String(v ?? "");
-      // Neutralise CSV formula injection: prefix values starting with formula
-      // triggers so spreadsheet apps treat them as text, not formulas.
-      const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-      return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-    };
-
-    const csvContent = [
-      headers.join(","),
-      ...filteredContainers.map(container =>
-        [
-          container.containerNumber,
-          container.containerType,
-          container.shippingLine,
-          container.driverName,
-          container.truckNumber,
-          container.gateInTime.toISOString(),
-          container.gateOutTime?.toISOString() || "",
-          container.status,
-          container.bookingNumber || "",
-          container.fees ?? "",
-          demurragePaid[container.containerNumber]?.toFixed(2) ?? "",
-        ]
-          .map(escape)
-          .join(","),
-      ),
-    ].join("\n");
-
-    const blob = new Blob(["﻿" + csvContent], { type: "text/csv;charset=utf-8" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `container_report_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+  const exportReport = async (kind: ReportKind) => {
+    setExporting(kind);
+    try {
+      const reportFilters: ReportFilters = {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        shippingLine: filters.shippingLine,
+        containerType: filters.containerType,
+        search: searchTerm,
+      };
+      // ExcelJS is loaded only when someone exports — it stays out of the page bundle.
+      const [{ visits, payments }, yards, { downloadReport }] = await Promise.all([
+        loadReportData(kind, reportFilters),
+        fetchYards(),
+        import("@/lib/reports/workbook"),
+      ]);
+      const ctx: ReportContext = {
+        now: new Date(),
+        period: kind === "in-yard" ? {} : periodFromFilters(reportFilters),
+        yardNames: Object.fromEntries(yards.map((y) => [y.id, y.name])),
+        yardCodes: Object.fromEntries(yards.map((y) => [y.id, y.code])),
+        filtersLabel: filtersLabel(reportFilters),
+        generatedBy: profile?.full_name?.trim() || profile?.username?.trim() || undefined,
+      };
+      const spec =
+        kind === "in-yard" ? buildInYardReport(visits, ctx)
+        : kind === "movements" ? buildMovementsReport(visits, ctx)
+        : kind === "fees" ? buildFeesReport(visits, payments, ctx)
+        : buildDriversReport(visits, ctx);
+      await downloadReport(spec);
+    } catch (error) {
+      console.error("Report export failed:", error);
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Could not build the report.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(null);
+    }
   };
 
   const totalFees = filteredContainers.reduce((sum, container) => sum + (container.fees || 0), 0);
@@ -202,10 +240,33 @@ const Reports = () => {
         title="Reports"
         subtitle={`${filteredContainers.length} container${filteredContainers.length !== 1 ? "s" : ""} shown`}
         action={
-          <Button onClick={exportToCSV} className="bg-success hover:bg-success/90">
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="bg-success hover:bg-success/90" disabled={exporting !== null}>
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                )}
+                {exporting ? "Building report…" : "Export Excel"}
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel>Excel reports</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {EXPORTS.filter((e) => !e.adminOnly || isAdmin()).map((e) => (
+                <DropdownMenuItem
+                  key={e.kind}
+                  onSelect={() => exportReport(e.kind)}
+                  className="flex flex-col items-start gap-0.5 py-2"
+                >
+                  <span className="font-medium">{e.label}</span>
+                  <span className="text-xs text-muted-foreground">{e.description}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         }
       />
 
