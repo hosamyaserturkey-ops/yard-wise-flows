@@ -247,8 +247,10 @@ const GateOut = () => {
           // later reprint still names this operator, not the person reprinting.
           gated_out_by: user.id,
           fees: feeAmount,
-          driver_name: driver,
-          truck_number: truck,
+          // Collecting driver and truck, kept apart from the gate-in ones on
+          // driver_name / truck_number, which record who delivered it.
+          gate_out_driver_name: driver,
+          gate_out_truck_number: truck,
           // Attached at the gate: the container leaves against this booking and
           // under this seal, whether or not it was reserved beforehand.
           booking_id: bookingId || selectedContainer.bookingId || null,

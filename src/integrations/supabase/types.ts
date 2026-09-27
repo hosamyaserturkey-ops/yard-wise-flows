@@ -173,7 +173,9 @@ export type Database = {
           fees: number | null
           free_days: number
           gate_in_time: string
+          gate_out_driver_name: string | null
           gate_out_time: string | null
+          gate_out_truck_number: string | null
           gated_out_by: string | null
           id: string
           port_arrival_date: string | null
@@ -197,7 +199,9 @@ export type Database = {
           fees?: number | null
           free_days?: number
           gate_in_time?: string
+          gate_out_driver_name?: string | null
           gate_out_time?: string | null
+          gate_out_truck_number?: string | null
           gated_out_by?: string | null
           id?: string
           port_arrival_date?: string | null
@@ -221,7 +225,9 @@ export type Database = {
           fees?: number | null
           free_days?: number
           gate_in_time?: string
+          gate_out_driver_name?: string | null
           gate_out_time?: string | null
+          gate_out_truck_number?: string | null
           gated_out_by?: string | null
           id?: string
           port_arrival_date?: string | null

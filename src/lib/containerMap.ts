@@ -15,6 +15,9 @@ export interface VisitJoinRow {
   status: string;
   driver_name: string | null;
   truck_number: string | null;
+  /** Absent until the gate_out_driver_truck migration has run. */
+  gate_out_driver_name?: string | null;
+  gate_out_truck_number?: string | null;
   booking_id: string | null;
   booking_number: string | null;
   seal_number: string | null;
@@ -52,6 +55,8 @@ export function mapVisit(v: VisitJoinRow): Container {
     shippingLine: master.shipping_line as ShippingLine,
     driverName: v.driver_name ?? "",
     truckNumber: v.truck_number ?? "",
+    gateOutDriverName: v.gate_out_driver_name ?? undefined,
+    gateOutTruckNumber: v.gate_out_truck_number ?? undefined,
     gateInTime: new Date(v.gate_in_time),
     gateOutTime: v.gate_out_time ? new Date(v.gate_out_time) : undefined,
     status: v.status as "in-yard" | "out" | "reserved",
