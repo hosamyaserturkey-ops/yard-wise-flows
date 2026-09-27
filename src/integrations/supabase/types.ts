@@ -665,6 +665,14 @@ export type Database = {
       }
     }
     Functions: {
+      admin_edit_booking: {
+        Args: { _booking_id: string; _changes: Json; _reason: string }
+        Returns: Json
+      }
+      admin_edit_container: {
+        Args: { _changes: Json; _reason: string; _visit_id: string }
+        Returns: Json
+      }
       current_yard_id: { Args: never; Returns: string }
       get_user_role: {
         Args: { user_id: string }
@@ -701,6 +709,8 @@ export type Database = {
         | "demurrage_collected"
         | "inspection_cancelled"
         | "container_renamed"
+        | "container_edited"
+        | "booking_edited"
       app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
@@ -839,6 +849,8 @@ export const Constants = {
         "demurrage_collected",
         "inspection_cancelled",
         "container_renamed",
+        "container_edited",
+        "booking_edited",
       ],
       app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
       container_status: ["in-yard", "out", "reserved"],

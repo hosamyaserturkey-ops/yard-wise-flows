@@ -4,13 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Package, Users, CheckCircle, Clock, Truck, DollarSign, History } from "lucide-react";
+import { ArrowLeft, Package, Users, CheckCircle, Clock, Truck, DollarSign, History, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking } from "@/types/booking";
 import type { Container } from "@/types/container";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
+import { EditBookingDialog } from "@/components/EditBookingDialog";
 
 interface HistoryEvent {
   id: string;
@@ -24,7 +25,8 @@ interface HistoryEvent {
 export default function BookingDetail() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const navigate = useNavigate();
-  const { isLineRep } = useAuth();
+  const { isLineRep, isAdmin } = useAuth();
+  const [editOpen, setEditOpen] = useState(false);
   const { toast } = useToast();
   const [booking, setBooking] = useState<Booking | null>(null);
   const [assignedContainers, setAssignedContainers] = useState<Container[]>([]);
@@ -319,7 +321,15 @@ export default function BookingDetail() {
               <CardTitle>Booking Information</CardTitle>
               <CardDescription>Overview of this booking</CardDescription>
             </div>
-            <Badge className={getStatusColor(booking.status)}>{booking.status}</Badge>
+            <div className="flex items-center gap-2">
+              {isAdmin() && (
+                <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                  Edit
+                </Button>
+              )}
+              <Badge className={getStatusColor(booking.status)}>{booking.status}</Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -564,6 +574,14 @@ export default function BookingDetail() {
           )}
         </CardContent>
       </Card>
+      )}
+      {isAdmin() && (
+        <EditBookingDialog
+          booking={booking}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onSaved={fetchBookingDetails}
+        />
       )}
     </div>
   );

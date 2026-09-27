@@ -8,7 +8,9 @@ export type ActivityAction =
   | "unreserve"
   | "demurrage_collected"
   | "inspection_cancelled"
-  | "container_renamed";
+  | "container_renamed"
+  | "container_edited"
+  | "booking_edited";
 
 export interface LogActivityInput {
   userId: string;

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Activity, Sun, Moon } from "lucide-react";
 import type { WorkShift } from "@/lib/shifts";
 import type { ActivityAction } from "@/lib/activityLog";
+import { describeChange, type LoggedChange } from "@/lib/adminEdit";
 
 interface Row {
   id: string;
@@ -37,6 +38,8 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   demurrage_collected: "Demurrage",
   inspection_cancelled: "Inspection Cancelled",
   container_renamed: "Renamed",
+  container_edited: "Container Edited",
+  booking_edited: "Booking Edited",
 };
 
 const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline" | "destructive"> = {
@@ -47,7 +50,29 @@ const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline"
   demurrage_collected: "destructive",
   inspection_cancelled: "outline",
   container_renamed: "outline",
+  container_edited: "outline",
+  booking_edited: "outline",
 };
+
+/**
+ * What an admin correction changed, and why. Edits log a list of
+ * { field, from, to }; renames log a single from/to pair.
+ */
+function detailsOf(r: Row): { lines: string[]; reason: string | null } {
+  const m = (r.metadata ?? {}) as Record<string, unknown>;
+  const reason = typeof m.reason === "string" && m.reason ? m.reason : null;
+  if (Array.isArray(m.changes)) {
+    const lines = (m.changes as LoggedChange[]).map(describeChange);
+    if (r.action === "booking_edited" && typeof m.booking_number === "string") {
+      lines.unshift(`Booking ${m.booking_number}`);
+    }
+    return { lines, reason };
+  }
+  if (r.action === "container_renamed" && typeof m.from === "string") {
+    return { lines: [`Container number: ${m.from} → ${String(m.to ?? "")}`], reason };
+  }
+  return { lines: [], reason };
+}
 
 function todayISO(offsetDays = 0) {
   const d = new Date();
@@ -254,12 +279,14 @@ const ActivityLog = () => {
                       <th className="text-left px-2 py-2">Shift</th>
                       <th className="text-left px-2 py-2">Action</th>
                       <th className="text-left px-2 py-2">Container</th>
+                      <th className="text-left px-2 py-2">Details</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((r) => {
                       const d = new Date(r.occurred_at);
                       const op = operators[r.user_id];
+                      const details = detailsOf(r);
                       return (
                         <tr key={r.id} className="border-t">
                           <td className="px-2 py-1.5 whitespace-nowrap">
@@ -276,6 +303,14 @@ const ActivityLog = () => {
                             <Badge variant={ACTION_VARIANT[r.action]}>{ACTION_LABEL[r.action]}</Badge>
                           </td>
                           <td className="px-2 py-1.5 font-mono text-xs">{r.container_number ?? "—"}</td>
+                          <td className="px-2 py-1.5 text-xs">
+                            {details.lines.map((line) => (
+                              <div key={line}>{line}</div>
+                            ))}
+                            {details.reason && (
+                              <div className="text-muted-foreground italic">Reason: {details.reason}</div>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
