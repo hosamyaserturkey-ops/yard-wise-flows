@@ -35,7 +35,7 @@ import { printGateOutReceipt } from "@/lib/gateOutReceipt";
 import { fetchVisitOperators, type VisitOperators } from "@/lib/gateOperators";
 import { resolveSignedUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
-import { RenameContainerDialog } from "@/components/RenameContainerDialog";
+import { EditContainerDialog } from "@/components/EditContainerDialog";
 
 interface PortData {
   port_arrival_date: string | null;
@@ -108,11 +108,10 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
   // not by the user doing the reprint.
   const [operators, setOperators] = useState<VisitOperators>({ receivedBy: null, releasedBy: null });
   const [loading, setLoading] = useState(false);
-  const [renameOpen, setRenameOpen] = useState(false);
-  // Renaming is admin-only and only makes sense while the box is still here:
-  // a closed trip has printed tickets and settled demurrage against the number.
-  const canRename =
-    (isAdmin() || isSuperAdmin()) && container?.status === "in-yard" && !!container?.containerId;
+  const [editOpen, setEditOpen] = useState(false);
+  // Admins can correct any container, in the yard or gated out; the RPC checks
+  // the role again and logs every change with the admin's reason.
+  const canEdit = isAdmin() || isSuperAdmin();
 
   useEffect(() => {
     if (!open || !container) {
@@ -307,14 +306,14 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
           <DialogTitle className="flex items-center gap-3">
             <Container className="h-5 w-5 text-maritime" />
             <span className="font-mono text-lg">{container.containerNumber}</span>
-            {canRename && (
+            {canEdit && (
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Correct container number"
-                title="Correct container number"
+                aria-label="Edit container"
+                title="Edit container"
                 className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                onClick={() => setRenameOpen(true)}
+                onClick={() => setEditOpen(true)}
               >
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
@@ -623,15 +622,14 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
       </DialogContent>
     </Dialog>
 
-    {canRename && container.containerId && (
-      <RenameContainerDialog
-        containerId={container.containerId}
-        currentNumber={container.containerNumber}
-        open={renameOpen}
-        onOpenChange={setRenameOpen}
-        onRenamed={() => {
+    {canEdit && (
+      <EditContainerDialog
+        container={container}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={() => {
           // The container prop is owned by the caller's list, so the detail
-          // view closes and the list refetches under the corrected number.
+          // view closes and the list refetches with the corrected values.
           onOpenChange(false);
           onUpdated?.();
         }}
