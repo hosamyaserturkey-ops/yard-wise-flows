@@ -3,7 +3,7 @@
 
 import {
   buildDailyClose, buildShippingLineBreakdown, isActivePayment, shippingLineOwed, summarizePayments, sumJod, yardEarned,
-  type AccountingPayment,
+  type AccountingPayment, type LineStatementRow,
 } from "./accounting";
 import type { ReportSheet, ReportSpec } from "./reports/reportModel";
 
@@ -211,5 +211,50 @@ function voidedSheet(payments: AccountingExportPayment[], transfers: AccountingE
         })),
       },
     ],
+  };
+}
+
+export interface StatementReportInput {
+  rows: LineStatementRow[];
+  monthLabel: string;
+  status: string;
+  yardName?: string;
+  generatedBy?: string;
+  /** Set for a single line's statement (a line rep's). */
+  shippingLine?: string;
+  now?: Date;
+}
+
+/** A month's per-line statement: opening, collected, transferred, closing. */
+export function buildStatementReport(input: StatementReportInput): ReportSpec {
+  const now = input.now ?? new Date();
+  const slug = input.monthLabel.toLowerCase().replace(/\s+/g, "-");
+  return {
+    title: input.shippingLine ? `Demurrage Statement — ${input.shippingLine}` : "Shipping Line Statement",
+    fileName: `statement-${input.shippingLine ? `${input.shippingLine.toLowerCase()}-` : ""}${slug}.xlsx`,
+    meta: [
+      ...(input.yardName ? [["Yard", input.yardName] as [string, string]] : []),
+      ["Month", input.monthLabel],
+      ["Status", input.status],
+      ["Generated", `${now.toLocaleString("en-GB")}${input.generatedBy ? ` by ${input.generatedBy}` : ""}`],
+    ],
+    sheets: [{
+      name: "Statement",
+      tables: [{
+        totals: true,
+        columns: [
+          { key: "line", header: "Shipping line", width: 18, total: "label" },
+          { key: "opening", header: "Opening balance", width: 16, format: "money", total: "sum" },
+          { key: "collected", header: "Collected", width: 14, format: "money", total: "sum" },
+          { key: "transferred", header: "Transferred", width: 14, format: "money", total: "sum" },
+          { key: "closing", header: "Closing balance", width: 16, format: "money", total: "sum" },
+        ],
+        rows: input.rows.map((r) => ({
+          line: r.shipping_line, opening: r.opening, collected: r.collected,
+          transferred: r.transferred, closing: r.closing,
+        })),
+        note: "Closing = opening + demurrage collected − transferred. Voided payments and transfers are excluded.",
+      }],
+    }],
   };
 }

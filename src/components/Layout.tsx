@@ -19,6 +19,8 @@ const ROUTE_LABELS: Record<string, string> = {
   "/bookings":     "Bookings",
   "/port-data":    "Port Data",
   "/accounting":   "Accounting",
+  "/cash-count":   "Cash Count",
+  "/statement":    "Statement",
   "/admin/users":  "Users",
   "/admin/yards":  "Yards",
   "/inspector":    "Inspect",

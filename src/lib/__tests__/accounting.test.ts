@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  agingBucket, buildDailyClose, buildShippingLineBreakdown, formatJod, summarizePayments, shippingLineOwed,
+  agingBucket, buildDailyClose, buildLineStatement, monthRange, recentMonths, buildShippingLineBreakdown, formatJod, summarizePayments, shippingLineOwed,
   sumJod, yardEarned,
   type AccountingPayment,
 } from "../accounting";
@@ -193,5 +193,55 @@ describe("voided payments", () => {
       make({ created_at: new Date(2026, 8, 27, 9).toISOString(), total_collected: 107 }),
       make({ created_at: new Date(2026, 8, 27, 10).toISOString(), total_collected: 57, ...voided }),
     ])[0]).toMatchObject({ count: 1, total: 107 });
+  });
+});
+
+describe("buildLineStatement", () => {
+  const aug = monthRange("2026-08");
+  const at = (y: number, mo: number, d: number) => new Date(y, mo - 1, d, 12).toISOString();
+
+  it("rolls opening + collected − transferred into closing, per line", () => {
+    const rows = buildLineStatement(
+      [
+        make({ shipping_line: "EEL", demurrage_amount: 40, created_at: at(2026, 7, 20) }),
+        make({ shipping_line: "EEL", demurrage_amount: 60, created_at: at(2026, 8, 5) }),
+        make({ shipping_line: "WOM", demurrage_amount: 20, created_at: at(2026, 8, 31) }),
+        make({ shipping_line: "WOM", demurrage_amount: 99, created_at: at(2026, 9, 1) }),
+        make({ shipping_line: "EEL", demurrage_amount: 500, created_at: at(2026, 8, 6), voided_at: "x" }),
+      ],
+      [
+        { shipping_line: "EEL", amount_transferred: 40, transferred_at: at(2026, 8, 10) },
+        { shipping_line: "WOM", amount_transferred: "5", transferred_at: at(2026, 8, 11) },
+        { shipping_line: "EEL", amount_transferred: 999, transferred_at: at(2026, 8, 12), voided_at: "x" },
+      ],
+      aug.start,
+      aug.end,
+    );
+    expect(rows).toEqual([
+      { shipping_line: "EEL", opening: 40, collected: 60, transferred: 40, closing: 60 },
+      { shipping_line: "WOM", opening: 0, collected: 20, transferred: 5, closing: 15 },
+    ]);
+  });
+
+  it("carries transfers made before the period into the opening balance", () => {
+    const [row] = buildLineStatement(
+      [make({ demurrage_amount: 100, created_at: at(2026, 7, 1) })],
+      [{ shipping_line: "EEL", amount_transferred: 70, transferred_at: at(2026, 7, 15) }],
+      aug.start,
+      aug.end,
+    );
+    expect(row).toEqual({ shipping_line: "EEL", opening: 30, collected: 0, transferred: 0, closing: 30 });
+  });
+});
+
+describe("month helpers", () => {
+  it("lists recent months newest first, across a year boundary", () => {
+    expect(recentMonths(3, new Date(2026, 0, 15))).toEqual(["2026-01", "2025-12", "2025-11"]);
+  });
+
+  it("gives a local month range", () => {
+    const { start, end } = monthRange("2026-12");
+    expect([start.getFullYear(), start.getMonth(), start.getDate()]).toEqual([2026, 11, 1]);
+    expect([end.getFullYear(), end.getMonth(), end.getDate()]).toEqual([2027, 0, 1]);
   });
 });

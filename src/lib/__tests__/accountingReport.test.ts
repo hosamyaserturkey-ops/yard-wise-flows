@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAccountingReport, type AccountingExportPayment } from "../accountingReport";
+import { buildAccountingReport, buildStatementReport, type AccountingExportPayment } from "../accountingReport";
 
 const NOW = new Date("2026-09-28T12:00:00Z");
 
@@ -85,5 +85,23 @@ describe("buildAccountingReport", () => {
 
   it("adds no Voided sheet when nothing was voided", () => {
     expect(spec.sheets.map((s) => s.name)).toEqual(["Summary", "Daily Close", "Payments", "Transfers"]);
+  });
+});
+
+describe("buildStatementReport", () => {
+  it("names a single line's statement after the line and month", () => {
+    const spec = buildStatementReport({
+      rows: [{ shipping_line: "EEL", opening: 40, collected: 60, transferred: 40, closing: 60 }],
+      monthLabel: "August 2026",
+      shippingLine: "EEL",
+      status: "Closed 01/09/2026",
+      now: NOW,
+    });
+    expect(spec.fileName).toBe("statement-eel-august-2026.xlsx");
+    expect(spec.title).toBe("Demurrage Statement — EEL");
+    expect(spec.meta).toContainEqual(["Status", "Closed 01/09/2026"]);
+    expect(spec.sheets[0].tables[0].rows).toEqual([
+      { line: "EEL", opening: 40, collected: 60, transferred: 40, closing: 60 },
+    ]);
   });
 });

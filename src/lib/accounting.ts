@@ -216,3 +216,86 @@ export const buildDailyClose = (payments: AccountingPayment[]): DailyClose[] => 
       byMethod: Object.fromEntries([...v.byMethod].map(([m, f]) => [m, fromFils(f)])),
     }));
 };
+
+export interface StatementTransfer {
+  shipping_line: string;
+  amount_transferred: number | string;
+  transferred_at: string;
+  voided_at?: string | null;
+}
+
+/** What the yard held for one line over a period. */
+export interface LineStatementRow {
+  shipping_line: string;
+  /** Owed at the start: demurrage collected before, minus transfers before. */
+  opening: number;
+  /** Demurrage collected during the period. */
+  collected: number;
+  /** Transferred to the line during the period. */
+  transferred: number;
+  /** opening + collected − transferred. */
+  closing: number;
+}
+
+/**
+ * The per-line statement for [start, end): the same figures the server
+ * snapshots when a month is closed. Voided payments and transfers are ignored.
+ */
+export const buildLineStatement = (
+  payments: AccountingPayment[],
+  transfers: StatementTransfer[],
+  start: Date,
+  end: Date,
+): LineStatementRow[] => {
+  const s = start.getTime();
+  const e = end.getTime();
+  interface Acc { opening: number; collected: number; transferred: number }
+  const byLine = new Map<string, Acc>();
+  const acc = (line: string) => {
+    let a = byLine.get(line);
+    if (!a) { a = { opening: 0, collected: 0, transferred: 0 }; byLine.set(line, a); }
+    return a;
+  };
+  for (const p of payments) {
+    if (!isActivePayment(p) || !p.created_at) continue;
+    const t = new Date(p.created_at).getTime();
+    if (t >= e) continue;
+    const fils = toFils(shippingLineOwed(p));
+    if (t < s) acc(p.shipping_line).opening += fils;
+    else acc(p.shipping_line).collected += fils;
+  }
+  for (const tr of transfers) {
+    if (tr.voided_at) continue;
+    const t = new Date(tr.transferred_at).getTime();
+    if (t >= e) continue;
+    const fils = toFils(amount(tr.amount_transferred));
+    if (t < s) acc(tr.shipping_line).opening -= fils;
+    else acc(tr.shipping_line).transferred += fils;
+  }
+  return [...byLine.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([line, a]) => ({
+      shipping_line: line,
+      opening: fromFils(a.opening),
+      collected: fromFils(a.collected),
+      transferred: fromFils(a.transferred),
+      closing: fromFils(a.opening + a.collected - a.transferred),
+    }));
+};
+
+/** Local start of the month `YYYY-MM`, and the start of the next one. */
+export const monthRange = (key: string): { start: Date; end: Date } => {
+  const [y, m] = key.split("-").map(Number);
+  return { start: new Date(y, m - 1, 1), end: new Date(y, m, 1) };
+};
+
+/** `YYYY-MM` of a date, local time. */
+export const monthKey = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+/** The last `count` month keys, newest first, starting with `from`'s month. */
+export const recentMonths = (count: number, from: Date = new Date()): string[] =>
+  Array.from({ length: count }, (_, i) => monthKey(new Date(from.getFullYear(), from.getMonth() - i, 1)));
+
+export const monthLabel = (key: string): string =>
+  monthRange(key).start.toLocaleDateString("en-GB", { month: "long", year: "numeric" });

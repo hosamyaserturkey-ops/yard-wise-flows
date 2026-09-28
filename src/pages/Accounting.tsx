@@ -25,6 +25,8 @@ import {
   DollarSign, TrendingUp, Clock, CheckCircle2, Upload, ExternalLink, Calculator, Download, Search, Ban, Pencil,
 } from "lucide-react";
 import { ReasonDialog } from "@/components/accounting/ReasonDialog";
+import { MonthCloseTab } from "@/components/accounting/MonthCloseTab";
+import { CashCountsTab } from "@/components/accounting/CashCountsTab";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { PageHeader } from "@/components/PageHeader";
 import { resolveSignedUrl } from "@/lib/storage";
@@ -90,7 +92,7 @@ const fmtDay = (key: string) =>
   new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
 
 const Accounting = () => {
-  const { user, profile, currentYardId } = useAuth();
+  const { user, profile, currentYardId, isSuperAdmin } = useAuth();
   const { nameOf: yardName } = useYards();
   const { toast } = useToast();
   const yardId = currentYardId();
@@ -444,6 +446,8 @@ const Accounting = () => {
           <TabsTrigger value="daily">Daily Close</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="transfers">Transfers</TabsTrigger>
+          <TabsTrigger value="month">Month Close</TabsTrigger>
+          <TabsTrigger value="cash">Cash Counts</TabsTrigger>
         </TabsList>
 
         {/* Line balances with aging */}
@@ -719,6 +723,23 @@ const Accounting = () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Month close and per-line statements use all data, not the filters above. */}
+        <TabsContent value="month">
+          <MonthCloseTab
+            yardId={yardId}
+            yardName={yardId ? yardName(yardId) : "All yards"}
+            superAdmin={isSuperAdmin()}
+            payments={payments}
+            transfers={transfers}
+            generatedBy={profile?.full_name?.trim() || profile?.username?.trim() || undefined}
+            onChanged={fetchData}
+          />
+        </TabsContent>
+
+        <TabsContent value="cash">
+          <CashCountsTab yardId={yardId} />
         </TabsContent>
       </Tabs>
 

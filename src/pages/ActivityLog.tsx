@@ -44,6 +44,9 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   payment_voided: "Payment Voided",
   transfer_voided: "Transfer Voided",
   transfer_edited: "Transfer Edited",
+  month_closed: "Month Closed",
+  month_reopened: "Month Reopened",
+  cash_counted: "Cash Counted",
 };
 
 const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline" | "destructive"> = {
@@ -60,6 +63,9 @@ const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline"
   payment_voided: "destructive",
   transfer_voided: "destructive",
   transfer_edited: "outline",
+  month_closed: "secondary",
+  month_reopened: "destructive",
+  cash_counted: "outline",
 };
 
 /**
@@ -75,6 +81,14 @@ function detailsOf(r: Row): { lines: string[]; reason: string | null } {
       lines.unshift(`Booking ${m.booking_number}`);
     }
     return { lines, reason };
+  }
+  if ((r.action === "month_closed" || r.action === "month_reopened") && typeof m.month === "string") {
+    const label = new Date(`${m.month.slice(0, 7)}-01T00:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    const notes = typeof m.notes === "string" && m.notes ? ` — ${m.notes}` : "";
+    return { lines: [`${label} ${r.action === "month_closed" ? "closed" : "reopened"}${notes}`], reason };
+  }
+  if (r.action === "cash_counted") {
+    return { lines: [`${String(m.shift_date ?? "")} ${String(m.shift ?? "")} shift: ${Number(m.counted_jod ?? 0).toFixed(3)} JOD counted`], reason };
   }
   if (r.action === "payment_voided") {
     return {
