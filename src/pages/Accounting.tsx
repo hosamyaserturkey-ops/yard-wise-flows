@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/dashboard/StatCard";
 import {
@@ -12,11 +13,16 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useYards } from "@/hooks/useYards";
 import {
-  DollarSign, TrendingUp, Clock, CheckCircle2, Upload, ExternalLink, Calculator,
+  DollarSign, TrendingUp, Clock, CheckCircle2, Upload, ExternalLink, Calculator, Download, Search,
 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { resolveSignedUrl } from "@/lib/storage";
@@ -25,8 +31,10 @@ import {
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis } from "recharts";
 import {
-  buildShippingLineBreakdown, summarizePayments, yardEarned, type ShippingLineOwed,
+  buildDailyClose, buildShippingLineBreakdown, formatJod, localDateKey, summarizePayments, sumJod, yardEarned,
+  type ShippingLineOwed,
 } from "@/lib/accounting";
+import { buildAccountingReport } from "@/lib/accountingReport";
 
 interface PaymentRow {
   id: string;
@@ -39,138 +47,268 @@ interface PaymentRow {
   collected_by: string;
   created_at: string;
   transferred: boolean;
+  transfer_id: string | null;
 }
 
 interface TransferRow {
+  id: string;
   shipping_line: string;
   amount_transferred: number;
   receipt_url: string | null;
+  transferred_at: string;
+  reference: string | null;
+  notes: string | null;
+  payment_count: number | null;
 }
+
+const ALL_LINES = "__all__";
+const PAGE = 1000;
+
+const METHOD_LABEL: Record<string, string> = { cash: "Cash", qlick: "Qlick" };
+const methodLabel = (m: string) => METHOD_LABEL[m] ?? m;
 
 const chartConfig: ChartConfig = {
   collected: { label: "Collected (JOD)", color: "hsl(var(--chart-1))" },
   yard: { label: "Service Fees (JOD)", color: "hsl(var(--chart-3))" },
 };
 
+/**
+ * The API returns at most one page of rows per request, so a single select
+ * would silently drop the oldest payments once a yard has enough of them —
+ * and every total on this page would be wrong. Page through all of them.
+ */
+async function fetchAllRows<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as T[]));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
+
+const daysSince = (iso: string | null, now: Date) =>
+  iso ? Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000)) : 0;
+
+const fmtDay = (key: string) =>
+  new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+
 const Accounting = () => {
-  const { user, currentYardId } = useAuth();
+  const { user, profile, currentYardId } = useAuth();
+  const { nameOf: yardName } = useYards();
   const { toast } = useToast();
+  const yardId = currentYardId();
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [transfers, setTransfers] = useState<TransferRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [transferDialog, setTransferDialog] = useState<{
-    open: boolean;
-    shippingLine: string;
-    amount: number;
-  }>({ open: false, shippingLine: "", amount: 0 });
+  const [lineFilter, setLineFilter] = useState(ALL_LINES);
+  const [search, setSearch] = useState("");
+  const [settleRow, setSettleRow] = useState<ShippingLineOwed | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [reference, setReference] = useState("");
+  const [notes, setNotes] = useState("");
   const [isTransferring, setIsTransferring] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const [paymentsRes, transfersRes] = await Promise.all([
-      supabase.from("demurrage_payments").select("*").order("created_at", { ascending: false }),
-      supabase.from("shipping_line_transfers").select("*").order("transferred_at", { ascending: false }),
-    ]);
-    if (paymentsRes.data) setPayments(paymentsRes.data as PaymentRow[]);
-    if (transfersRes.data) setTransfers(transfersRes.data);
-    setLoading(false);
-  };
+    try {
+      const [p, t] = await Promise.all([
+        fetchAllRows<PaymentRow>((from, to) => {
+          let q = supabase.from("demurrage_payments").select("*");
+          if (yardId) q = q.eq("yard_id", yardId);
+          return q.order("created_at", { ascending: false }).order("id").range(from, to);
+        }),
+        fetchAllRows<TransferRow>((from, to) => {
+          let q = supabase.from("shipping_line_transfers").select("*");
+          if (yardId) q = q.eq("yard_id", yardId);
+          return q.order("transferred_at", { ascending: false }).order("id").range(from, to);
+        }),
+      ]);
+      setPayments(p);
+      setTransfers(t);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to load accounting data.";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [yardId, toast]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Filtered payments based on date range
-  const filteredPayments = useMemo(() => {
-    return payments.filter((p) => {
-      const d = new Date(p.created_at);
-      if (dateFrom && d < new Date(dateFrom)) return false;
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        if (d > to) return false;
-      }
-      return true;
-    });
-  }, [payments, dateFrom, dateTo]);
+  const inRange = useCallback((iso: string) => {
+    const d = new Date(iso);
+    if (dateFrom && d < new Date(`${dateFrom}T00:00:00`)) return false;
+    if (dateTo && d > new Date(`${dateTo}T23:59:59.999`)) return false;
+    return true;
+  }, [dateFrom, dateTo]);
 
-  const summaryCards = useMemo(() => {
-    const completedTransfers = transfers.reduce((s, t) => s + Number(t.amount_transferred), 0);
-    return { ...summarizePayments(filteredPayments), completedTransfers };
-  }, [filteredPayments, transfers]);
-
-  const shippingLineBreakdown = useMemo<ShippingLineOwed[]>(
-    () => buildShippingLineBreakdown(filteredPayments, new Set(transfers.map(t => t.shipping_line))),
-    [filteredPayments, transfers],
+  const lines = useMemo(
+    () => [...new Set([...payments.map((p) => p.shipping_line), ...transfers.map((t) => t.shipping_line)])].sort(),
+    [payments, transfers],
   );
 
-  // Monthly chart data — last 6 months
+  const filteredPayments = useMemo(
+    () => payments.filter((p) => inRange(p.created_at) && (lineFilter === ALL_LINES || p.shipping_line === lineFilter)),
+    [payments, inRange, lineFilter],
+  );
+
+  const filteredTransfers = useMemo(
+    () => transfers.filter((t) => inRange(t.transferred_at) && (lineFilter === ALL_LINES || t.shipping_line === lineFilter)),
+    [transfers, inRange, lineFilter],
+  );
+
+  const summaryCards = useMemo(() => ({
+    ...summarizePayments(filteredPayments),
+    completedTransfers: sumJod(filteredTransfers.map((t) => t.amount_transferred)),
+  }), [filteredPayments, filteredTransfers]);
+
+  const now = useMemo(() => new Date(), [payments]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const shippingLineBreakdown = useMemo<ShippingLineOwed[]>(
+    () => buildShippingLineBreakdown(filteredPayments, new Set(filteredTransfers.map((t) => t.shipping_line)), now)
+      .sort((a, b) => b.totalOwed - a.totalOwed || a.shipping_line.localeCompare(b.shipping_line)),
+    [filteredPayments, filteredTransfers, now],
+  );
+
+  const dailyClose = useMemo(() => buildDailyClose(filteredPayments), [filteredPayments]);
+  const methods = useMemo(
+    () => [...new Set(dailyClose.flatMap((d) => Object.keys(d.byMethod)))].sort(),
+    [dailyClose],
+  );
+
+  const visiblePayments = useMemo(() => {
+    const q = search.trim().toUpperCase();
+    return q ? filteredPayments.filter((p) => p.container_number.toUpperCase().includes(q)) : filteredPayments;
+  }, [filteredPayments, search]);
+
+  // Monthly chart data — last 6 months, same line filter.
   const monthlyData = useMemo(() => {
+    const scoped = lineFilter === ALL_LINES ? payments : payments.filter((p) => p.shipping_line === lineFilter);
     const months: { month: string; collected: number; yard: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
+      d.setDate(1);
       d.setMonth(d.getMonth() - i);
       const key = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
-      const monthPayments = payments.filter((p) => {
+      const monthPayments = scoped.filter((p) => {
         const pd = new Date(p.created_at);
         return pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear();
       });
       months.push({
         month: key,
-        collected: monthPayments.reduce((s, p) => s + Number(p.total_collected), 0),
-        yard: monthPayments.reduce((s, p) => s + yardEarned(p), 0),
+        collected: sumJod(monthPayments.map((p) => p.total_collected)),
+        yard: sumJod(monthPayments.map(yardEarned)),
       });
     }
     return months;
-  }, [payments]);
+  }, [payments, lineFilter]);
 
-  const handleMarkTransferred = async () => {
-    if (!receiptFile || !user) return;
+  const closeSettle = () => {
+    setSettleRow(null);
+    setReceiptFile(null);
+    setReference("");
+    setNotes("");
+  };
+
+  const handleSettle = async () => {
+    if (!settleRow || !receiptFile || !user) return;
+    if (!yardId) {
+      toast({ title: "Pick a yard", description: "Choose a yard from the switcher to record a transfer.", variant: "destructive" });
+      return;
+    }
     setIsTransferring(true);
+    const fileExt = receiptFile.name.split(".").pop();
+    const filePath = `${settleRow.shipping_line}/${Date.now()}.${fileExt}`;
+    let uploaded = false;
     try {
-      const fileExt = receiptFile.name.split(".").pop();
-      const filePath = `${transferDialog.shippingLine}/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage.from("transfer-receipts").upload(filePath, receiptFile);
       if (uploadError) throw uploadError;
-      const yardId = currentYardId();
-      if (!yardId) throw new Error("No yard assigned to your account");
-      const { error: insertError } = await supabase.from("shipping_line_transfers").insert({
-        shipping_line: transferDialog.shippingLine,
-        amount_transferred: transferDialog.amount,
-        transferred_by: user.id,
-        receipt_url: filePath,
-        yard_id: yardId,
+      uploaded = true;
+      // One transaction server-side: it checks the payments are still pending,
+      // computes the amount from them, records the transfer and links them.
+      const { data, error } = await supabase.rpc("record_shipping_line_transfer", {
+        _yard_id: yardId,
+        _shipping_line: settleRow.shipping_line,
+        _payment_ids: settleRow.paymentIds,
+        _receipt_path: filePath,
+        _reference: reference.trim() || null,
+        _notes: notes.trim() || null,
       });
-      if (insertError) throw insertError;
-      const pendingIds = payments.filter(p => p.shipping_line === transferDialog.shippingLine && !p.transferred).map(p => p.id);
-      if (pendingIds.length > 0) {
-        const { error: updateError } = await supabase.from("demurrage_payments").update({ transferred: true }).in("id", pendingIds);
-        if (updateError) throw updateError;
-      }
-      toast({ title: "Transfer Recorded", description: `${transferDialog.amount} JOD marked as transferred to ${transferDialog.shippingLine}.` });
-      setTransferDialog({ open: false, shippingLine: "", amount: 0 });
-      setReceiptFile(null);
+      if (error) throw error;
+      const result = (data ?? {}) as { amount?: number; payment_count?: number };
+      toast({
+        title: "Transfer Recorded",
+        description: `${formatJod(result.amount ?? settleRow.totalOwed)} for ${result.payment_count ?? settleRow.count} payment(s) transferred to ${settleRow.shipping_line}.`,
+      });
+      closeSettle();
       fetchData();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to record transfer.";
+      if (uploaded) {
+        // Best effort: don't leave an orphaned receipt behind.
+        await supabase.storage.from("transfer-receipts").remove([filePath]).catch(() => undefined);
+      }
+      const message = error instanceof Error ? error.message
+        : typeof error === "object" && error && "message" in error ? String((error as { message: unknown }).message)
+        : "Failed to record transfer.";
       toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setIsTransferring(false);
     }
   };
 
-  const getTransferReceipt = (shippingLine: string) => transfers.find(t => t.shipping_line === shippingLine)?.receipt_url || null;
+  const openReceipt = async (path: string) => {
+    const signed = await resolveSignedUrl("transfer-receipts", path);
+    if (signed) window.open(signed, "_blank", "noopener,noreferrer");
+    else toast({ title: "Receipt unavailable", description: "Could not open this receipt.", variant: "destructive" });
+  };
+
+  const periodLabel = () => {
+    const f = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    const range = dateFrom || dateTo ? `${dateFrom ? f(dateFrom) : "Start"} – ${dateTo ? f(dateTo) : "Today"}` : "All dates";
+    return lineFilter === ALL_LINES ? range : `${range} · ${lineFilter}`;
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { downloadReport } = await import("@/lib/reports/workbook");
+      await downloadReport(buildAccountingReport({
+        payments: filteredPayments,
+        transfers: filteredTransfers,
+        periodLabel: periodLabel(),
+        yardName: yardId ? yardName(yardId) : "All yards",
+        generatedBy: profile?.full_name?.trim() || profile?.username?.trim() || undefined,
+      }));
+    } catch (error) {
+      console.error("Accounting export failed:", error);
+      toast({ title: "Export failed", description: "Could not build the Excel file.", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const filtered = dateFrom || dateTo || lineFilter !== ALL_LINES;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
       <PageHeader
         icon={Calculator}
         title="Accounting"
-        subtitle="Track demurrage collections and shipping line transfers"
+        subtitle="Demurrage collections, what each shipping line is owed, and settlements"
+        action={
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={loading || exporting}>
+            <Download className="h-4 w-4 mr-1" /> {exporting ? "Exporting…" : "Export Excel"}
+          </Button>
+        }
       />
 
-      {/* Date Range Filter */}
+      {/* Filters */}
       <Card>
         <CardContent className="pt-4">
           <div className="flex flex-wrap items-end gap-4">
@@ -182,8 +320,18 @@ const Accounting = () => {
               <Label className="text-xs text-muted-foreground">To</Label>
               <Input type="date" className="h-8 text-sm w-40" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
-            {(dateFrom || dateTo) && (
-              <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Shipping line</Label>
+              <Select value={lineFilter} onValueChange={setLineFilter}>
+                <SelectTrigger className="h-8 text-sm w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_LINES}>All lines</SelectItem>
+                  {lines.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {filtered && (
+              <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); setLineFilter(ALL_LINES); }}>
                 Clear
               </Button>
             )}
@@ -198,28 +346,28 @@ const Accounting = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Collected"
-          value={`${summaryCards.totalCollected.toFixed(2)} JOD`}
+          value={formatJod(summaryCards.totalCollected)}
           color="maritime"
           icon={<DollarSign className="h-5 w-5 text-maritime" />}
           loading={loading}
         />
         <StatCard
           label="Yard Earnings (Fees)"
-          value={`${summaryCards.yardEarnings.toFixed(2)} JOD`}
+          value={formatJod(summaryCards.yardEarnings)}
           color="success"
           icon={<TrendingUp className="h-5 w-5 text-success" />}
           loading={loading}
         />
         <StatCard
-          label="Pending Transfers"
-          value={`${summaryCards.pendingTransfers.toFixed(2)} JOD`}
+          label="Owed to Lines"
+          value={formatJod(summaryCards.pendingTransfers)}
           color="warning"
           icon={<Clock className="h-5 w-5 text-warning" />}
           loading={loading}
         />
         <StatCard
           label="Transferred"
-          value={`${summaryCards.completedTransfers.toFixed(2)} JOD`}
+          value={formatJod(summaryCards.completedTransfers)}
           color="container"
           icon={<CheckCircle2 className="h-5 w-5 text-container" />}
           loading={loading}
@@ -248,130 +396,276 @@ const Accounting = () => {
         </CardContent>
       </Card>
 
-      {/* Shipping Line Breakdown */}
-      <Card>
-        <CardHeader><CardTitle>Shipping Line Breakdown</CardTitle></CardHeader>
-        <CardContent>
-          {shippingLineBreakdown.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No shipping line data yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Shipping Line</TableHead>
-                  <TableHead>Payments</TableHead>
-                  <TableHead>Demurrage Owed</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {shippingLineBreakdown.map(row => (
-                  <TableRow key={row.shipping_line}>
-                    <TableCell className="font-semibold">{row.shipping_line}</TableCell>
-                    <TableCell>{row.count}</TableCell>
-                    <TableCell>{row.totalOwed.toFixed(2)} JOD</TableCell>
-                    <TableCell>
-                      {row.totalOwed > 0
-                        ? <Badge variant="destructive">Pending</Badge>
-                        : <Badge className="bg-success text-white">Transferred</Badge>}
-                    </TableCell>
-                    <TableCell>
-                      {row.totalOwed > 0 ? (
-                        <Button size="sm" className="bg-success hover:bg-success/90 text-white" onClick={() => setTransferDialog({ open: true, shippingLine: row.shipping_line, amount: row.totalOwed })}>
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Mark Transferred
-                        </Button>
-                      ) : (
-                        (() => {
-                          const value = getTransferReceipt(row.shipping_line);
-                          return value ? (
+      <Tabs defaultValue="balances" className="space-y-4">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="balances">Line Balances</TabsTrigger>
+          <TabsTrigger value="daily">Daily Close</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="transfers">Transfers</TabsTrigger>
+        </TabsList>
+
+        {/* Line balances with aging */}
+        <TabsContent value="balances">
+          <Card>
+            <CardHeader>
+              <CardTitle>Owed to Shipping Lines</CardTitle>
+              <CardDescription>
+                Demurrage held for each line, aged from the day it was collected. Settling a row
+                covers exactly the payments counted in it.
+                {!yardId && " Pick a yard from the switcher to record transfers."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              {shippingLineBreakdown.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No shipping line data yet.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Shipping Line</TableHead>
+                      <TableHead className="text-right">Payments</TableHead>
+                      <TableHead className="text-right">0–7 days</TableHead>
+                      <TableHead className="text-right">8–30 days</TableHead>
+                      <TableHead className="text-right">31–60 days</TableHead>
+                      <TableHead className="text-right">61+ days</TableHead>
+                      <TableHead className="text-right">Total Owed</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {shippingLineBreakdown.map((row) => {
+                      const age = daysSince(row.oldestPendingAt, now);
+                      const lastTransfer = transfers.find((t) => t.shipping_line === row.shipping_line);
+                      return (
+                        <TableRow key={row.shipping_line}>
+                          <TableCell className="font-semibold">
+                            {row.shipping_line}
+                            {row.totalOwed > 0 && (
+                              <div className={`text-xs font-normal ${age > 30 ? "text-destructive" : "text-muted-foreground"}`}>
+                                oldest {age} day{age !== 1 ? "s" : ""}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">{row.count}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatJod(row.aging.days0to7)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatJod(row.aging.days8to30)}</TableCell>
+                          <TableCell className={`text-right tabular-nums ${row.aging.days31to60 > 0 ? "text-warning" : ""}`}>{formatJod(row.aging.days31to60)}</TableCell>
+                          <TableCell className={`text-right tabular-nums ${row.aging.days61plus > 0 ? "text-destructive font-semibold" : ""}`}>{formatJod(row.aging.days61plus)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-semibold">{formatJod(row.totalOwed)}</TableCell>
+                          <TableCell>
+                            {row.totalOwed > 0 ? (
+                              <Button
+                                size="sm"
+                                className="bg-success hover:bg-success/90 text-white"
+                                disabled={!yardId}
+                                onClick={() => setSettleRow(row)}
+                              >
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> Record Transfer
+                              </Button>
+                            ) : lastTransfer?.receipt_url ? (
+                              <button
+                                type="button"
+                                onClick={() => openReceipt(lastTransfer.receipt_url!)}
+                                className="text-primary hover:underline flex items-center gap-1 text-sm"
+                              >
+                                <ExternalLink className="h-3 w-3" /> Last Receipt
+                              </button>
+                            ) : (
+                              <Badge className="bg-success text-white">Settled</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Daily close */}
+        <TabsContent value="daily">
+          <Card>
+            <CardHeader>
+              <CardTitle>Daily Close</CardTitle>
+              <CardDescription>What the counter took each day, by payment method — count the drawer against the cash column.</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              {dailyClose.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No payments in selected range.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Payments</TableHead>
+                      {methods.map((m) => <TableHead key={m} className="text-right">{methodLabel(m)}</TableHead>)}
+                      <TableHead className="text-right">Demurrage</TableHead>
+                      <TableHead className="text-right">Fees</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dailyClose.map((d) => (
+                      <TableRow key={d.date} className={d.date === localDateKey(now.toISOString()) ? "bg-muted/40" : undefined}>
+                        <TableCell className="whitespace-nowrap">{fmtDay(d.date)}</TableCell>
+                        <TableCell className="text-right">{d.count}</TableCell>
+                        {methods.map((m) => (
+                          <TableCell key={m} className="text-right tabular-nums">{formatJod(d.byMethod[m] ?? 0)}</TableCell>
+                        ))}
+                        <TableCell className="text-right tabular-nums">{formatJod(d.demurrage)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatJod(d.fees)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-semibold">{formatJod(d.total)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* All payments */}
+        <TabsContent value="payments">
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+              <CardTitle>Payments {filtered ? "(filtered)" : ""}</CardTitle>
+              <div className="relative w-full sm:w-56">
+                <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+                <Input className="h-8 pl-8 text-sm" placeholder="Container number" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              {visiblePayments.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No payments in selected range.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Container</TableHead>
+                      <TableHead>Line</TableHead>
+                      <TableHead className="text-right">Demurrage</TableHead>
+                      <TableHead className="text-right">Fee</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visiblePayments.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-mono text-sm">{p.container_number}</TableCell>
+                        <TableCell><Badge variant="outline">{p.shipping_line}</Badge></TableCell>
+                        <TableCell className="text-right tabular-nums">{formatJod(p.demurrage_amount)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatJod(p.service_fee)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-semibold">{formatJod(p.total_collected)}</TableCell>
+                        <TableCell><Badge variant={p.payment_method === "cash" ? "secondary" : "default"}>{methodLabel(p.payment_method)}</Badge></TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(p.created_at).toLocaleDateString("en-GB")}</TableCell>
+                        <TableCell>
+                          {p.transferred
+                            ? <Badge className="bg-success/10 text-success border-success/30">Transferred</Badge>
+                            : <Badge variant="outline" className="text-warning border-warning/30">Pending</Badge>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Transfer history */}
+        <TabsContent value="transfers">
+          <Card>
+            <CardHeader>
+              <CardTitle>Transfer History</CardTitle>
+              <CardDescription>Every settlement with a shipping line, with its receipt.</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              {filteredTransfers.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No transfers in selected range.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Line</TableHead>
+                      <TableHead>Reference</TableHead>
+                      <TableHead className="text-right">Payments</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Receipt</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTransfers.map((t) => (
+                      <TableRow key={t.id}>
+                        <TableCell className="text-sm whitespace-nowrap">{new Date(t.transferred_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</TableCell>
+                        <TableCell><Badge variant="outline">{t.shipping_line}</Badge></TableCell>
+                        <TableCell className="text-sm">
+                          {t.reference || <span className="text-muted-foreground">—</span>}
+                          {t.notes && <div className="text-xs text-muted-foreground">{t.notes}</div>}
+                        </TableCell>
+                        <TableCell className="text-right">{t.payment_count ?? "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums font-semibold">{formatJod(t.amount_transferred)}</TableCell>
+                        <TableCell>
+                          {t.receipt_url ? (
                             <button
                               type="button"
-                              onClick={async () => {
-                                const signed = await resolveSignedUrl("transfer-receipts", value);
-                                if (signed) window.open(signed, "_blank", "noopener,noreferrer");
-                              }}
+                              onClick={() => openReceipt(t.receipt_url!)}
                               className="text-primary hover:underline flex items-center gap-1 text-sm"
                             >
-                              <ExternalLink className="h-3 w-3" /> View Receipt
+                              <ExternalLink className="h-3 w-3" /> View
                             </button>
-                          ) : null;
-                        })()
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                          ) : <span className="text-muted-foreground text-sm">—</span>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-      {/* All Payments */}
-      <Card>
-        <CardHeader><CardTitle>All Payments {dateFrom || dateTo ? `(filtered)` : ""}</CardTitle></CardHeader>
-        <CardContent>
-          {filteredPayments.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No payments in selected range.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Container</TableHead>
-                  <TableHead>Line</TableHead>
-                  <TableHead>Demurrage</TableHead>
-                  <TableHead>Fee</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPayments.map(p => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-sm">{p.container_number}</TableCell>
-                    <TableCell><Badge variant="outline">{p.shipping_line}</Badge></TableCell>
-                    <TableCell>{Number(p.demurrage_amount).toFixed(2)} JOD</TableCell>
-                    <TableCell>{Number(p.service_fee).toFixed(2)} JOD</TableCell>
-                    <TableCell className="font-semibold">{Number(p.total_collected).toFixed(2)} JOD</TableCell>
-                    <TableCell><Badge variant={p.payment_method === "cash" ? "secondary" : "default"}>{p.payment_method}</Badge></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{new Date(p.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      {p.transferred
-                        ? <Badge className="bg-success/10 text-success border-success/30">Transferred</Badge>
-                        : <Badge variant="outline" className="text-warning border-warning/30">Pending</Badge>}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Transfer Dialog */}
-      <Dialog open={transferDialog.open} onOpenChange={(o) => !o && setTransferDialog(prev => ({ ...prev, open: false }))}>
+      {/* Settle Dialog */}
+      <Dialog open={settleRow !== null} onOpenChange={(o) => !o && !isTransferring && closeSettle()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Transfer to {transferDialog.shippingLine}</DialogTitle>
+            <DialogTitle>Record Transfer to {settleRow?.shipping_line}</DialogTitle>
             <DialogDescription>
-              Mark <strong>{transferDialog.amount.toFixed(2)} JOD</strong> as transferred to <strong>{transferDialog.shippingLine}</strong>. Upload a receipt to confirm.
+              Settles the {settleRow?.count} pending payment{settleRow?.count !== 1 ? "s" : ""} shown
+              {filtered ? " under the current filters" : ""}. The amount is computed from those payments
+              when the transfer is saved.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Shipping Line</span><span className="font-semibold">{transferDialog.shippingLine}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount</span><span className="font-bold text-lg">{transferDialog.amount.toFixed(2)} JOD</span></div>
+          {settleRow && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Shipping Line</span><span className="font-semibold">{settleRow.shipping_line}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Payments</span><span className="font-semibold">{settleRow.count}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount</span><span className="font-bold text-lg">{formatJod(settleRow.totalOwed)}</span></div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reference">Bank / cheque reference</Label>
+                <Input id="reference" value={reference} maxLength={100} onChange={(e) => setReference(e.target.value)} placeholder="e.g. TRX-2026-0915" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea id="notes" value={notes} maxLength={500} rows={2} onChange={(e) => setNotes(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="receipt">Receipt (Image or PDF) *</Label>
+                <Input id="receipt" type="file" accept="image/*,.pdf" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="receipt">Receipt (Image or PDF) *</Label>
-              <Input id="receipt" type="file" accept="image/*,.pdf" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} />
-            </div>
-          </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTransferDialog(prev => ({ ...prev, open: false }))}>Cancel</Button>
-            <Button className="bg-success hover:bg-success/90 text-white" disabled={!receiptFile || isTransferring} onClick={handleMarkTransferred}>
+            <Button variant="outline" disabled={isTransferring} onClick={closeSettle}>Cancel</Button>
+            <Button className="bg-success hover:bg-success/90 text-white" disabled={!receiptFile || isTransferring} onClick={handleSettle}>
               {isTransferring ? "Processing…" : <><Upload className="h-4 w-4 mr-1" />Confirm Transfer</>}
             </Button>
           </DialogFooter>
