@@ -10,7 +10,8 @@ export type ActivityAction =
   | "inspection_cancelled"
   | "container_renamed"
   | "container_edited"
-  | "booking_edited";
+  | "booking_edited"
+  | "demurrage_transferred";
 
 export interface LogActivityInput {
   userId: string;

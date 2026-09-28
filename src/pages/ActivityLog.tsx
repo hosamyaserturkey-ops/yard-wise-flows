@@ -40,6 +40,7 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   container_renamed: "Renamed",
   container_edited: "Container Edited",
   booking_edited: "Booking Edited",
+  demurrage_transferred: "Transferred to Line",
 };
 
 const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline" | "destructive"> = {
@@ -52,6 +53,7 @@ const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline"
   container_renamed: "outline",
   container_edited: "outline",
   booking_edited: "outline",
+  demurrage_transferred: "secondary",
 };
 
 /**
@@ -67,6 +69,13 @@ function detailsOf(r: Row): { lines: string[]; reason: string | null } {
       lines.unshift(`Booking ${m.booking_number}`);
     }
     return { lines, reason };
+  }
+  if (r.action === "demurrage_transferred" && typeof m.shipping_line === "string") {
+    const ref = typeof m.reference === "string" && m.reference ? ` · ref ${m.reference}` : "";
+    return {
+      lines: [`${Number(m.amount_jod ?? 0).toFixed(3)} JOD to ${m.shipping_line} for ${Number(m.payment_count ?? 0)} payment(s)${ref}`],
+      reason,
+    };
   }
   if (r.action === "container_renamed" && typeof m.from === "string") {
     return { lines: [`Container number: ${m.from} → ${String(m.to ?? "")}`], reason };
