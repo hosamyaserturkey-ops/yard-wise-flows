@@ -168,3 +168,30 @@ describe("buildDailyClose", () => {
     ]);
   });
 });
+
+describe("voided payments", () => {
+  const voided = { voided_at: "2026-09-27T10:00:00Z" };
+
+  it("count in no total", () => {
+    expect(summarizePayments([
+      make({ demurrage_amount: 100, service_fee: 7, total_collected: 107 }),
+      make({ demurrage_amount: 50, service_fee: 7, total_collected: 57, ...voided }),
+    ])).toEqual({ totalCollected: 107, yardEarnings: 7, pendingTransfers: 100 });
+  });
+
+  it("are never owed to the line or offered for settlement", () => {
+    const rows = buildShippingLineBreakdown(
+      [make({ id: "a", demurrage_amount: 100 }), make({ id: "b", demurrage_amount: 50, ...voided })],
+      [],
+      NOW,
+    );
+    expect(rows[0]).toMatchObject({ count: 1, totalOwed: 100, paymentIds: ["a"] });
+  });
+
+  it("stay out of the daily close", () => {
+    expect(buildDailyClose([
+      make({ created_at: new Date(2026, 8, 27, 9).toISOString(), total_collected: 107 }),
+      make({ created_at: new Date(2026, 8, 27, 10).toISOString(), total_collected: 57, ...voided }),
+    ])[0]).toMatchObject({ count: 1, total: 107 });
+  });
+});

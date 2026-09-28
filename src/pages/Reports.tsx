@@ -106,7 +106,8 @@ const Reports = () => {
         const { data: paymentsData } = await supabase
           .from("demurrage_payments")
           .select("container_number, total_collected")
-          .in("container_number", numbers);
+          .in("container_number", numbers)
+          .is("voided_at", null);
         const paidMap: Record<string, number> = {};
         (paymentsData ?? []).forEach((p) => {
           paidMap[p.container_number] =

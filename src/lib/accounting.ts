@@ -14,6 +14,9 @@
  *
  * The dinar has three decimals (1 JOD = 1000 fils). Sums are kept in whole
  * fils so a long column of payments never drifts by a floating-point fraction.
+ *
+ * A voided (refunded) payment was handed back, so it counts nowhere: every
+ * function here skips it.
  */
 
 export interface AccountingPayment {
@@ -25,6 +28,8 @@ export interface AccountingPayment {
   payment_method?: string | null;
   created_at?: string;
   transferred: boolean;
+  voided_at?: string | null;
+  void_reason?: string | null;
 }
 
 export interface AccountingSummary {
@@ -88,6 +93,9 @@ export const sumJod = (values: Iterable<number | string | null | undefined>): nu
 export const formatJod = (value: number | string | null | undefined): string =>
   `${amount(value).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} JOD`;
 
+/** False for a payment that was voided (refunded). */
+export const isActivePayment = (payment: AccountingPayment): boolean => !payment.voided_at;
+
 /** Demurrage owed to the shipping line for a single payment. */
 export const shippingLineOwed = (payment: AccountingPayment): number =>
   amount(payment.demurrage_amount);
@@ -96,11 +104,14 @@ export const shippingLineOwed = (payment: AccountingPayment): number =>
 export const yardEarned = (payment: AccountingPayment): number =>
   amount(payment.service_fee);
 
-export const summarizePayments = (payments: AccountingPayment[]): AccountingSummary => ({
-  totalCollected: sumJod(payments.map((p) => p.total_collected)),
-  yardEarnings: sumJod(payments.map(yardEarned)),
-  pendingTransfers: sumJod(payments.filter((p) => !p.transferred).map(shippingLineOwed)),
-});
+export const summarizePayments = (all: AccountingPayment[]): AccountingSummary => {
+  const payments = all.filter(isActivePayment);
+  return {
+    totalCollected: sumJod(payments.map((p) => p.total_collected)),
+    yardEarnings: sumJod(payments.map(yardEarned)),
+    pendingTransfers: sumJod(payments.filter((p) => !p.transferred).map(shippingLineOwed)),
+  };
+};
 
 const DAY_MS = 86_400_000;
 
@@ -129,7 +140,7 @@ export const buildShippingLineBreakdown = (
   interface Acc { count: number; fils: number; ids: string[]; oldest: string | null; aging: Record<keyof OwedAging, number> }
   const pending = new Map<string, Acc>();
   payments.forEach((p) => {
-    if (p.transferred) return;
+    if (p.transferred || !isActivePayment(p)) return;
     const acc = pending.get(p.shipping_line)
       ?? { count: 0, fils: 0, ids: [], oldest: null, aging: emptyAging() };
     const owedFils = toFils(shippingLineOwed(p));
@@ -182,7 +193,7 @@ export const buildDailyClose = (payments: AccountingPayment[]): DailyClose[] => 
   interface Acc { count: number; demurrage: number; fees: number; total: number; byMethod: Map<string, number> }
   const days = new Map<string, Acc>();
   for (const p of payments) {
-    if (!p.created_at) continue;
+    if (!p.created_at || !isActivePayment(p)) continue;
     const key = localDateKey(p.created_at);
     const acc = days.get(key) ?? { count: 0, demurrage: 0, fees: 0, total: 0, byMethod: new Map() };
     const totalFils = toFils(amount(p.total_collected));

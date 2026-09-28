@@ -68,7 +68,8 @@ async function fetchPayments(period: ReportContext["period"]) {
     transferred: boolean;
     collected_by: string;
   }>((from, to) => {
-    let q = supabase.from("demurrage_payments").select("*");
+    // Voided payments were refunded; no report counts them.
+    let q = supabase.from("demurrage_payments").select("*").is("voided_at", null);
     if (period.from) q = q.gte("created_at", period.from.toISOString());
     if (period.to) q = q.lte("created_at", period.to.toISOString());
     return q.order("id").range(from, to);

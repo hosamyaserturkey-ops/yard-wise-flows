@@ -307,6 +307,9 @@ export type Database = {
           total_collected: number
           transfer_id: string | null
           transferred: boolean
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
           yard_id: string
           yard_share: number
         }
@@ -325,6 +328,9 @@ export type Database = {
           total_collected: number
           transfer_id?: string | null
           transferred?: boolean
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           yard_id: string
           yard_share?: number
         }
@@ -343,6 +349,9 @@ export type Database = {
           total_collected?: number
           transfer_id?: string | null
           transferred?: boolean
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           yard_id?: string
           yard_share?: number
         }
@@ -531,6 +540,9 @@ export type Database = {
           shipping_line: string
           transferred_at: string
           transferred_by: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
           yard_id: string
         }
         Insert: {
@@ -544,6 +556,9 @@ export type Database = {
           shipping_line: string
           transferred_at?: string
           transferred_by: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           yard_id: string
         }
         Update: {
@@ -557,6 +572,9 @@ export type Database = {
           shipping_line?: string
           transferred_at?: string
           transferred_by?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           yard_id?: string
         }
         Relationships: [
@@ -721,6 +739,23 @@ export type Database = {
         }
         Returns: Json
       }
+      edit_shipping_line_transfer: {
+        Args: {
+          _notes: string | null
+          _reason: string
+          _reference: string | null
+          _transfer_id: string
+        }
+        Returns: undefined
+      }
+      void_demurrage_payment: {
+        Args: { _payment_id: string; _reason: string }
+        Returns: undefined
+      }
+      void_shipping_line_transfer: {
+        Args: { _reason: string; _transfer_id: string }
+        Returns: Json
+      }
       rename_container: {
         Args: {
           _container_id: string
@@ -742,6 +777,9 @@ export type Database = {
         | "container_edited"
         | "booking_edited"
         | "demurrage_transferred"
+        | "payment_voided"
+        | "transfer_voided"
+        | "transfer_edited"
       app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
@@ -883,6 +921,9 @@ export const Constants = {
         "container_edited",
         "booking_edited",
         "demurrage_transferred",
+        "payment_voided",
+        "transfer_voided",
+        "transfer_edited",
       ],
       app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
       container_status: ["in-yard", "out", "reserved"],

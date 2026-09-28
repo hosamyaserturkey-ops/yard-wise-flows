@@ -11,7 +11,10 @@ export type ActivityAction =
   | "container_renamed"
   | "container_edited"
   | "booking_edited"
-  | "demurrage_transferred";
+  | "demurrage_transferred"
+  | "payment_voided"
+  | "transfer_voided"
+  | "transfer_edited";
 
 export interface LogActivityInput {
   userId: string;

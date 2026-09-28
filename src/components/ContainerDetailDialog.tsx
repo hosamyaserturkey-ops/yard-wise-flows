@@ -60,6 +60,8 @@ interface DemurragePayment {
   service_fee: number | null;
   payment_method: string | null;
   created_at: string;
+  voided_at: string | null;
+  void_reason: string | null;
 }
 
 // One row per yard visit — each visit snapshots its trip's port data at
@@ -152,7 +154,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
 
           supabase
             .from("demurrage_payments")
-            .select("id, total_collected, chargeable_days, demurrage_amount, service_fee, payment_method, created_at")
+            .select("id, total_collected, chargeable_days, demurrage_amount, service_fee, payment_method, created_at, voided_at, void_reason")
             .eq("container_number", num)
             .order("created_at", { ascending: false }),
 
@@ -204,8 +206,9 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
 
   if (!container) return null;
 
-  // Latest payment — used for the paid badge and receipt reprint.
-  const payment = payments[0] ?? null;
+  // Latest payment — used for the paid badge and receipt reprint. A voided
+  // payment was refunded, so it neither shows as paid nor reprints.
+  const payment = payments.find((p) => !p.voided_at) ?? null;
 
   // Demurrage: cap at gate-in for all statuses (demurrage stops when container enters yard)
   const capDate = container.gateInTime;
@@ -533,7 +536,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
             </div>
 
             {/* ── Visit & payment history ───────────────────────── */}
-            {(visits.length > 1 || payments.length > 1) && (
+            {(visits.length > 1 || payments.length > 1 || payments.some((p) => p.voided_at)) && (
               <>
                 <Separator />
                 <div>
@@ -574,7 +577,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
                     </div>
                   )}
 
-                  {payments.length > 1 && (
+                  {(payments.length > 1 || payments.some((p) => p.voided_at)) && (
                     <div className="rounded-lg border overflow-hidden">
                       <table className="w-full text-sm">
                         <thead className="bg-muted/50">
@@ -587,11 +590,14 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
                         </thead>
                         <tbody>
                           {payments.map((p) => (
-                            <tr key={p.id} className="border-t">
-                              <td className="px-3 py-2">{fmt(new Date(p.created_at))}</td>
+                            <tr key={p.id} className={`border-t ${p.voided_at ? "text-muted-foreground" : ""}`} title={p.void_reason ?? undefined}>
+                              <td className="px-3 py-2">
+                                {fmt(new Date(p.created_at))}
+                                {p.voided_at && <span className="ml-2 text-xs font-medium text-destructive">Voided</span>}
+                              </td>
                               <td className="text-right px-3 py-2">{p.chargeable_days}</td>
                               <td className="text-right px-3 py-2 capitalize">{p.payment_method ?? "—"}</td>
-                              <td className="text-right px-3 py-2 font-medium">{Number(p.total_collected).toFixed(2)} JOD</td>
+                              <td className={`text-right px-3 py-2 font-medium ${p.voided_at ? "line-through" : ""}`}>{Number(p.total_collected).toFixed(2)} JOD</td>
                             </tr>
                           ))}
                         </tbody>

@@ -22,8 +22,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useYards } from "@/hooks/useYards";
 import {
-  DollarSign, TrendingUp, Clock, CheckCircle2, Upload, ExternalLink, Calculator, Download, Search,
+  DollarSign, TrendingUp, Clock, CheckCircle2, Upload, ExternalLink, Calculator, Download, Search, Ban, Pencil,
 } from "lucide-react";
+import { ReasonDialog } from "@/components/accounting/ReasonDialog";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { PageHeader } from "@/components/PageHeader";
 import { resolveSignedUrl } from "@/lib/storage";
 import {
@@ -48,6 +50,8 @@ interface PaymentRow {
   created_at: string;
   transferred: boolean;
   transfer_id: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
 }
 
 interface TransferRow {
@@ -59,10 +63,16 @@ interface TransferRow {
   reference: string | null;
   notes: string | null;
   payment_count: number | null;
+  voided_at: string | null;
+  void_reason: string | null;
 }
 
+type CorrectionAction =
+  | { kind: "voidPayment"; payment: PaymentRow }
+  | { kind: "voidTransfer"; transfer: TransferRow }
+  | { kind: "editTransfer"; transfer: TransferRow };
+
 const ALL_LINES = "__all__";
-const PAGE = 1000;
 
 const METHOD_LABEL: Record<string, string> = { cash: "Cash", qlick: "Qlick" };
 const methodLabel = (m: string) => METHOD_LABEL[m] ?? m;
@@ -72,22 +82,6 @@ const chartConfig: ChartConfig = {
   yard: { label: "Service Fees (JOD)", color: "hsl(var(--chart-3))" },
 };
 
-/**
- * The API returns at most one page of rows per request, so a single select
- * would silently drop the oldest payments once a yard has enough of them —
- * and every total on this page would be wrong. Page through all of them.
- */
-async function fetchAllRows<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
-): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await build(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
-    rows.push(...((data ?? []) as T[]));
-    if (!data || data.length < PAGE) return rows;
-  }
-}
 
 const daysSince = (iso: string | null, now: Date) =>
   iso ? Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000)) : 0;
@@ -113,6 +107,9 @@ const Accounting = () => {
   const [notes, setNotes] = useState("");
   const [isTransferring, setIsTransferring] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [correction, setCorrection] = useState<CorrectionAction | null>(null);
+  const [editRef, setEditRef] = useState("");
+  const [editNotes, setEditNotes] = useState("");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -163,17 +160,20 @@ const Accounting = () => {
     [transfers, inRange, lineFilter],
   );
 
+  // A voided transfer's money came back into "owed"; it counts nowhere.
+  const activeTransfers = useMemo(() => filteredTransfers.filter((t) => !t.voided_at), [filteredTransfers]);
+
   const summaryCards = useMemo(() => ({
     ...summarizePayments(filteredPayments),
-    completedTransfers: sumJod(filteredTransfers.map((t) => t.amount_transferred)),
-  }), [filteredPayments, filteredTransfers]);
+    completedTransfers: sumJod(activeTransfers.map((t) => t.amount_transferred)),
+  }), [filteredPayments, activeTransfers]);
 
   const now = useMemo(() => new Date(), [payments]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shippingLineBreakdown = useMemo<ShippingLineOwed[]>(
-    () => buildShippingLineBreakdown(filteredPayments, new Set(filteredTransfers.map((t) => t.shipping_line)), now)
+    () => buildShippingLineBreakdown(filteredPayments, new Set(activeTransfers.map((t) => t.shipping_line)), now)
       .sort((a, b) => b.totalOwed - a.totalOwed || a.shipping_line.localeCompare(b.shipping_line)),
-    [filteredPayments, filteredTransfers, now],
+    [filteredPayments, activeTransfers, now],
   );
 
   const dailyClose = useMemo(() => buildDailyClose(filteredPayments), [filteredPayments]);
@@ -189,7 +189,7 @@ const Accounting = () => {
 
   // Monthly chart data — last 6 months, same line filter.
   const monthlyData = useMemo(() => {
-    const scoped = lineFilter === ALL_LINES ? payments : payments.filter((p) => p.shipping_line === lineFilter);
+    const scoped = payments.filter((p) => !p.voided_at && (lineFilter === ALL_LINES || p.shipping_line === lineFilter));
     const months: { month: string; collected: number; yard: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
@@ -259,6 +259,48 @@ const Accounting = () => {
       toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setIsTransferring(false);
+    }
+  };
+
+  const errorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message
+      : typeof error === "object" && error && "message" in error ? String((error as { message: unknown }).message)
+      : fallback;
+
+  const openCorrection = (action: CorrectionAction) => {
+    if (action.kind === "editTransfer") {
+      setEditRef(action.transfer.reference ?? "");
+      setEditNotes(action.transfer.notes ?? "");
+    }
+    setCorrection(action);
+  };
+
+  const runCorrection = async (reason: string) => {
+    if (!correction) return;
+    try {
+      if (correction.kind === "voidPayment") {
+        const { error } = await supabase.rpc("void_demurrage_payment", { _payment_id: correction.payment.id, _reason: reason });
+        if (error) throw error;
+        toast({ title: "Payment voided", description: `${correction.payment.container_number} — ${formatJod(correction.payment.total_collected)} no longer counts anywhere.` });
+      } else if (correction.kind === "voidTransfer") {
+        const { error } = await supabase.rpc("void_shipping_line_transfer", { _transfer_id: correction.transfer.id, _reason: reason });
+        if (error) throw error;
+        toast({ title: "Transfer voided", description: `Its payments are pending again for ${correction.transfer.shipping_line}.` });
+      } else {
+        const { error } = await supabase.rpc("edit_shipping_line_transfer", {
+          _transfer_id: correction.transfer.id,
+          _reference: editRef.trim() || null,
+          _notes: editNotes.trim() || null,
+          _reason: reason,
+        });
+        if (error) throw error;
+        toast({ title: "Transfer updated" });
+      }
+      setCorrection(null);
+      fetchData();
+    } catch (error: unknown) {
+      toast({ title: "Error", description: errorMessage(error, "The change was not saved."), variant: "destructive" });
+      throw error;
     }
   };
 
@@ -435,7 +477,7 @@ const Accounting = () => {
                   <TableBody>
                     {shippingLineBreakdown.map((row) => {
                       const age = daysSince(row.oldestPendingAt, now);
-                      const lastTransfer = transfers.find((t) => t.shipping_line === row.shipping_line);
+                      const lastTransfer = transfers.find((t) => t.shipping_line === row.shipping_line && !t.voided_at);
                       return (
                         <TableRow key={row.shipping_line}>
                           <TableCell className="font-semibold">
@@ -551,25 +593,45 @@ const Accounting = () => {
                       <TableHead>Method</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="w-10"><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {visiblePayments.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="font-mono text-sm">{p.container_number}</TableCell>
-                        <TableCell><Badge variant="outline">{p.shipping_line}</Badge></TableCell>
-                        <TableCell className="text-right tabular-nums">{formatJod(p.demurrage_amount)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatJod(p.service_fee)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">{formatJod(p.total_collected)}</TableCell>
-                        <TableCell><Badge variant={p.payment_method === "cash" ? "secondary" : "default"}>{methodLabel(p.payment_method)}</Badge></TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(p.created_at).toLocaleDateString("en-GB")}</TableCell>
-                        <TableCell>
-                          {p.transferred
-                            ? <Badge className="bg-success/10 text-success border-success/30">Transferred</Badge>
-                            : <Badge variant="outline" className="text-warning border-warning/30">Pending</Badge>}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {visiblePayments.map((p) => {
+                      const voided = !!p.voided_at;
+                      return (
+                        <TableRow key={p.id} className={voided ? "text-muted-foreground" : undefined}>
+                          <TableCell className="font-mono text-sm">{p.container_number}</TableCell>
+                          <TableCell><Badge variant="outline">{p.shipping_line}</Badge></TableCell>
+                          <TableCell className={`text-right tabular-nums ${voided ? "line-through" : ""}`}>{formatJod(p.demurrage_amount)}</TableCell>
+                          <TableCell className={`text-right tabular-nums ${voided ? "line-through" : ""}`}>{formatJod(p.service_fee)}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-semibold ${voided ? "line-through" : ""}`}>{formatJod(p.total_collected)}</TableCell>
+                          <TableCell><Badge variant={p.payment_method === "cash" ? "secondary" : "default"}>{methodLabel(p.payment_method)}</Badge></TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(p.created_at).toLocaleDateString("en-GB")}</TableCell>
+                          <TableCell>
+                            {voided
+                              ? <Badge variant="destructive" title={p.void_reason ?? undefined}>Voided</Badge>
+                              : p.transferred
+                                ? <Badge className="bg-success/10 text-success border-success/30">Transferred</Badge>
+                                : <Badge variant="outline" className="text-warning border-warning/30">Pending</Badge>}
+                            {voided && p.void_reason && <div className="text-xs mt-1 max-w-48 truncate" title={p.void_reason}>{p.void_reason}</div>}
+                          </TableCell>
+                          <TableCell>
+                            {!voided && !p.transferred && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-destructive"
+                                title="Void / refund this payment"
+                                onClick={() => openCorrection({ kind: "voidPayment", payment: p })}
+                              >
+                                <Ban className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
@@ -597,19 +659,28 @@ const Accounting = () => {
                       <TableHead className="text-right">Payments</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Receipt</TableHead>
+                      <TableHead className="w-20"><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredTransfers.map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell className="text-sm whitespace-nowrap">{new Date(t.transferred_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</TableCell>
+                      <TableRow key={t.id} className={t.voided_at ? "text-muted-foreground" : undefined}>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {new Date(t.transferred_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                          {t.voided_at && (
+                            <div className="mt-1">
+                              <Badge variant="destructive" title={t.void_reason ?? undefined}>Voided</Badge>
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell><Badge variant="outline">{t.shipping_line}</Badge></TableCell>
                         <TableCell className="text-sm">
                           {t.reference || <span className="text-muted-foreground">—</span>}
                           {t.notes && <div className="text-xs text-muted-foreground">{t.notes}</div>}
+                          {t.voided_at && t.void_reason && <div className="text-xs text-destructive">Voided: {t.void_reason}</div>}
                         </TableCell>
                         <TableCell className="text-right">{t.payment_count ?? "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">{formatJod(t.amount_transferred)}</TableCell>
+                        <TableCell className={`text-right tabular-nums font-semibold ${t.voided_at ? "line-through" : ""}`}>{formatJod(t.amount_transferred)}</TableCell>
                         <TableCell>
                           {t.receipt_url ? (
                             <button
@@ -621,6 +692,26 @@ const Accounting = () => {
                             </button>
                           ) : <span className="text-muted-foreground text-sm">—</span>}
                         </TableCell>
+                        <TableCell>
+                          {!t.voided_at && (
+                            <div className="flex gap-1">
+                              <Button
+                                size="icon" variant="ghost" className="h-7 w-7"
+                                title="Correct the reference or notes"
+                                onClick={() => openCorrection({ kind: "editTransfer", transfer: t })}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon" variant="ghost" className="h-7 w-7 text-destructive"
+                                title="Void this transfer — its payments go back to pending"
+                                onClick={() => openCorrection({ kind: "voidTransfer", transfer: t })}
+                              >
+                                <Ban className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -630,6 +721,42 @@ const Accounting = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Corrections — each needs a reason and is logged */}
+      <ReasonDialog
+        open={correction !== null}
+        destructive={correction?.kind !== "editTransfer"}
+        title={
+          correction?.kind === "voidPayment" ? `Void payment for ${correction.payment.container_number}`
+          : correction?.kind === "voidTransfer" ? `Void transfer to ${correction.transfer.shipping_line}`
+          : "Correct transfer details"
+        }
+        description={
+          correction?.kind === "voidPayment"
+            ? <>Use this when the money was handed back or the payment was recorded by mistake. {formatJod(correction.payment.total_collected)} will
+                stop counting in every total, and the container's demurrage will show as unpaid again at the gate.</>
+          : correction?.kind === "voidTransfer"
+            ? <>Use this when the transfer didn't happen or was recorded wrongly. Its {correction.transfer.payment_count ?? ""} payment(s),
+                {" "}{formatJod(correction.transfer.amount_transferred)}, go back to pending so they can be settled again. The record is kept, marked voided.</>
+          : <>The amount can't change here — it comes from the payments. To fix an amount, void the transfer and record it again.</>
+        }
+        confirmLabel={correction?.kind === "editTransfer" ? "Save" : "Void"}
+        onCancel={() => setCorrection(null)}
+        onConfirm={runCorrection}
+      >
+        {correction?.kind === "editTransfer" && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="edit-reference">Bank / cheque reference</Label>
+              <Input id="edit-reference" value={editRef} maxLength={100} onChange={(e) => setEditRef(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Textarea id="edit-notes" value={editNotes} maxLength={500} rows={2} onChange={(e) => setEditNotes(e.target.value)} />
+            </div>
+          </>
+        )}
+      </ReasonDialog>
 
       {/* Settle Dialog */}
       <Dialog open={settleRow !== null} onOpenChange={(o) => !o && !isTransferring && closeSettle()}>
