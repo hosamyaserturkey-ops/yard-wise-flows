@@ -70,7 +70,11 @@ export type Database = {
           expected_cash: number
           id: string
           notes: string | null
+          original_counted_cash: number | null
           payment_count: number
+          recount_reason: string | null
+          recounted_at: string | null
+          recounted_by: string | null
           shift: Database["public"]["Enums"]["work_shift"]
           shift_date: string
           yard_id: string
@@ -83,7 +87,11 @@ export type Database = {
           expected_cash: number
           id?: string
           notes?: string | null
+          original_counted_cash?: number | null
           payment_count: number
+          recount_reason?: string | null
+          recounted_at?: string | null
+          recounted_by?: string | null
           shift: Database["public"]["Enums"]["work_shift"]
           shift_date: string
           yard_id: string
@@ -96,7 +104,11 @@ export type Database = {
           expected_cash?: number
           id?: string
           notes?: string | null
+          original_counted_cash?: number | null
           payment_count?: number
+          recount_reason?: string | null
+          recounted_at?: string | null
+          recounted_by?: string | null
           shift?: Database["public"]["Enums"]["work_shift"]
           shift_date?: string
           yard_id?: string
@@ -871,6 +883,11 @@ export type Database = {
         Args: { _close_id: string; _reason: string }
         Returns: undefined
       }
+      recount_cash: {
+        Args: { _cash_count_id: string; _counted: number; _reason: string }
+        Returns: undefined
+      }
+      transfer_receipt_in_use: { Args: { _path: string }; Returns: boolean }
       rename_container: {
         Args: {
           _container_id: string
@@ -898,6 +915,7 @@ export type Database = {
         | "month_closed"
         | "month_reopened"
         | "cash_counted"
+        | "cash_recounted"
       app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
@@ -1045,6 +1063,7 @@ export const Constants = {
         "month_closed",
         "month_reopened",
         "cash_counted",
+        "cash_recounted",
       ],
       app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
       container_status: ["in-yard", "out", "reserved"],

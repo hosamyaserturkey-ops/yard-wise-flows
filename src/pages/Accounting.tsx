@@ -226,7 +226,9 @@ const Accounting = () => {
     }
     setIsTransferring(true);
     const fileExt = receiptFile.name.split(".").pop();
-    const filePath = `${settleRow.shipping_line}/${Date.now()}.${fileExt}`;
+    // Receipts live under their yard's folder; storage rules and the server
+    // both reject a receipt outside it.
+    const filePath = `${yardId}/${settleRow.shipping_line}/${Date.now()}.${fileExt}`;
     let uploaded = false;
     try {
       const { error: uploadError } = await supabase.storage.from("transfer-receipts").upload(filePath, receiptFile);
