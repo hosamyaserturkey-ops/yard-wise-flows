@@ -47,6 +47,7 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   month_closed: "Month Closed",
   month_reopened: "Month Reopened",
   cash_counted: "Cash Counted",
+  cash_recounted: "Cash Recounted",
 };
 
 const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline" | "destructive"> = {
@@ -66,6 +67,7 @@ const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline"
   month_closed: "secondary",
   month_reopened: "destructive",
   cash_counted: "outline",
+  cash_recounted: "outline",
 };
 
 /**
@@ -86,6 +88,12 @@ function detailsOf(r: Row): { lines: string[]; reason: string | null } {
     const label = new Date(`${m.month.slice(0, 7)}-01T00:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
     const notes = typeof m.notes === "string" && m.notes ? ` — ${m.notes}` : "";
     return { lines: [`${label} ${r.action === "month_closed" ? "closed" : "reopened"}${notes}`], reason };
+  }
+  if (r.action === "cash_recounted") {
+    return {
+      lines: [`${String(m.shift_date ?? "")} ${String(m.shift ?? "")} shift: ${Number(m.from_jod ?? 0).toFixed(3)} → ${Number(m.to_jod ?? 0).toFixed(3)} JOD`],
+      reason,
+    };
   }
   if (r.action === "cash_counted") {
     return { lines: [`${String(m.shift_date ?? "")} ${String(m.shift ?? "")} shift: ${Number(m.counted_jod ?? 0).toFixed(3)} JOD counted`], reason };
