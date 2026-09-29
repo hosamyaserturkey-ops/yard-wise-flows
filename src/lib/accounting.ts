@@ -14,6 +14,9 @@
  *
  * The dinar has three decimals (1 JOD = 1000 fils). Sums are kept in whole
  * fils so a long column of payments never drifts by a floating-point fraction.
+ *
+ * A voided (refunded) payment was handed back, so it counts nowhere: every
+ * function here skips it.
  */
 
 export interface AccountingPayment {
@@ -25,6 +28,8 @@ export interface AccountingPayment {
   payment_method?: string | null;
   created_at?: string;
   transferred: boolean;
+  voided_at?: string | null;
+  void_reason?: string | null;
 }
 
 export interface AccountingSummary {
@@ -88,6 +93,9 @@ export const sumJod = (values: Iterable<number | string | null | undefined>): nu
 export const formatJod = (value: number | string | null | undefined): string =>
   `${amount(value).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} JOD`;
 
+/** False for a payment that was voided (refunded). */
+export const isActivePayment = (payment: AccountingPayment): boolean => !payment.voided_at;
+
 /** Demurrage owed to the shipping line for a single payment. */
 export const shippingLineOwed = (payment: AccountingPayment): number =>
   amount(payment.demurrage_amount);
@@ -96,11 +104,14 @@ export const shippingLineOwed = (payment: AccountingPayment): number =>
 export const yardEarned = (payment: AccountingPayment): number =>
   amount(payment.service_fee);
 
-export const summarizePayments = (payments: AccountingPayment[]): AccountingSummary => ({
-  totalCollected: sumJod(payments.map((p) => p.total_collected)),
-  yardEarnings: sumJod(payments.map(yardEarned)),
-  pendingTransfers: sumJod(payments.filter((p) => !p.transferred).map(shippingLineOwed)),
-});
+export const summarizePayments = (all: AccountingPayment[]): AccountingSummary => {
+  const payments = all.filter(isActivePayment);
+  return {
+    totalCollected: sumJod(payments.map((p) => p.total_collected)),
+    yardEarnings: sumJod(payments.map(yardEarned)),
+    pendingTransfers: sumJod(payments.filter((p) => !p.transferred).map(shippingLineOwed)),
+  };
+};
 
 const DAY_MS = 86_400_000;
 
@@ -129,7 +140,7 @@ export const buildShippingLineBreakdown = (
   interface Acc { count: number; fils: number; ids: string[]; oldest: string | null; aging: Record<keyof OwedAging, number> }
   const pending = new Map<string, Acc>();
   payments.forEach((p) => {
-    if (p.transferred) return;
+    if (p.transferred || !isActivePayment(p)) return;
     const acc = pending.get(p.shipping_line)
       ?? { count: 0, fils: 0, ids: [], oldest: null, aging: emptyAging() };
     const owedFils = toFils(shippingLineOwed(p));
@@ -182,7 +193,7 @@ export const buildDailyClose = (payments: AccountingPayment[]): DailyClose[] => 
   interface Acc { count: number; demurrage: number; fees: number; total: number; byMethod: Map<string, number> }
   const days = new Map<string, Acc>();
   for (const p of payments) {
-    if (!p.created_at) continue;
+    if (!p.created_at || !isActivePayment(p)) continue;
     const key = localDateKey(p.created_at);
     const acc = days.get(key) ?? { count: 0, demurrage: 0, fees: 0, total: 0, byMethod: new Map() };
     const totalFils = toFils(amount(p.total_collected));
@@ -205,3 +216,86 @@ export const buildDailyClose = (payments: AccountingPayment[]): DailyClose[] => 
       byMethod: Object.fromEntries([...v.byMethod].map(([m, f]) => [m, fromFils(f)])),
     }));
 };
+
+export interface StatementTransfer {
+  shipping_line: string;
+  amount_transferred: number | string;
+  transferred_at: string;
+  voided_at?: string | null;
+}
+
+/** What the yard held for one line over a period. */
+export interface LineStatementRow {
+  shipping_line: string;
+  /** Owed at the start: demurrage collected before, minus transfers before. */
+  opening: number;
+  /** Demurrage collected during the period. */
+  collected: number;
+  /** Transferred to the line during the period. */
+  transferred: number;
+  /** opening + collected − transferred. */
+  closing: number;
+}
+
+/**
+ * The per-line statement for [start, end): the same figures the server
+ * snapshots when a month is closed. Voided payments and transfers are ignored.
+ */
+export const buildLineStatement = (
+  payments: AccountingPayment[],
+  transfers: StatementTransfer[],
+  start: Date,
+  end: Date,
+): LineStatementRow[] => {
+  const s = start.getTime();
+  const e = end.getTime();
+  interface Acc { opening: number; collected: number; transferred: number }
+  const byLine = new Map<string, Acc>();
+  const acc = (line: string) => {
+    let a = byLine.get(line);
+    if (!a) { a = { opening: 0, collected: 0, transferred: 0 }; byLine.set(line, a); }
+    return a;
+  };
+  for (const p of payments) {
+    if (!isActivePayment(p) || !p.created_at) continue;
+    const t = new Date(p.created_at).getTime();
+    if (t >= e) continue;
+    const fils = toFils(shippingLineOwed(p));
+    if (t < s) acc(p.shipping_line).opening += fils;
+    else acc(p.shipping_line).collected += fils;
+  }
+  for (const tr of transfers) {
+    if (tr.voided_at) continue;
+    const t = new Date(tr.transferred_at).getTime();
+    if (t >= e) continue;
+    const fils = toFils(amount(tr.amount_transferred));
+    if (t < s) acc(tr.shipping_line).opening -= fils;
+    else acc(tr.shipping_line).transferred += fils;
+  }
+  return [...byLine.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([line, a]) => ({
+      shipping_line: line,
+      opening: fromFils(a.opening),
+      collected: fromFils(a.collected),
+      transferred: fromFils(a.transferred),
+      closing: fromFils(a.opening + a.collected - a.transferred),
+    }));
+};
+
+/** Local start of the month `YYYY-MM`, and the start of the next one. */
+export const monthRange = (key: string): { start: Date; end: Date } => {
+  const [y, m] = key.split("-").map(Number);
+  return { start: new Date(y, m - 1, 1), end: new Date(y, m, 1) };
+};
+
+/** `YYYY-MM` of a date, local time. */
+export const monthKey = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+/** The last `count` month keys, newest first, starting with `from`'s month. */
+export const recentMonths = (count: number, from: Date = new Date()): string[] =>
+  Array.from({ length: count }, (_, i) => monthKey(new Date(from.getFullYear(), from.getMonth() - i, 1)));
+
+export const monthLabel = (key: string): string =>
+  monthRange(key).start.toLocaleDateString("en-GB", { month: "long", year: "numeric" });

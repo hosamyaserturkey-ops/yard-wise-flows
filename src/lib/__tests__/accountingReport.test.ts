@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAccountingReport, type AccountingExportPayment } from "../accountingReport";
+import { buildAccountingReport, buildStatementReport, type AccountingExportPayment } from "../accountingReport";
 
 const NOW = new Date("2026-09-28T12:00:00Z");
 
@@ -62,5 +62,46 @@ describe("buildAccountingReport", () => {
   it("lists every payment and transfer", () => {
     expect(spec.sheets[2].tables[0].rows).toHaveLength(3);
     expect(spec.sheets[3].tables[0].rows[0]).toMatchObject({ line: "EEL", reference: "TRX-1", count: 1, amount: 100 });
+  });
+
+  it("keeps voided payments and transfers off every total, on their own sheet", () => {
+    const withVoids = buildAccountingReport({
+      payments: [pay({ id: "a" }), pay({ id: "v", total_collected: 57, voided_at: "2026-09-22T10:00:00Z", void_reason: "refund" })],
+      transfers: [
+        { shipping_line: "EEL", amount_transferred: 100, transferred_at: "2026-09-21T10:00:00Z" },
+        { shipping_line: "EEL", amount_transferred: 900, transferred_at: "2026-09-21T11:00:00Z", voided_at: "2026-09-21T12:00:00Z", void_reason: "bounced" },
+      ],
+      periodLabel: "All dates",
+      now: NOW,
+    });
+    const kpis = Object.fromEntries(withVoids.sheets[0].kpis!.map((k) => [k.label, k.value]));
+    expect(kpis["Total collected"]).toBe(107);
+    expect(kpis["Transferred"]).toBe(100);
+    expect(withVoids.sheets.find((s) => s.name === "Payments")!.tables[0].rows).toHaveLength(1);
+    const voidedSheet = withVoids.sheets.find((s) => s.name === "Voided")!;
+    expect(voidedSheet.tables[0].rows[0]).toMatchObject({ total: 57, reason: "refund" });
+    expect(voidedSheet.tables[1].rows[0]).toMatchObject({ amount: 900, reason: "bounced" });
+  });
+
+  it("adds no Voided sheet when nothing was voided", () => {
+    expect(spec.sheets.map((s) => s.name)).toEqual(["Summary", "Daily Close", "Payments", "Transfers"]);
+  });
+});
+
+describe("buildStatementReport", () => {
+  it("names a single line's statement after the line and month", () => {
+    const spec = buildStatementReport({
+      rows: [{ shipping_line: "EEL", opening: 40, collected: 60, transferred: 40, closing: 60 }],
+      monthLabel: "August 2026",
+      shippingLine: "EEL",
+      status: "Closed 01/09/2026",
+      now: NOW,
+    });
+    expect(spec.fileName).toBe("statement-eel-august-2026.xlsx");
+    expect(spec.title).toBe("Demurrage Statement — EEL");
+    expect(spec.meta).toContainEqual(["Status", "Closed 01/09/2026"]);
+    expect(spec.sheets[0].tables[0].rows).toEqual([
+      { line: "EEL", opening: 40, collected: 60, transferred: 40, closing: 60 },
+    ]);
   });
 });

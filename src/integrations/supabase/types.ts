@@ -14,6 +14,103 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounting_month_closes: {
+        Row: {
+          closed_at: string
+          closed_by: string
+          id: string
+          month: string
+          notes: string | null
+          reopen_reason: string | null
+          reopened_at: string | null
+          reopened_by: string | null
+          summary: Json
+          yard_id: string
+        }
+        Insert: {
+          closed_at?: string
+          closed_by: string
+          id?: string
+          month: string
+          notes?: string | null
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
+          summary: Json
+          yard_id: string
+        }
+        Update: {
+          closed_at?: string
+          closed_by?: string
+          id?: string
+          month?: string
+          notes?: string | null
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
+          summary?: Json
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_month_closes_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_counts: {
+        Row: {
+          counted_by: string
+          counted_cash: number
+          created_at: string
+          difference: number | null
+          expected_cash: number
+          id: string
+          notes: string | null
+          payment_count: number
+          shift: Database["public"]["Enums"]["work_shift"]
+          shift_date: string
+          yard_id: string
+        }
+        Insert: {
+          counted_by: string
+          counted_cash: number
+          created_at?: string
+          difference?: number | null
+          expected_cash: number
+          id?: string
+          notes?: string | null
+          payment_count: number
+          shift: Database["public"]["Enums"]["work_shift"]
+          shift_date: string
+          yard_id: string
+        }
+        Update: {
+          counted_by?: string
+          counted_cash?: number
+          created_at?: string
+          difference?: number | null
+          expected_cash?: number
+          id?: string
+          notes?: string | null
+          payment_count?: number
+          shift?: Database["public"]["Enums"]["work_shift"]
+          shift_date?: string
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_counts_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_log: {
         Row: {
           action: Database["public"]["Enums"]["activity_action"]
@@ -307,6 +404,9 @@ export type Database = {
           total_collected: number
           transfer_id: string | null
           transferred: boolean
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
           yard_id: string
           yard_share: number
         }
@@ -325,6 +425,9 @@ export type Database = {
           total_collected: number
           transfer_id?: string | null
           transferred?: boolean
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           yard_id: string
           yard_share?: number
         }
@@ -343,6 +446,9 @@ export type Database = {
           total_collected?: number
           transfer_id?: string | null
           transferred?: boolean
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           yard_id?: string
           yard_share?: number
         }
@@ -531,6 +637,9 @@ export type Database = {
           shipping_line: string
           transferred_at: string
           transferred_by: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
           yard_id: string
         }
         Insert: {
@@ -544,6 +653,9 @@ export type Database = {
           shipping_line: string
           transferred_at?: string
           transferred_by: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           yard_id: string
         }
         Update: {
@@ -557,6 +669,9 @@ export type Database = {
           shipping_line?: string
           transferred_at?: string
           transferred_by?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           yard_id?: string
         }
         Relationships: [
@@ -721,6 +836,41 @@ export type Database = {
         }
         Returns: Json
       }
+      edit_shipping_line_transfer: {
+        Args: {
+          _notes: string | null
+          _reason: string
+          _reference: string | null
+          _transfer_id: string
+        }
+        Returns: undefined
+      }
+      void_demurrage_payment: {
+        Args: { _payment_id: string; _reason: string }
+        Returns: undefined
+      }
+      void_shipping_line_transfer: {
+        Args: { _reason: string; _transfer_id: string }
+        Returns: Json
+      }
+      close_accounting_month: {
+        Args: { _month: string; _notes?: string | null; _yard_id: string }
+        Returns: Json
+      }
+      is_month_closed: { Args: { _ts: string; _yard: string }; Returns: boolean }
+      record_cash_count: {
+        Args: {
+          _counted: number
+          _notes?: string | null
+          _shift: Database["public"]["Enums"]["work_shift"]
+          _shift_date: string
+        }
+        Returns: string
+      }
+      reopen_accounting_month: {
+        Args: { _close_id: string; _reason: string }
+        Returns: undefined
+      }
       rename_container: {
         Args: {
           _container_id: string
@@ -742,6 +892,12 @@ export type Database = {
         | "container_edited"
         | "booking_edited"
         | "demurrage_transferred"
+        | "payment_voided"
+        | "transfer_voided"
+        | "transfer_edited"
+        | "month_closed"
+        | "month_reopened"
+        | "cash_counted"
       app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
@@ -883,6 +1039,12 @@ export const Constants = {
         "container_edited",
         "booking_edited",
         "demurrage_transferred",
+        "payment_voided",
+        "transfer_voided",
+        "transfer_edited",
+        "month_closed",
+        "month_reopened",
+        "cash_counted",
       ],
       app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
       container_status: ["in-yard", "out", "reserved"],

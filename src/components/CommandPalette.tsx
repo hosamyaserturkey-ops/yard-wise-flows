@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart3, Container, Ship, FileText, Calendar, Anchor,
-  Calculator, Users, Building2, ClipboardCheck, Search,
+  Calculator, Users, Building2, ClipboardCheck, Search, Wallet,
 } from "lucide-react";
 import {
   CommandDialog, CommandEmpty, CommandGroup, CommandInput,
@@ -32,6 +32,7 @@ const NAV_COMMANDS = [
   { label: "Yards",       href: "/admin/yards",    icon: Building2    },
   { label: "Inspect",     href: "/inspector",      icon: ClipboardCheck },
   { label: "Terminal Check", href: "/terminal-check", icon: Search    },
+  { label: "Cash Count",  href: "/cash-count",     icon: Wallet       },
 ];
 
 export function CommandPalette() {

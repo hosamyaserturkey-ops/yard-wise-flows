@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3, Container, Ship, FileText, Calendar, Anchor,
   Calculator, Users, Building2, ClipboardCheck, LogOut, ShieldCheck, Crown,
-  MapPin, Camera, Activity, KeyRound, Search,
+  MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -25,6 +25,7 @@ const OPS_NAV = [
   { href: "/reports",    label: "Reports",    icon: FileText     },
   { href: "/bookings",   label: "Bookings",   icon: Calendar     },
   { href: "/terminal-check", label: "Terminal Check", icon: Search  },
+  { href: "/cash-count", label: "Cash Count", icon: Wallet       },
 ];
 
 const ADMIN_NAV = [
@@ -40,6 +41,7 @@ const SUPER_NAV = [
   { href: "/reports",    label: "Reports",    icon: FileText     },
   { href: "/photos",     label: "Photos",     icon: Camera       },
   { href: "/port-data",  label: "Port Data",  icon: Anchor       },
+  { href: "/accounting", label: "Accounting", icon: Calculator   },
   { href: "/activity",   label: "Activity",   icon: Activity     },
   { href: "/admin/yards",label: "Yards",      icon: Building2    },
   { href: "/inspector",  label: "Inspect",    icon: ClipboardCheck },
@@ -53,6 +55,7 @@ const INSPECTOR_ONLY = [
 
 const LINE_REP_NAV = [
   { href: "/reports",    label: "My Containers", icon: FileText },
+  { href: "/statement",  label: "Statement",     icon: Landmark },
   { href: "/photos",     label: "Photos",        icon: Camera   },
   { href: "/port-data",  label: "Port Data",     icon: Anchor   },
   { href: "/bookings",   label: "Bookings",      icon: Calendar },

@@ -2,10 +2,10 @@
 // src/lib/reports/workbook.ts like every other report.
 
 import {
-  buildDailyClose, buildShippingLineBreakdown, shippingLineOwed, summarizePayments, sumJod, yardEarned,
-  type AccountingPayment,
+  buildDailyClose, buildShippingLineBreakdown, isActivePayment, shippingLineOwed, summarizePayments, sumJod, yardEarned,
+  type AccountingPayment, type LineStatementRow,
 } from "./accounting";
-import type { ReportSpec } from "./reports/reportModel";
+import type { ReportSheet, ReportSpec } from "./reports/reportModel";
 
 export interface AccountingExportPayment extends AccountingPayment {
   id: string;
@@ -19,6 +19,8 @@ export interface AccountingExportTransfer {
   transferred_at: string;
   reference?: string | null;
   payment_count?: number | null;
+  voided_at?: string | null;
+  void_reason?: string | null;
 }
 
 export interface AccountingExportInput {
@@ -36,7 +38,10 @@ const methodLabel = (m: string) => METHOD_LABEL[m] ?? m;
 
 export function buildAccountingReport(input: AccountingExportInput): ReportSpec {
   const now = input.now ?? new Date();
-  const { payments, transfers } = input;
+  const payments = input.payments.filter(isActivePayment);
+  const transfers = input.transfers.filter((t) => !t.voided_at);
+  const voidedPayments = input.payments.filter((p) => !isActivePayment(p));
+  const voidedTransfers = input.transfers.filter((t) => t.voided_at);
   const summary = summarizePayments(payments);
   const lines = buildShippingLineBreakdown(payments, [], now);
   const days = buildDailyClose(payments);
@@ -157,6 +162,99 @@ export function buildAccountingReport(input: AccountingExportInput): ReportSpec 
           })),
         }],
       },
+      ...(voidedPayments.length || voidedTransfers.length ? [voidedSheet(voidedPayments, voidedTransfers)] : []),
     ],
+  };
+}
+
+/** Voided items, kept apart so no totals row ever counts them. */
+function voidedSheet(payments: AccountingExportPayment[], transfers: AccountingExportTransfer[]): ReportSheet {
+  return {
+    name: "Voided",
+    tables: [
+      {
+        title: "Voided payments (refunded — not counted anywhere)",
+        columns: [
+          { key: "date", header: "Collected", width: 18, format: "datetime" },
+          { key: "container", header: "Container", width: 14 },
+          { key: "line", header: "Line", width: 10 },
+          { key: "total", header: "Total", width: 13, format: "money" },
+          { key: "voided", header: "Voided", width: 18, format: "datetime" },
+          { key: "reason", header: "Reason", width: 36 },
+        ],
+        rows: payments.map((p) => ({
+          date: new Date(p.created_at),
+          container: p.container_number,
+          line: p.shipping_line,
+          total: Number(p.total_collected ?? 0) || 0,
+          voided: p.voided_at ? new Date(p.voided_at) : null,
+          reason: p.void_reason ?? "",
+        })),
+      },
+      {
+        title: "Voided transfers (their payments went back to pending)",
+        columns: [
+          { key: "date", header: "Transferred", width: 18, format: "datetime" },
+          { key: "line", header: "Line", width: 10 },
+          { key: "reference", header: "Reference", width: 20 },
+          { key: "amount", header: "Amount", width: 14, format: "money" },
+          { key: "voided", header: "Voided", width: 18, format: "datetime" },
+          { key: "reason", header: "Reason", width: 36 },
+        ],
+        rows: transfers.map((t) => ({
+          date: new Date(t.transferred_at),
+          line: t.shipping_line,
+          reference: t.reference ?? "",
+          amount: Number(t.amount_transferred) || 0,
+          voided: t.voided_at ? new Date(t.voided_at) : null,
+          reason: t.void_reason ?? "",
+        })),
+      },
+    ],
+  };
+}
+
+export interface StatementReportInput {
+  rows: LineStatementRow[];
+  monthLabel: string;
+  status: string;
+  yardName?: string;
+  generatedBy?: string;
+  /** Set for a single line's statement (a line rep's). */
+  shippingLine?: string;
+  now?: Date;
+}
+
+/** A month's per-line statement: opening, collected, transferred, closing. */
+export function buildStatementReport(input: StatementReportInput): ReportSpec {
+  const now = input.now ?? new Date();
+  const slug = input.monthLabel.toLowerCase().replace(/\s+/g, "-");
+  return {
+    title: input.shippingLine ? `Demurrage Statement — ${input.shippingLine}` : "Shipping Line Statement",
+    fileName: `statement-${input.shippingLine ? `${input.shippingLine.toLowerCase()}-` : ""}${slug}.xlsx`,
+    meta: [
+      ...(input.yardName ? [["Yard", input.yardName] as [string, string]] : []),
+      ["Month", input.monthLabel],
+      ["Status", input.status],
+      ["Generated", `${now.toLocaleString("en-GB")}${input.generatedBy ? ` by ${input.generatedBy}` : ""}`],
+    ],
+    sheets: [{
+      name: "Statement",
+      tables: [{
+        totals: true,
+        columns: [
+          { key: "line", header: "Shipping line", width: 18, total: "label" },
+          { key: "opening", header: "Opening balance", width: 16, format: "money", total: "sum" },
+          { key: "collected", header: "Collected", width: 14, format: "money", total: "sum" },
+          { key: "transferred", header: "Transferred", width: 14, format: "money", total: "sum" },
+          { key: "closing", header: "Closing balance", width: 16, format: "money", total: "sum" },
+        ],
+        rows: input.rows.map((r) => ({
+          line: r.shipping_line, opening: r.opening, collected: r.collected,
+          transferred: r.transferred, closing: r.closing,
+        })),
+        note: "Closing = opening + demurrage collected − transferred. Voided payments and transfers are excluded.",
+      }],
+    }],
   };
 }

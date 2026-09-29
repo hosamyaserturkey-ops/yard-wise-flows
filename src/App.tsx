@@ -30,6 +30,8 @@ const YardMap = lazy(() => import("./pages/YardMap"));
 const PhotoArchive = lazy(() => import("./pages/PhotoArchive"));
 const TerminalCheck = lazy(() => import("./pages/TerminalCheck"));
 const Account = lazy(() => import("./pages/Account"));
+const CashCount = lazy(() => import("./pages/CashCount"));
+const LineStatement = lazy(() => import("./pages/LineStatement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -85,6 +87,17 @@ const App = () => (
                 <Route path="accounting" element={
                   <ProtectedRoute adminOnly>
                     <Accounting />
+                  </ProtectedRoute>
+                } />
+                <Route path="cash-count" element={
+                  <ProtectedRoute>
+                    <CashCount />
+                  </ProtectedRoute>
+                } />
+                {/* A shipping line's own statement — the database scopes it to their line. */}
+                <Route path="statement" element={
+                  <ProtectedRoute lineRepAllowed>
+                    <LineStatement />
                   </ProtectedRoute>
                 } />
                 {/* Everyone manages their own password here, line reps included. */}

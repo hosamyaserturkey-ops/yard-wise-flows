@@ -111,6 +111,8 @@ export function useContainerLookup(
         .from("demurrage_payments")
         .select("created_at")
         .eq("container_number", containerNum)
+        // A voided payment was refunded — it settles nothing.
+        .is("voided_at", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

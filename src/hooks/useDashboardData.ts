@@ -64,7 +64,8 @@ export function useDashboardData(currentYardId: () => string | null) {
         supabase
           .from("demurrage_payments")
           .select("container_number, total_collected")
-          .in("container_number", numbers),
+          .in("container_number", numbers)
+          .is("voided_at", null),
       ]);
 
       const portByNum = new Map(

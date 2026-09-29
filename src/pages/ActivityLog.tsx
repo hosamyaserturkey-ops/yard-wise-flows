@@ -41,6 +41,12 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   container_edited: "Container Edited",
   booking_edited: "Booking Edited",
   demurrage_transferred: "Transferred to Line",
+  payment_voided: "Payment Voided",
+  transfer_voided: "Transfer Voided",
+  transfer_edited: "Transfer Edited",
+  month_closed: "Month Closed",
+  month_reopened: "Month Reopened",
+  cash_counted: "Cash Counted",
 };
 
 const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline" | "destructive"> = {
@@ -54,6 +60,12 @@ const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline"
   container_edited: "outline",
   booking_edited: "outline",
   demurrage_transferred: "secondary",
+  payment_voided: "destructive",
+  transfer_voided: "destructive",
+  transfer_edited: "outline",
+  month_closed: "secondary",
+  month_reopened: "destructive",
+  cash_counted: "outline",
 };
 
 /**
@@ -69,6 +81,27 @@ function detailsOf(r: Row): { lines: string[]; reason: string | null } {
       lines.unshift(`Booking ${m.booking_number}`);
     }
     return { lines, reason };
+  }
+  if ((r.action === "month_closed" || r.action === "month_reopened") && typeof m.month === "string") {
+    const label = new Date(`${m.month.slice(0, 7)}-01T00:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    const notes = typeof m.notes === "string" && m.notes ? ` — ${m.notes}` : "";
+    return { lines: [`${label} ${r.action === "month_closed" ? "closed" : "reopened"}${notes}`], reason };
+  }
+  if (r.action === "cash_counted") {
+    return { lines: [`${String(m.shift_date ?? "")} ${String(m.shift ?? "")} shift: ${Number(m.counted_jod ?? 0).toFixed(3)} JOD counted`], reason };
+  }
+  if (r.action === "payment_voided") {
+    return {
+      lines: [`${Number(m.total_jod ?? 0).toFixed(3)} JOD ${String(m.payment_method ?? "")} payment voided`.replace("  ", " ")],
+      reason,
+    };
+  }
+  if (r.action === "transfer_voided" && typeof m.shipping_line === "string") {
+    const n = Array.isArray(m.payment_ids) ? m.payment_ids.length : 0;
+    return {
+      lines: [`${Number(m.amount_jod ?? 0).toFixed(3)} JOD transfer to ${m.shipping_line} voided — ${n} payment(s) pending again`],
+      reason,
+    };
   }
   if (r.action === "demurrage_transferred" && typeof m.shipping_line === "string") {
     const ref = typeof m.reference === "string" && m.reference ? ` · ref ${m.reference}` : "";
