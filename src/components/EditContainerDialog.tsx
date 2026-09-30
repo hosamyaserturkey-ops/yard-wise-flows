@@ -45,6 +45,8 @@ function formFor(c: Container): Form {
     gate_out_time: toLocalInput(c.gateOutTime),
     seal_number: c.sealNumber ?? "",
     fees: c.fees != null ? String(c.fees) : "",
+    port_arrival_date: c.portArrivalDate ?? "",
+    free_days: c.freeDays != null ? String(c.freeDays) : "",
   };
 }
 
@@ -198,6 +200,23 @@ export const EditContainerDialog = ({
                 </div>
               </div>
             </div>
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Port &amp; demurrage</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-port_arrival_date">Port arrival date</Label>
+                {text("port_arrival_date", { type: "date" })}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-free_days">Free days</Label>
+                {text("free_days", { type: "number", min: 0, max: 365, step: 1 })}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              What was recorded for this trip at gate-in. Correcting it doesn&rsquo;t change a demurrage payment already collected.
+            </p>
           </section>
 
           {gatedOut && (

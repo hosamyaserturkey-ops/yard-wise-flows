@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateDemurrage,
+  effectiveFreeDays,
   firstGateInOfTrip,
+  lastFreeDay,
+  tiersForFreeDays,
   hasDemurrageRules,
   isDemurrageSettledForTrip,
   toDemurrageContainerType,
@@ -275,5 +278,99 @@ describe("firstGateInOfTrip", () => {
 
   it("falls back to the earliest gate-in ever without an arrival date", () => {
     expect(firstGateInOfTrip([trip2GateIn, trip1GateIn], null)).toEqual(trip1GateIn);
+  });
+});
+
+// WOM's port list (EVL_DEMURAGE_SUNNY_.xlsx): 20ft, 21 free days, $50/day,
+// Last Free Day = Vessel Arrival Date + Free Days - 1.
+describe("calculateDemurrage — WOM port list", () => {
+  it("matches the sheet for the 12 Sep vessel", () => {
+    expect(lastFreeDay("2026-09-12", 21)).toBe("2026-10-02");
+    expect(calculateDemurrage("WOM", "20GP", "2026-09-12", d("2026-10-02"), 21).totalUSD).toBe(0);
+    const first = calculateDemurrage("WOM", "20GP", "2026-09-12", d("2026-10-03"), 21);
+    expect(first.totalUSD).toBe(50);
+    expect(first.totalJOD).toBe(35.6);
+  });
+
+  it("matches the sheet for the 20 Sep vessel", () => {
+    expect(lastFreeDay("2026-09-20", 21)).toBe("2026-10-10");
+    // Sheet: (today - last free day) x 50. 15 Oct → 5 days → $250.
+    expect(calculateDemurrage("WOM", "20GP", "2026-09-20", d("2026-10-15"), 21).totalUSD).toBe(250);
+  });
+});
+
+describe("free days from the port list", () => {
+  it("falls back to the line's standard when the list gives none", () => {
+    expect(effectiveFreeDays("WOM", undefined)).toBe(21);
+    expect(effectiveFreeDays("WOM", null)).toBe(21);
+    expect(effectiveFreeDays("WOM", Number.NaN)).toBe(21);
+    expect(effectiveFreeDays("WOM", -3)).toBe(21);
+    expect(effectiveFreeDays("WOM", 30)).toBe(30);
+    expect(effectiveFreeDays("WOM", 0)).toBe(0);
+  });
+
+  it("returns the standard tiers unchanged when the list agrees", () => {
+    expect(tiersForFreeDays("SLD", 10)).toBe(DEMURRAGE_RULES.SLD.tiers);
+    expect(tiersForFreeDays("SLD", undefined)).toBe(DEMURRAGE_RULES.SLD.tiers);
+  });
+
+  it("extends WOM's free period and charges from the day after", () => {
+    const free = calculateDemurrage("WOM", "20GP", "2026-01-01", d("2026-01-30"), 30);
+    expect(free.freeDays).toBe(30);
+    expect(free.totalUSD).toBe(0);
+    // Day 32 → 2 chargeable days × $50.
+    const charged = calculateDemurrage("WOM", "20GP", "2026-01-01", d("2026-02-01"), 30);
+    expect(charged.totalUSD).toBe(100);
+    expect(charged.breakdown[0].period).toBe("Day 31+");
+  });
+
+  it("shortens the free period when the list grants fewer days", () => {
+    // 14 free days → day 15 is the first paid day.
+    const r = calculateDemurrage("WOM", "40HC", "2026-01-01", d("2026-01-16"), 14);
+    expect(r.freeDays).toBe(14);
+    expect(r.totalUSD).toBe(200); // days 15-16 × $100
+  });
+
+  it("charges from day 1 with zero free days", () => {
+    const r = calculateDemurrage("WOM", "20GP", "2026-01-01", d("2026-01-03"), 0);
+    expect(r.totalUSD).toBe(150);
+    expect(tiersForFreeDays("WOM", 0)[0].label).toBe("Day 1+");
+  });
+
+  it("moves each paid tier back by the extra free days, keeping its length", () => {
+    // SLD standard: free 1-10, 11-15 $15, 16-20 $30, 21+ $45.
+    // 13 free days: free 1-13, 14-18 $15, 19-23 $30, 24+ $45.
+    const tiers = tiersForFreeDays("SLD", 13);
+    expect(tiers.map((t) => [t.fromDay, t.toDay, t.label])).toEqual([
+      [1, 13, "Days 1-13 (Free)"],
+      [14, 18, "Days 14-18"],
+      [19, 23, "Days 19-23"],
+      [24, null, "Day 24+"],
+    ]);
+    // Day 20: 5 × $15 + 2 × $30 = $135 (20ft).
+    expect(calculateDemurrage("SLD", "20GP", "2026-01-01", d("2026-01-20"), 13).totalUSD).toBe(135);
+  });
+
+  it("ignores free days for lines that aren't charged", () => {
+    const r = calculateDemurrage("7Seas", "20GP", "2026-01-01", d("2026-03-01"), 5);
+    expect(r.totalUSD).toBe(0);
+    expect(r.freeDays).toBe(0);
+  });
+});
+
+describe("lastFreeDay", () => {
+  it("counts the arrival day as day 1", () => {
+    expect(lastFreeDay("2026-01-01", 1)).toBe("2026-01-01");
+    expect(lastFreeDay("2026-01-01", 14)).toBe("2026-01-14");
+  });
+
+  it("crosses month and year ends", () => {
+    expect(lastFreeDay("2026-12-20", 21)).toBe("2027-01-09");
+    expect(lastFreeDay("2028-02-20", 10)).toBe("2028-02-29");
+  });
+
+  it("returns null for a missing or malformed date", () => {
+    expect(lastFreeDay(null, 21)).toBeNull();
+    expect(lastFreeDay("20/09/2026", 21)).toBeNull();
   });
 });

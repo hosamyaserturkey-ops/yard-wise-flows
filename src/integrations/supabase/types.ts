@@ -916,6 +916,8 @@ export type Database = {
         | "month_reopened"
         | "cash_counted"
         | "cash_recounted"
+        | "port_data_imported"
+        | "port_list_overridden"
       app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
@@ -1064,6 +1066,8 @@ export const Constants = {
         "month_reopened",
         "cash_counted",
         "cash_recounted",
+        "port_data_imported",
+        "port_list_overridden",
       ],
       app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
       container_status: ["in-yard", "out", "reserved"],

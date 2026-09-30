@@ -31,6 +31,9 @@ export interface Container {
   fees?: number;
   yardBlock?: string;
   yardRow?: string;
+  /** This trip's port arrival date and free days, as recorded at gate-in (YYYY-MM-DD). */
+  portArrivalDate?: string;
+  freeDays?: number;
 }
 
 export interface GateInData {

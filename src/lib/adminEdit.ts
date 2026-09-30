@@ -23,7 +23,9 @@ export type ContainerEditField =
   | "gate_out_truck_number"
   | "gate_out_time"
   | "seal_number"
-  | "fees";
+  | "fees"
+  | "port_arrival_date"
+  | "free_days";
 
 export type BookingEditField =
   | "customer_name"
@@ -46,6 +48,8 @@ export const FIELD_LABELS: Record<ContainerEditField | BookingEditField, string>
   gate_out_time: "Gate-out time",
   seal_number: "Seal",
   fees: "Gate-out fees (JOD)",
+  port_arrival_date: "Port arrival date",
+  free_days: "Free days",
   customer_name: "Customer",
   booking_number: "Booking number",
   total_containers: "Containers booked",
@@ -109,6 +113,9 @@ export function toRpcChanges<F extends string>(changes: Partial<Record<F, EditVa
 
 const showValue = (field: string, v: EditValue): string => {
   if (v === null || v === "") return "—";
+  // Calendar dates (the port arrival date) read as DD/MM/YYYY, with no time-zone shift.
+  const day = field === "port_arrival_date" && typeof v === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(v) : null;
+  if (day) return `${day[3]}/${day[2]}/${day[1]}`;
   if (TIME_FIELDS.has(field) && typeof v === "string") {
     const d = new Date(v);
     if (!Number.isNaN(d.getTime())) {

@@ -57,6 +57,13 @@ describe("describeChange", () => {
     });
     expect(text).toBe("Gate-in time: 27/09/2026 09:05 → 27/09/2026 10:00");
   });
+
+  it("reads port arrival and free days corrections", () => {
+    expect(describeChange({ field: "port_arrival_date", from: "2026-09-20", to: "2026-09-12" })).toBe(
+      "Port arrival date: 20/09/2026 → 12/09/2026",
+    );
+    expect(describeChange({ field: "free_days", from: 7, to: 21 })).toBe("Free days: 7 → 21");
+  });
 });
 
 describe("adminEditContainer", () => {
