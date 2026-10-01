@@ -33,6 +33,45 @@ export const StatCard = ({
   const numeric = typeof value === "number";
   const counted = useCountUp(numeric ? value : 0);
   const palette = COLOR[(color as StatColor)] ?? COLOR.maritime;
+  // "8,416.000 JOD" is too long to sit beside the icon in a narrow card and
+  // broke across two lines; give money the card's full width instead.
+  const money = typeof value === "string" ? /^(.+?)\s+(JOD|USD)$/.exec(value) : null;
+
+  if (money) {
+    return (
+      <Card className="group relative overflow-hidden transition-all duration-200 motion-safe:hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]">
+        <span
+          aria-hidden
+          className={cn(
+            "absolute inset-y-0 left-0 w-1 opacity-80 transition-opacity group-hover:opacity-100",
+            palette.accent,
+          )}
+        />
+        <div className="space-y-2 p-5 pl-6">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-muted-foreground">{label}</p>
+            <div
+              className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ring-border/50",
+                palette.chip,
+              )}
+            >
+              {icon}
+            </div>
+          </div>
+          {loading ? (
+            <Skeleton className="h-8 w-28" />
+          ) : (
+            <p className="flex flex-wrap items-baseline gap-x-1 leading-none">
+              <span className="whitespace-nowrap text-2xl font-bold tracking-tight tabular-nums text-foreground">{money[1]}</span>
+              <span className="text-sm font-semibold text-muted-foreground">{money[2]}</span>
+            </p>
+          )}
+          {hint && !loading && <p className="truncate text-xs text-muted-foreground">{hint}</p>}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="group relative overflow-hidden transition-all duration-200 motion-safe:hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]">
