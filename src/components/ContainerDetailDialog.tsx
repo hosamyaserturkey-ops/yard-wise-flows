@@ -36,6 +36,8 @@ import { fetchVisitOperators, type VisitOperators } from "@/lib/gateOperators";
 import { resolveSignedUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { EditContainerDialog } from "@/components/EditContainerDialog";
+import { formatDate, formatTime } from "@/lib/format";
+import { formatJod } from "@/lib/accounting";
 
 interface PortData {
   port_arrival_date: string | null;
@@ -224,8 +226,8 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
 
   const statusInfo = STATUS_LABEL[container.status] ?? { label: container.status.toUpperCase(), variant: "secondary" as const };
 
-  const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  const fmtTime = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const fmt = (d: Date) => formatDate(d);
+  const fmtTime = (d: Date) => formatTime(d);
 
   // Reprint the gate-in reception ticket from stored data. Payment details are
   // included when a demurrage payment is on file for this container.
@@ -457,7 +459,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
                           <tr>
                             <td colSpan={3} className="px-3 py-2 font-semibold">Total</td>
                             <td className="text-right px-3 py-2 font-bold text-maritime">
-                              ${demurrage.totalUSD.toFixed(2)} / {demurrage.totalJOD.toFixed(2)} JOD
+                              ${demurrage.totalUSD.toFixed(2)} / {formatJod(demurrage.totalJOD)}
                             </td>
                           </tr>
                         </tfoot>
@@ -474,7 +476,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
                   {payment && (
                     <div className="flex items-center gap-2 text-sm text-success bg-success/10 rounded-lg p-3 border border-success/20">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      Demurrage paid: <strong>{Number(payment.total_collected).toFixed(2)} JOD</strong>
+                      Demurrage paid: <strong>{formatJod(payment.total_collected)}</strong>
                       <span className="text-muted-foreground text-xs ml-auto">
                         {fmt(new Date(payment.created_at))}
                       </span>
@@ -598,7 +600,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
                               </td>
                               <td className="text-right px-3 py-2">{p.chargeable_days}</td>
                               <td className="text-right px-3 py-2 capitalize">{p.payment_method ?? "—"}</td>
-                              <td className={`text-right px-3 py-2 font-medium ${p.voided_at ? "line-through" : ""}`}>{Number(p.total_collected).toFixed(2)} JOD</td>
+                              <td className={`text-right px-3 py-2 font-medium ${p.voided_at ? "line-through" : ""}`}>{formatJod(p.total_collected)}</td>
                             </tr>
                           ))}
                         </tbody>

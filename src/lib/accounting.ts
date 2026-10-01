@@ -1,3 +1,5 @@
+import { formatMonthYear } from "@/lib/format";
+
 /**
  * Accounting math for demurrage collections.
  *
@@ -298,4 +300,4 @@ export const recentMonths = (count: number, from: Date = new Date()): string[] =
   Array.from({ length: count }, (_, i) => monthKey(new Date(from.getFullYear(), from.getMonth() - i, 1)));
 
 export const monthLabel = (key: string): string =>
-  monthRange(key).start.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  formatMonthYear(monthRange(key).start);

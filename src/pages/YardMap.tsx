@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { normalizeBlock, normalizeRow } from "@/lib/yardSlots";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/PageHeader";
@@ -73,8 +74,9 @@ const YardMap = () => {
         unassigned.push(r);
         return;
       }
-      const b = r.yard_block;
-      const row = r.yard_row || "—";
+      // "1" and "01" (or "osc" and "OSC") are the same slot.
+      const b = normalizeBlock(r.yard_block);
+      const row = r.yard_row ? normalizeRow(r.yard_row) : "—";
       if (!byBlock.has(b)) byBlock.set(b, new Map());
       const rowMap = byBlock.get(b)!;
       if (!rowMap.has(row)) rowMap.set(row, []);
@@ -88,6 +90,12 @@ const YardMap = () => {
     if (!q) return new Set<string>();
     return new Set(rows.filter((r) => r.container_number.toLowerCase().includes(q)).map((r) => r.id));
   }, [rows, search]);
+
+  // Bring the first match into view, since a block can be several screens down.
+  useEffect(() => {
+    if (highlightedIds.size === 0) return;
+    document.querySelector("[data-highlighted]")?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [highlightedIds]);
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-in fade-in-0 duration-300">
@@ -110,52 +118,52 @@ const YardMap = () => {
       ) : (
         <div className="space-y-6">
           {Array.from(grid.byBlock.entries())
-            .sort(([a], [b]) => a.localeCompare(b))
+            .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
             .map(([block, rowMap]) => (
               <Card key={block}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">
                     Block {block}
                     <span className="text-xs text-muted-foreground font-normal ml-2">
-                      {Array.from(rowMap.values()).reduce((s, l) => s + l.length, 0)} containers
+                      {(() => {
+                        const n = Array.from(rowMap.values()).reduce((s, l) => s + l.length, 0);
+                        return `${n} ${n === 1 ? "container" : "containers"}`;
+                      })()}
                     </span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {Array.from(rowMap.entries())
-                      .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([row, list], idx) => (
-                        <div
-                          key={row}
-                          className="border rounded-lg p-3 bg-muted/30 space-y-2 transition-all duration-200 ease-out motion-safe:animate-pop-in hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)] hover:bg-muted/50"
-                          style={{ animationDelay: `${Math.min(idx, 12) * 40}ms` }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold uppercase text-muted-foreground">Row {row}</span>
-                            <Badge variant="secondary">{list.length}</Badge>
-                          </div>
-                          <ul className="space-y-1">
-                            {list.map((r) => {
-                              const highlighted = highlightedIds.has(r.id);
-                              return (
-                                <li
-                                  key={r.id}
-                                  className={`text-xs rounded px-2 py-1 border flex items-center justify-between ${
-                                    highlighted ? "bg-warning/20 border-warning" : "bg-background"
-                                  }`}
-                                >
-                                  <span className="font-mono truncate">{r.container_number}</span>
-                                  <span className="text-muted-foreground ml-2 whitespace-nowrap">
-                                    {r.shipping_line} · {r.container_type} · {daysSince(r.gate_in_time)}d
-                                  </span>
-                                </li>
-                              );
-                            })}
-                          </ul>
+                <CardContent className="space-y-3">
+                  {/* One band per row, with its containers flowing across the
+                      full width; most blocks hold a single long row. */}
+                  {Array.from(rowMap.entries())
+                    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+                    .map(([row, list]) => (
+                      <div key={row} className="rounded-lg border bg-muted/30 p-3">
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="text-xs font-semibold uppercase text-muted-foreground">Row {row}</span>
+                          <Badge variant="secondary">{list.length}</Badge>
                         </div>
-                      ))}
-                  </div>
+                        <ul className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-1">
+                          {list.map((r) => {
+                            const highlighted = highlightedIds.has(r.id);
+                            return (
+                              <li
+                                key={r.id}
+                                data-highlighted={highlighted || undefined}
+                                className={`text-xs rounded px-2 py-1 border flex items-center justify-between ${
+                                  highlighted ? "bg-warning/20 border-warning" : "bg-background"
+                                }`}
+                              >
+                                <span className="font-mono truncate">{r.container_number}</span>
+                                <span className="text-muted-foreground ml-2 whitespace-nowrap">
+                                  {r.shipping_line} · {r.container_type} · {daysSince(r.gate_in_time)}d
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
                 </CardContent>
               </Card>
             ))}

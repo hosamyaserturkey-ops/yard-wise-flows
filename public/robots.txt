@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://everest-yard.lovable.app/sitemap.xml
+Sitemap: https://everest-container-terminal.hosamyaser92.workers.dev/sitemap.xml

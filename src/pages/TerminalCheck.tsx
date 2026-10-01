@@ -21,6 +21,7 @@ import {
   setPreferredFacility,
   type TerminalLookup,
 } from "@/lib/terminalCheck";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * Terminal Check — a standalone lookup against APM Terminals' Empty Container
@@ -104,7 +105,7 @@ const ResultCard = ({ check, checkedAt }: { check: TerminalCheckResult; checkedA
           )}
         </dl>
       )}
-      <p className="text-[11px] opacity-70">Checked {new Date(checkedAt).toLocaleString()}</p>
+      <p className="text-[11px] opacity-70">Checked {formatDateTime(checkedAt)}</p>
     </div>
   );
 };

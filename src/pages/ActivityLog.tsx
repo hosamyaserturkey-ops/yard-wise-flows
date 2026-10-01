@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DateInput } from "@/components/DateInput";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useYards } from "@/hooks/useYards";
@@ -12,6 +13,7 @@ import { Activity, Sun, Moon } from "lucide-react";
 import type { WorkShift } from "@/lib/shifts";
 import type { ActivityAction } from "@/lib/activityLog";
 import { describeChange, type LoggedChange } from "@/lib/adminEdit";
+import { formatDateTime, formatMonthYear } from "@/lib/format";
 
 interface Row {
   id: string;
@@ -89,7 +91,7 @@ function detailsOf(r: Row): { lines: string[]; reason: string | null } {
     return { lines, reason };
   }
   if ((r.action === "month_closed" || r.action === "month_reopened") && typeof m.month === "string") {
-    const label = new Date(`${m.month.slice(0, 7)}-01T00:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    const label = formatMonthYear(`${m.month.slice(0, 7)}-01`);
     const notes = typeof m.notes === "string" && m.notes ? ` — ${m.notes}` : "";
     return { lines: [`${label} ${r.action === "month_closed" ? "closed" : "reopened"}${notes}`], reason };
   }
@@ -239,11 +241,11 @@ const ActivityLog = () => {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">From</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <DateInput value={from} onChange={setFrom} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">To</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              <DateInput value={to} onChange={setTo} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Operator</Label>
@@ -349,7 +351,7 @@ const ActivityLog = () => {
                       return (
                         <tr key={r.id} className="border-t">
                           <td className="px-2 py-1.5 whitespace-nowrap">
-                            {d.toLocaleDateString("en-GB")} {d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {formatDateTime(d)}
                           </td>
                           {isSuperAdmin() && (
                             <td className="px-2 py-1.5 text-xs">{yardName(r.yard_id)}</td>

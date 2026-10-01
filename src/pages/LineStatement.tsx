@@ -17,6 +17,7 @@ import {
   buildLineStatement, buildShippingLineBreakdown, formatJod, monthLabel, monthRange, recentMonths, sumJod,
 } from "@/lib/accounting";
 import { buildStatementReport } from "@/lib/accountingReport";
+import { formatDate } from "@/lib/format";
 
 interface PaymentRow {
   id: string;
@@ -125,7 +126,7 @@ const LineStatement = () => {
         <StatCard label="Transferred this month" value={formatJod(transferredThisMonth)} color="success"
           icon={<CheckCircle2 className="h-5 w-5 text-success" />} loading={loading} />
         <StatCard label="Oldest pending"
-          value={owed?.oldestPendingAt ? new Date(owed.oldestPendingAt).toLocaleDateString("en-GB") : "—"}
+          value={owed?.oldestPendingAt ? formatDate(owed.oldestPendingAt) : "—"}
           color="container" icon={<CalendarClock className="h-5 w-5 text-container" />} loading={loading} />
       </div>
 
@@ -185,7 +186,7 @@ const LineStatement = () => {
               <TableBody>
                 {transfers.map((t) => (
                   <TableRow key={t.id}>
-                    <TableCell className="whitespace-nowrap text-sm">{new Date(t.transferred_at).toLocaleDateString("en-GB", { dateStyle: "medium" })}</TableCell>
+                    <TableCell className="whitespace-nowrap text-sm">{formatDate(t.transferred_at)}</TableCell>
                     <TableCell className="text-sm">{t.reference || <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="text-right">{t.payment_count ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">{formatJod(t.amount_transferred)}</TableCell>
@@ -229,7 +230,7 @@ const LineStatement = () => {
                   return (
                     <TableRow key={p.id}>
                       <TableCell className="font-mono text-sm">{p.container_number}</TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">{new Date(p.created_at).toLocaleDateString("en-GB")}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">{formatDate(p.created_at)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatJod(p.demurrage_amount)}</TableCell>
                       <TableCell className="text-right">
                         <Badge variant={days > 30 ? "destructive" : "outline"}>{days} d</Badge>

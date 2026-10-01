@@ -6,6 +6,7 @@ import {
   type AccountingPayment, type LineStatementRow,
 } from "./accounting";
 import type { ReportSheet, ReportSpec } from "./reports/reportModel";
+import { formatDateTime } from "@/lib/format";
 
 export interface AccountingExportPayment extends AccountingPayment {
   id: string;
@@ -54,7 +55,7 @@ export function buildAccountingReport(input: AccountingExportInput): ReportSpec 
     meta: [
       ...(input.yardName ? [["Yard", input.yardName] as [string, string]] : []),
       ["Period", input.periodLabel],
-      ["Generated", `${now.toLocaleString("en-GB")}${input.generatedBy ? ` by ${input.generatedBy}` : ""}`],
+      ["Generated", `${formatDateTime(now)}${input.generatedBy ? ` by ${input.generatedBy}` : ""}`],
     ],
     sheets: [
       {
@@ -236,7 +237,7 @@ export function buildStatementReport(input: StatementReportInput): ReportSpec {
       ...(input.yardName ? [["Yard", input.yardName] as [string, string]] : []),
       ["Month", input.monthLabel],
       ["Status", input.status],
-      ["Generated", `${now.toLocaleString("en-GB")}${input.generatedBy ? ` by ${input.generatedBy}` : ""}`],
+      ["Generated", `${formatDateTime(now)}${input.generatedBy ? ` by ${input.generatedBy}` : ""}`],
     ],
     sheets: [{
       name: "Statement",

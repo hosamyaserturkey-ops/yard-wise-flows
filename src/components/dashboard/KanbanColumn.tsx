@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Container as ContainerType } from "@/types/container";
 import { daysInYard } from "@/lib/dashboardStats";
+import { formatDate } from "@/lib/format";
+import { formatJod } from "@/lib/accounting";
 
 export interface DemurrageInfo {
   paidJOD?: number;
@@ -118,9 +120,9 @@ const ContainerKanbanCard = ({ container: c, demurrage, onClick, onReserve, inde
 
   let demurrageBadge: { label: string; tone: "paid" | "owed" } | null = null;
   if (demurrage?.paidJOD != null && demurrage.paidJOD > 0) {
-    demurrageBadge = { label: `paid ${demurrage.paidJOD.toFixed(2)} JOD`, tone: "paid" };
+    demurrageBadge = { label: `paid ${formatJod(demurrage.paidJOD)}`, tone: "paid" };
   } else if (demurrage?.owedJOD != null && demurrage.owedJOD > 0) {
-    demurrageBadge = { label: `${demurrage.owedJOD.toFixed(2)} JOD at gate-in`, tone: "owed" };
+    demurrageBadge = { label: `${formatJod(demurrage.owedJOD)} at gate-in`, tone: "owed" };
   }
 
   return (
@@ -153,7 +155,7 @@ const ContainerKanbanCard = ({ container: c, demurrage, onClick, onReserve, inde
         <span className="text-[11px] text-muted-foreground">
           {c.status === "out"
             ? c.gateOutTime
-              ? `Out ${c.gateOutTime.toLocaleDateString()}`
+              ? `Out ${formatDate(c.gateOutTime)}`
               : "Out"
             : `${days}d in yard`}
         </span>

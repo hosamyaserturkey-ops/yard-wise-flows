@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Camera, CheckCircle, XCircle, ChevronRight, Trash2, ClipboardCheck, LogOut, ImagePlus, AlertTriangle } from "lucide-react";
+import { Camera, CheckCircle, XCircle, ChevronRight, Trash2, ClipboardCheck, ImagePlus, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 import { uploadPhotoFiles } from "@/lib/photoUpload";
 import { CONTAINER_SIZES, typesForSize, ISO_DESCRIPTIONS } from "@/lib/containerTypes";
+import { formatTime } from "@/lib/format";
 
 type Grade = "A" | "B" | "C" | "D";
 type Decision = "approved" | "rejected";
@@ -26,7 +27,7 @@ interface PhotoItem {
 }
 
 const Inspector = () => {
-  const { user, profile, currentYardId, signOut } = useAuth();
+  const { user, currentYardId } = useAuth();
   const { toast } = useToast();
   // Two separate inputs: the camera one carries `capture`, which on mobile
   // opens the camera directly and gives no way to reach the photo library.
@@ -111,10 +112,7 @@ const Inspector = () => {
 
       const parts: string[] = [];
       if (prior) {
-        const at = new Date(prior.created_at).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        const at = formatTime(prior.created_at);
         parts.push(`already inspected at ${at} (grade ${prior.grade}, ${prior.status})`);
       }
       if (openVisit) {
@@ -209,7 +207,7 @@ const Inspector = () => {
   if (submitted) {
     const approved = submitted.decision === "approved";
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background">
+      <div className="min-h-[calc(100svh-3.5rem)] flex flex-col items-center justify-center p-6 bg-background">
         <div className={`rounded-full p-6 mb-6 ${approved ? "bg-success/15" : "bg-destructive/15"}`}>
           {approved
             ? <CheckCircle className="h-20 w-20 text-success" />
@@ -235,33 +233,28 @@ const Inspector = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="bg-primary text-primary-foreground px-4 pt-safe-top pb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ClipboardCheck className="h-5 w-5" />
-            <span className="font-semibold">Inspector</span>
+    <div className="min-h-[calc(100svh-3.5rem)] bg-background flex flex-col">
+      {/* Step progress. The app's top bar already names the page, and the
+          sidebar holds the user's name and Sign out, so the old blue header
+          that repeated them is gone. */}
+      <div className="border-b bg-card px-4 py-3">
+        <div className="mx-auto max-w-lg">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 font-medium">
+              <ClipboardCheck className="h-4 w-4 text-primary" />
+              Inspection
+            </span>
+            <span className="text-muted-foreground">Step {step} of 3</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-white/60">{profile?.full_name || user?.email}</span>
-            <button onClick={signOut} className="text-white/60 hover:text-white">
-              <LogOut className="h-4 w-4" />
-            </button>
+          <div className="mt-2 flex gap-1.5">
+            {[1, 2, 3].map((s) => (
+              <div
+                key={s}
+                className={`h-1 flex-1 rounded-full transition-colors ${s <= step ? "bg-primary" : "bg-muted"}`}
+              />
+            ))}
           </div>
         </div>
-        {/* Step progress bar */}
-        <div className="flex gap-1.5 mt-3">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className={`h-1 flex-1 rounded-full transition-colors ${
-                s <= step ? "bg-white" : "bg-white/25"
-              }`}
-            />
-          ))}
-        </div>
-        <p className="text-xs text-white/50 mt-1">Step {step} of 3</p>
       </div>
 
       <div className="flex-1 p-4 max-w-lg mx-auto w-full">

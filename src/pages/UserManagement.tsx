@@ -19,6 +19,7 @@ import { SHIPPING_LINES } from "@/lib/shippingLines";
 import { createUser as createUserRequest, validateNewUser } from "@/lib/createUser";
 import { resetUserPassword, MIN_PASSWORD_LENGTH } from "@/lib/password";
 import { PageHeader } from "@/components/PageHeader";
+import { formatDate } from "@/lib/format";
 
 type AppRole = "super_admin" | "admin" | "inspector" | "line_rep" | "user";
 type CreatableRole = "admin" | "inspector" | "line_rep" | "user";
@@ -259,7 +260,7 @@ const UserManagement = () => {
                       )}
                     </TableCell>
                     <TableCell>
-                      {new Date(r.created_at).toLocaleDateString()}
+                      {formatDate(r.created_at)}
                     </TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button

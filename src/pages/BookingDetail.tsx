@@ -12,6 +12,7 @@ import type { Booking } from "@/types/booking";
 import type { Container } from "@/types/container";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
 import { EditBookingDialog } from "@/components/EditBookingDialog";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 interface HistoryEvent {
   id: string;
@@ -359,7 +360,7 @@ export default function BookingDetail() {
               <Clock className="h-5 w-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Created</p>
-                <p className="font-semibold">{booking.created_at.toLocaleDateString()}</p>
+                <p className="font-semibold">{formatDate(booking.created_at)}</p>
               </div>
             </div>
           </div>
@@ -429,10 +430,10 @@ export default function BookingDetail() {
                     <TableCell>{container.gateOutDriverName || container.driverName}</TableCell>
                     <TableCell>{container.gateOutTruckNumber || container.truckNumber}</TableCell>
                     <TableCell className="text-sm">
-                      {container.gateInTime.toLocaleString()}
+                      {formatDateTime(container.gateInTime)}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {container.gateOutTime ? container.gateOutTime.toLocaleString() : "-"}
+                      {container.gateOutTime ? formatDateTime(container.gateOutTime) : "-"}
                     </TableCell>
                     <TableCell>
                       {container.fees ? (
@@ -499,7 +500,7 @@ export default function BookingDetail() {
                       </Badge>
                     </TableCell>
                     <TableCell className="font-mono">{event.containerNumber ?? "-"}</TableCell>
-                    <TableCell className="text-sm">{event.occurredAt.toLocaleString()}</TableCell>
+                    <TableCell className="text-sm">{formatDateTime(event.occurredAt)}</TableCell>
                     <TableCell>
                       {event.feesJod != null ? (
                         <span className="flex items-center gap-1">
@@ -557,7 +558,7 @@ export default function BookingDetail() {
                     </TableCell>
                     <TableCell>{container.truckNumber}</TableCell>
                     <TableCell className="text-sm">
-                      {container.gateInTime.toLocaleString()}
+                      {formatDateTime(container.gateInTime)}
                     </TableCell>
                     <TableCell>
                       <Button

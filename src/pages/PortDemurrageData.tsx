@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateInput } from "@/components/DateInput";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -226,7 +227,7 @@ const PortDemurrageData = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
-                    <Input id="portArrivalDate" type="date" value={formData.portArrivalDate} onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })} />
+                    <DateInput id="portArrivalDate" value={formData.portArrivalDate} onChange={(v) => setFormData({ ...formData, portArrivalDate: v })} />
                   </div>
                   {selectedLineRule && (
                     <div className="space-y-2">

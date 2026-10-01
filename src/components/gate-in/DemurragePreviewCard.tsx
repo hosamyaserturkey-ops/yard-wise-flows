@@ -1,4 +1,5 @@
 import { USD_TO_JOD, type DemurrageResult } from "@/lib/demurrage";
+import { formatJod } from "@/lib/accounting";
 
 /** Tiered demurrage calculation result — free-days notice or breakdown table. */
 export const DemurragePreviewCard = ({ preview }: { preview: DemurrageResult }) => (
@@ -16,7 +17,7 @@ export const DemurragePreviewCard = ({ preview }: { preview: DemurrageResult }) 
           <div>
             <p className="text-sm text-muted-foreground">Total Demurrage Due</p>
             <p className="text-2xl font-bold text-destructive">
-              {preview.totalJOD.toLocaleString()} JOD
+              {formatJod(preview.totalJOD)}
             </p>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -53,7 +54,7 @@ export const DemurragePreviewCard = ({ preview }: { preview: DemurrageResult }) 
               </tr>
               <tr className="border-t font-bold bg-destructive/10 text-destructive">
                 <td className="p-2" colSpan={3}>Total (JOD)</td>
-                <td className="p-2 text-right">{preview.totalJOD.toLocaleString()} JOD</td>
+                <td className="p-2 text-right">{formatJod(preview.totalJOD)}</td>
               </tr>
             </tbody>
           </table>

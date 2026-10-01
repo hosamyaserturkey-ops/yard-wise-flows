@@ -1,4 +1,7 @@
 import { useCallback, useState, useEffect } from "react";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePager } from "@/components/TablePager";
+import { DateInput } from "@/components/DateInput";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +43,8 @@ import {
 } from "@/lib/reports/reportData";
 import { fetchYards, loadReportData } from "@/lib/reports/fetchReportData";
 import { filtersLabel, periodFromFilters, type ReportFilters } from "@/lib/reports/reportFilters";
+import { formatDate, formatTime } from "@/lib/format";
+import { formatJod } from "@/lib/accounting";
 
 const EXPORTS: { kind: ReportKind; label: string; description: string; adminOnly?: boolean }[] = [
   {
@@ -228,6 +233,8 @@ const Reports = () => {
     }
   };
 
+  // Totals and the Excel export use the whole filtered list; only the table pages.
+  const pager = usePagination(filteredContainers, 50, JSON.stringify([filters, searchTerm]));
   const totalFees = filteredContainers.reduce((sum, container) => sum + (container.fees || 0), 0);
   const totalDemurrage = filteredContainers.reduce(
     (sum, c) => sum + (demurragePaid[c.containerNumber] || 0),
@@ -292,21 +299,19 @@ const Reports = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label htmlFor="dateFrom">From Date</Label>
-              <Input
+              <DateInput
                 id="dateFrom"
-                type="date"
                 value={filters.dateFrom}
-                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                onChange={(v) => setFilters({ ...filters, dateFrom: v })}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="dateTo">To Date</Label>
-              <Input
+              <DateInput
                 id="dateTo"
-                type="date"
                 value={filters.dateTo}
-                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                onChange={(v) => setFilters({ ...filters, dateTo: v })}
               />
             </div>
 
@@ -396,14 +401,14 @@ const Reports = () => {
         />
         <StatCard
           label="Total Fees"
-          value={`${totalFees.toFixed(2)} JOD`}
+          value={formatJod(totalFees)}
           color="container"
           icon={<Coins className="h-5 w-5 text-container" />}
           loading={loading}
         />
         <StatCard
           label="Demurrage Collected"
-          value={`${totalDemurrage.toFixed(2)} JOD`}
+          value={formatJod(totalDemurrage)}
           color="success"
           icon={<Wallet className="h-5 w-5 text-success" />}
           loading={loading}
@@ -416,8 +421,9 @@ const Reports = () => {
           <CardTitle>Container Activity Report</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
+          {/* Scrolls inside its own box so the column headers stay in view. */}
+          <Table containerClassName="max-h-[70vh] rounded-md border">
+            <TableHeader className="sticky top-0 z-10 bg-muted shadow-[0_1px_0_hsl(var(--border))]">
               <TableRow>
                 <TableHead>Container Number</TableHead>
                 <TableHead>Type</TableHead>
@@ -443,7 +449,7 @@ const Reports = () => {
                     ))}
                   </TableRow>
                 ))}
-              {!loading && filteredContainers.map((container) => (
+              {!loading && pager.pageItems.map((container) => (
                 <TableRow
                   key={container.id}
                   className="cursor-pointer"
@@ -460,33 +466,33 @@ const Reports = () => {
                   </TableCell>
                   <TableCell>{container.driverName}</TableCell>
                   <TableCell className="font-mono">{container.truckNumber}</TableCell>
-                  <TableCell className="text-sm">
-                    {container.gateInTime.toLocaleDateString()}<br />
-                    {container.gateInTime.toLocaleTimeString()}
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {formatDate(container.gateInTime)}<br />
+                    <span className="text-muted-foreground">{formatTime(container.gateInTime)}</span>
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-sm whitespace-nowrap">
                     {container.gateOutTime ? (
                       <>
-                        {container.gateOutTime.toLocaleDateString()}<br />
-                        {container.gateOutTime.toLocaleTimeString()}
+                        {formatDate(container.gateOutTime)}<br />
+                        <span className="text-muted-foreground">{formatTime(container.gateOutTime)}</span>
                       </>
                     ) : (
                       "-"
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <StatusBadge status={container.status} dot />
                   </TableCell>
                   <TableCell className="font-mono">
                     {container.bookingNumber || "-"}
                   </TableCell>
                   <TableCell>
-                    {container.fees ? `${container.fees.toFixed(2)} JOD` : "-"}
+                    {container.fees ? formatJod(container.fees) : "-"}
                   </TableCell>
                   <TableCell>
                     {demurragePaid[container.containerNumber] != null ? (
                       <Badge className="bg-success/10 text-success border-success/30">
-                        {demurragePaid[container.containerNumber].toFixed(2)} JOD
+                        {formatJod(demurragePaid[container.containerNumber])}
                       </Badge>
                     ) : (
                       "-"
@@ -496,6 +502,7 @@ const Reports = () => {
               ))}
             </TableBody>
           </Table>
+          {!loading && <TablePager {...pager} noun="containers" />}
           {!loading && filteredContainers.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
               <Search className="h-8 w-8 opacity-40" />

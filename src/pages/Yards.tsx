@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Plus, UserPlus } from "lucide-react";
 import { createUser as createUserRequest, validateNewUser, MIN_PASSWORD_LENGTH } from "@/lib/createUser";
+import { formatDate } from "@/lib/format";
 
 interface Yard { id: string; name: string; code: string; created_at: string; }
 
@@ -99,7 +100,7 @@ const Yards = () => {
                   <TableRow key={y.id}>
                     <TableCell>{y.name}</TableCell>
                     <TableCell className="font-mono">{y.code}</TableCell>
-                    <TableCell>{new Date(y.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>{formatDate(y.created_at)}</TableCell>
                   </TableRow>
                 ))}
                 {yards.length === 0 && (

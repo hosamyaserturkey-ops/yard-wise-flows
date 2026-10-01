@@ -1,4 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
+import { DateInput } from "@/components/DateInput";
+import { toIsoDay } from "@/lib/format";
+import { distinctSorted, normalizeBlock, normalizeRow } from "@/lib/yardSlots";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,11 +42,14 @@ import {
   firstGateInOfTrip,
   DEMURRAGE_RULES,
 } from "@/lib/demurrage";
+import { formatJod } from "@/lib/accounting";
 
 const EMPTY_FORM: GateInData = {
   containerNumber: "",
   containerType: "",
-  shippingLine: "SLD",
+  // No default line: a preselected one was easy to leave unchanged, and
+  // demurrage is charged by line. A port-list match fills it in.
+  shippingLine: "",
   driverName: "",
   truckNumber: "",
   portArrivalDate: "",
@@ -267,6 +273,28 @@ const GateIn = () => {
     !lineChargesDemurrage || (!!formData.portArrivalDate && !portArrivalIsFuture);
 
   const showNoPortDataWarning = lookupDone && !portDataFound && lineChargesDemurrage;
+
+  // Blocks and rows already in use in this yard, offered as suggestions so
+  // the same slot isn't typed three different ways.
+  const { data: knownSlots } = useQuery({
+    queryKey: ["container_visits", "yard-slots", currentYardId() ?? "all"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      let q = supabase.from("container_visits").select("yard_block, yard_row").is("gate_out_time", null);
+      const yardId = currentYardId();
+      if (yardId) q = q.eq("yard_id", yardId);
+      const { data, error } = await q.limit(2000);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const knownBlocks = useMemo(() => distinctSorted((knownSlots ?? []).map((r) => r.yard_block), normalizeBlock), [knownSlots]);
+  const knownRows = useMemo(() => {
+    const block = normalizeBlock(formData.yardBlock);
+    const inBlock = (knownSlots ?? []).filter((r) => !block || (r.yard_block && normalizeBlock(r.yard_block) === block));
+    return distinctSorted(inBlock.map((r) => r.yard_row), normalizeRow);
+  }, [knownSlots, formData.yardBlock]);
+  const blockIsNew = !!formData.yardBlock.trim() && knownBlocks.length > 0 && !knownBlocks.includes(normalizeBlock(formData.yardBlock));
 
   // Whether this line has sent a port list at all — then a container missing
   // from it is worth a warning, not just a note.
@@ -492,8 +520,8 @@ const GateIn = () => {
         status: "in-yard",
         driver_name: formData.driverName,
         truck_number: formData.truckNumber,
-        yard_block: formData.yardBlock || null,
-        yard_row: formData.yardRow || null,
+        yard_block: normalizeBlock(formData.yardBlock) || null,
+        yard_row: normalizeRow(formData.yardRow) || null,
         port_arrival_date: formData.portArrivalDate || null,
         free_days: effectiveFreeDays,
         daily_demurrage: formData.dailyDemurrage
@@ -514,8 +542,8 @@ const GateIn = () => {
       containerId: visit.id,
       containerNumber,
       metadata: {
-        block: formData.yardBlock || null,
-        row: formData.yardRow || null,
+        block: normalizeBlock(formData.yardBlock) || null,
+        row: normalizeRow(formData.yardRow) || null,
         demurrage_collected_jod: demurragePayment?.totalCollected ?? 0,
         on_port_list: onList,
       },
@@ -736,7 +764,15 @@ const GateIn = () => {
                   placeholder="e.g., A"
                   className="font-mono"
                   maxLength={8}
+                  list="yard-block-options"
+                  autoComplete="off"
                 />
+                <datalist id="yard-block-options">
+                  {knownBlocks.map((b) => <option key={b} value={b} />)}
+                </datalist>
+                {blockIsNew && (
+                  <p className="text-xs text-warning">No container is in block {normalizeBlock(formData.yardBlock)} yet. Check the spelling.</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -748,7 +784,13 @@ const GateIn = () => {
                   placeholder="e.g., 03"
                   className="font-mono"
                   maxLength={8}
+                  list="yard-row-options"
+                  autoComplete="off"
+                  onBlur={() => setFormData((f) => ({ ...f, yardRow: normalizeRow(f.yardRow) }))}
                 />
+                <datalist id="yard-row-options">
+                  {knownRows.map((r) => <option key={r} value={r} />)}
+                </datalist>
               </div>
             </div>
 
@@ -829,12 +871,11 @@ const GateIn = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
-                      <Input
+                      <DateInput
                         id="portArrivalDate"
-                        type="date"
                         value={formData.portArrivalDate}
-                        onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
-                        max={new Date().toISOString().split('T')[0]}
+                        onChange={(v) => setFormData({ ...formData, portArrivalDate: v })}
+                        max={toIsoDay(new Date())}
                         disabled={listLocked}
                       />
                       {portArrivalIsFuture && (
@@ -868,7 +909,7 @@ const GateIn = () => {
                     <DemurragePreviewCard preview={demurragePreview} />
                   )}
 
-                  {!hasDemurrageRules(formData.shippingLine) && formData.portArrivalDate && (
+                  {formData.shippingLine && !hasDemurrageRules(formData.shippingLine) && formData.portArrivalDate && (
                     <p className="text-xs text-muted-foreground">
                       No tiered demurrage rules configured for {formData.shippingLine}. No demurrage will be charged.
                     </p>
@@ -905,7 +946,9 @@ const GateIn = () => {
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      No tier rules configured for {formData.shippingLine}.
+                      {formData.shippingLine
+                        ? `No tier rules configured for ${formData.shippingLine}.`
+                        : "Select a shipping line to see its demurrage rules."}
                     </p>
                   )}
                 </TabsContent>
@@ -953,9 +996,9 @@ const GateIn = () => {
                 <div className="mt-4 p-4 bg-destructive/10 border border-destructive/30 rounded-md text-destructive text-sm space-y-3">
                   <p className="font-medium">Demurrage Due — Collect payment before gate-in</p>
                   <div className="space-y-1 text-xs">
-                    <div className="flex justify-between"><span>Demurrage Total</span><strong>{demurragePreview.totalJOD.toLocaleString()} JOD</strong></div>
-                    <div className="flex justify-between"><span>Service Fee</span><strong>{feeCfg.total} JOD</strong></div>
-                    <div className="flex justify-between border-t border-destructive/20 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.totalJOD + feeCfg.total).toLocaleString()} JOD</strong></div>
+                    <div className="flex justify-between"><span>Demurrage Total</span><strong>{formatJod(demurragePreview.totalJOD)}</strong></div>
+                    <div className="flex justify-between"><span>Service Fee</span><strong>{formatJod(feeCfg.total)}</strong></div>
+                    <div className="flex justify-between border-t border-destructive/20 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{formatJod(demurragePreview.totalJOD + feeCfg.total)}</strong></div>
                   </div>
                   <Button
                     type="button"
@@ -999,7 +1042,7 @@ const GateIn = () => {
               <Button
                 type="submit"
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !portDataComplete || inspectionBlocksGateIn}
+                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !formData.shippingLine || !portDataComplete || inspectionBlocksGateIn}
               >
                 {isSubmitting
                   ? "Processing..."
@@ -1011,7 +1054,9 @@ const GateIn = () => {
                           : "Awaiting Approved Inspection")
                       : hasDemurrageDue
                         ? "Demurrage Due — Collect Payment First"
-                        : !formData.portArrivalDate
+                        : !formData.shippingLine
+                          ? "Select Shipping Line"
+                          : !formData.portArrivalDate
                           ? "Enter Port Arrival Date"
                           : portArrivalIsFuture
                             ? "Invalid Port Arrival Date"

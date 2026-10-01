@@ -22,6 +22,7 @@ import type {
   ReportSpec,
   ReportTable,
 } from "./reportModel";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 export type ReportKind = "in-yard" | "movements" | "fees" | "drivers";
 
@@ -116,11 +117,10 @@ function inPeriod(d: Date | undefined, period: ReportContext["period"]): d is Da
   return true;
 }
 
-const fmtDay = (d: Date) =>
-  d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+const fmtDay = (d: Date) => formatDate(d);
 
 const fmtStamp = (d: Date) =>
-  `${fmtDay(d)} ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  formatDateTime(d);
 
 export function periodLabel(period: ReportContext["period"]): string {
   if (period.from && period.to) return `${fmtDay(period.from)} – ${fmtDay(period.to)}`;

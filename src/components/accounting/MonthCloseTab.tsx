@@ -19,6 +19,7 @@ import {
 } from "@/lib/accounting";
 import { buildStatementReport } from "@/lib/accountingReport";
 import { ReasonDialog } from "./ReasonDialog";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 interface MonthClose {
   id: string;
@@ -142,7 +143,7 @@ export function MonthCloseTab({ yardId, yardName, superAdmin, payments, transfer
     const { downloadReport } = await import("@/lib/reports/workbook");
     await downloadReport(buildStatementReport({
       rows, monthLabel: monthLabel(month), yardName, generatedBy,
-      status: activeClose ? `Closed ${new Date(activeClose.closed_at).toLocaleDateString("en-GB")}` : "Open — figures can still change",
+      status: activeClose ? `Closed ${formatDate(activeClose.closed_at)}` : "Open — figures can still change",
     }));
   };
 
@@ -177,7 +178,7 @@ export function MonthCloseTab({ yardId, yardName, superAdmin, payments, transfer
             <>
               <Badge className="bg-success text-white"><Lock className="h-3 w-3 mr-1" />Closed</Badge>
               <span className="text-muted-foreground">
-                on {new Date(activeClose.closed_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                on {formatDateTime(activeClose.closed_at)}
                 {activeClose.notes ? ` — ${activeClose.notes}` : ""}. Figures below are the snapshot taken then.
               </span>
               {superAdmin && (
@@ -261,8 +262,8 @@ export function MonthCloseTab({ yardId, yardName, superAdmin, payments, transfer
           <div className="text-xs text-muted-foreground space-y-1">
             {history.map((h) => (
               <div key={h.id}>
-                Previously closed {new Date(h.closed_at).toLocaleDateString("en-GB")}, reopened{" "}
-                {h.reopened_at ? new Date(h.reopened_at).toLocaleDateString("en-GB") : ""}: {h.reopen_reason}
+                Previously closed {formatDate(h.closed_at)}, reopened{" "}
+                {h.reopened_at ? formatDate(h.reopened_at) : ""}: {h.reopen_reason}
               </div>
             ))}
           </div>

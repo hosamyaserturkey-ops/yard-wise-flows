@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, DollarSign, CheckCircle2, CreditCard, Banknote } from "lucide-react";
 import { useState } from "react";
+import { formatJod } from "@/lib/accounting";
 
 const SERVICE_FEE = 7;
 
@@ -91,23 +92,23 @@ const DemurrageCollectionDialog = ({
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Demurrage Amount</span>
-                  <span className="font-semibold">{demurrageAmount.toLocaleString()} JOD</span>
+                  <span className="font-semibold">{formatJod(demurrageAmount)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Service Fee</span>
-                  <span className="font-semibold">{serviceFee} JOD</span>
+                  <span className="font-semibold">{formatJod(serviceFee)}</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between items-center">
                   <span className="text-muted-foreground text-sm font-medium">Total to Collect</span>
                   <span className="text-xl font-bold text-destructive">
-                    {totalAmount.toLocaleString()} JOD
+                    {formatJod(totalAmount)}
                   </span>
                 </div>
               </div>
 
               {step === "info" && (
                 <p className="text-sm text-muted-foreground">
-                  Please collect <strong>{totalAmount.toLocaleString()} JOD</strong> from the driver. Choose a payment method below.
+                  Please collect <strong>{formatJod(totalAmount)}</strong> from the driver. Choose a payment method below.
                 </p>
               )}
 
@@ -136,7 +137,7 @@ const DemurrageCollectionDialog = ({
                 <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>
-                    Payment of {totalAmount.toLocaleString()} JOD via {paymentMethod === "cash" ? "Cash" : "Qlick"} confirmed. Proceed with gate-in.
+                    Payment of {formatJod(totalAmount)} via {paymentMethod === "cash" ? "Cash" : "Qlick"} confirmed. Proceed with gate-in.
                   </span>
                 </div>
               )}
