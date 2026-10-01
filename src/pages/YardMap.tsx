@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { normalizeBlock, normalizeRow } from "@/lib/yardSlots";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/PageHeader";
@@ -73,8 +74,9 @@ const YardMap = () => {
         unassigned.push(r);
         return;
       }
-      const b = r.yard_block;
-      const row = r.yard_row || "—";
+      // "1" and "01" (or "osc" and "OSC") are the same slot.
+      const b = normalizeBlock(r.yard_block);
+      const row = r.yard_row ? normalizeRow(r.yard_row) : "—";
       if (!byBlock.has(b)) byBlock.set(b, new Map());
       const rowMap = byBlock.get(b)!;
       if (!rowMap.has(row)) rowMap.set(row, []);

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { DateInput, DateTimeInput } from "@/components/DateInput";
+import { normalizeBlock, normalizeRow } from "@/lib/yardSlots";
 import {
   Dialog,
   DialogContent,
@@ -89,6 +91,10 @@ export const EditContainerDialog = ({
   const edited: Partial<Record<ContainerEditField, EditValue>> = {
     ...form,
     container_number: form.container_number.toUpperCase(),
+    // Tidy a slot only when the admin changed it, so an old "1" isn't
+    // logged as a correction to "01" nobody asked for.
+    yard_block: form.yard_block === original.yard_block ? form.yard_block : normalizeBlock(form.yard_block),
+    yard_row: form.yard_row === original.yard_row ? form.yard_row : normalizeRow(form.yard_row),
   };
   const changes = diffEdits<ContainerEditField>(original, edited);
   const changeCount = Object.keys(changes).length;
@@ -187,7 +193,7 @@ export const EditContainerDialog = ({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-gate_in_time">Time</Label>
-                {text("gate_in_time", { type: "datetime-local" })}
+                <DateTimeInput id="edit-gate_in_time" value={form.gate_in_time} onChange={set("gate_in_time")} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -207,7 +213,7 @@ export const EditContainerDialog = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="edit-port_arrival_date">Port arrival date</Label>
-                {text("port_arrival_date", { type: "date" })}
+                <DateInput id="edit-port_arrival_date" value={form.port_arrival_date} onChange={set("port_arrival_date")} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-free_days">Free days</Label>
@@ -233,7 +239,7 @@ export const EditContainerDialog = ({
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-gate_out_time">Time</Label>
-                  {text("gate_out_time", { type: "datetime-local" })}
+                  <DateTimeInput id="edit-gate_out_time" value={form.gate_out_time} onChange={set("gate_out_time")} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">

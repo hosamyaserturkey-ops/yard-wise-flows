@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -113,6 +113,82 @@ export function DateInput({ id, value, onChange, max, min, disabled, className, 
       {invalid && !focused && (
         <p className="mt-1 text-xs text-destructive">Type the date as DD/MM/YYYY, e.g. 01/10/2026.</p>
       )}
+    </div>
+  );
+}
+
+const parseTime = (text: string): string | null => {
+  const m = text.trim().match(/^(\d{1,2})[:.]?(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  return h < 24 && min < 60 ? `${String(h).padStart(2, "0")}:${m[2]}` : null;
+};
+
+interface DateTimeInputProps {
+  id?: string;
+  /** "YYYY-MM-DDTHH:mm" (the datetime-local format), or "". */
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}
+
+/**
+ * Replacement for <Input type="datetime-local">: a DateInput plus a 24-hour
+ * time box. The value only changes once both halves are valid, so a
+ * half-typed correction can never be saved as an empty time.
+ */
+export function DateTimeInput({ id, value, onChange, disabled }: DateTimeInputProps) {
+  const [datePart = "", timePart = ""] = value ? value.split("T") : [];
+  const [time, setTime] = useState(timePart);
+  const [timeFocused, setTimeFocused] = useState(false);
+
+  // Reset the box only when the saved time itself changes (another record,
+  // a reset form); a mistyped time stays on screen with its error.
+  const lastTimePart = useRef(timePart);
+  useEffect(() => {
+    if (timePart === lastTimePart.current) return;
+    lastTimePart.current = timePart;
+    if (!timeFocused) setTime(timePart);
+  }, [timePart, timeFocused]);
+
+  const timeInvalid = time.trim() !== "" && parseTime(time) === null;
+
+  return (
+    <div className="grid grid-cols-[1fr_6rem] gap-2">
+      <DateInput
+        id={id}
+        value={datePart}
+        disabled={disabled}
+        onChange={(d) => {
+          const t = parseTime(time);
+          if (d && t) onChange(`${d}T${t}`);
+        }}
+      />
+      <div>
+        <Input
+          aria-label="Time (24-hour)"
+          value={time}
+          disabled={disabled}
+          placeholder="HH:MM"
+          inputMode="numeric"
+          autoComplete="off"
+          aria-invalid={timeInvalid || undefined}
+          className={cn("font-mono", timeInvalid && "border-destructive focus-visible:ring-destructive")}
+          onFocus={() => setTimeFocused(true)}
+          onChange={(e) => {
+            setTime(e.target.value);
+            const t = parseTime(e.target.value);
+            if (t && datePart) onChange(`${datePart}T${t}`);
+          }}
+          onBlur={() => {
+            setTimeFocused(false);
+            const t = parseTime(time);
+            if (t) setTime(t);
+          }}
+        />
+        {timeInvalid && !timeFocused && <p className="mt-1 text-xs text-destructive">Use HH:MM, e.g. 22:07.</p>}
+      </div>
     </div>
   );
 }

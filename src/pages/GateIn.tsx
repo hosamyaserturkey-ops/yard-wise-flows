@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { DateInput } from "@/components/DateInput";
 import { toIsoDay } from "@/lib/format";
+import { distinctSorted, normalizeBlock, normalizeRow } from "@/lib/yardSlots";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -272,6 +273,28 @@ const GateIn = () => {
 
   // Whether this line has sent a port list at all — then a container missing
   // from it is worth a warning, not just a note.
+  // Blocks and rows already in use in this yard, offered as suggestions so
+  // the same slot isn't typed three different ways.
+  const { data: knownSlots } = useQuery({
+    queryKey: ["container_visits", "yard-slots", currentYardId() ?? "all"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      let q = supabase.from("container_visits").select("yard_block, yard_row").is("gate_out_time", null);
+      const yardId = currentYardId();
+      if (yardId) q = q.eq("yard_id", yardId);
+      const { data, error } = await q.limit(2000);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const knownBlocks = useMemo(() => distinctSorted((knownSlots ?? []).map((r) => r.yard_block), normalizeBlock), [knownSlots]);
+  const knownRows = useMemo(() => {
+    const block = normalizeBlock(formData.yardBlock);
+    const inBlock = (knownSlots ?? []).filter((r) => !block || (r.yard_block && normalizeBlock(r.yard_block) === block));
+    return distinctSorted(inBlock.map((r) => r.yard_row), normalizeRow);
+  }, [knownSlots, formData.yardBlock]);
+  const blockIsNew = !!formData.yardBlock.trim() && knownBlocks.length > 0 && !knownBlocks.includes(normalizeBlock(formData.yardBlock));
+
   const { data: lineHasList = false } = useQuery({
     queryKey: ["container_port_data", "line-has-list", formData.shippingLine, currentYardId() ?? "all"],
     enabled: lineChargesDemurrage,
@@ -494,8 +517,8 @@ const GateIn = () => {
         status: "in-yard",
         driver_name: formData.driverName,
         truck_number: formData.truckNumber,
-        yard_block: formData.yardBlock || null,
-        yard_row: formData.yardRow || null,
+        yard_block: normalizeBlock(formData.yardBlock) || null,
+        yard_row: normalizeRow(formData.yardRow) || null,
         port_arrival_date: formData.portArrivalDate || null,
         free_days: effectiveFreeDays,
         daily_demurrage: formData.dailyDemurrage
@@ -516,8 +539,8 @@ const GateIn = () => {
       containerId: visit.id,
       containerNumber,
       metadata: {
-        block: formData.yardBlock || null,
-        row: formData.yardRow || null,
+        block: normalizeBlock(formData.yardBlock) || null,
+        row: normalizeRow(formData.yardRow) || null,
         demurrage_collected_jod: demurragePayment?.totalCollected ?? 0,
         on_port_list: onList,
       },
@@ -738,7 +761,15 @@ const GateIn = () => {
                   placeholder="e.g., A"
                   className="font-mono"
                   maxLength={8}
+                  list="yard-block-options"
+                  autoComplete="off"
                 />
+                <datalist id="yard-block-options">
+                  {knownBlocks.map((b) => <option key={b} value={b} />)}
+                </datalist>
+                {blockIsNew && (
+                  <p className="text-xs text-warning">No container is in block {normalizeBlock(formData.yardBlock)} yet. Check the spelling.</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -750,7 +781,13 @@ const GateIn = () => {
                   placeholder="e.g., 03"
                   className="font-mono"
                   maxLength={8}
+                  list="yard-row-options"
+                  autoComplete="off"
+                  onBlur={() => setFormData((f) => ({ ...f, yardRow: normalizeRow(f.yardRow) }))}
                 />
+                <datalist id="yard-row-options">
+                  {knownRows.map((r) => <option key={r} value={r} />)}
+                </datalist>
               </div>
             </div>
 
