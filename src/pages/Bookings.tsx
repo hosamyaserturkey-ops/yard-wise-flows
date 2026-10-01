@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Package, Users, CheckCircle, ArrowRight, Search } from "lucide-react";
+import { Plus, Package, ArrowRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useYards } from "@/hooks/useYards";
@@ -17,6 +17,23 @@ import { fetchShippingLines, type ShippingLineRow } from "@/lib/shippingLines";
 import { PageHeader } from "@/components/PageHeader";
 import { YardSelectionGuard } from "@/components/YardSelectionGuard";
 import { formatDate } from "@/lib/format";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePager } from "@/components/TablePager";
+
+const STATUS_TABS = ["active", "completed", "cancelled", "all"] as const;
+type StatusTab = (typeof STATUS_TABS)[number];
 
 export default function Bookings() {
   const navigate = useNavigate();
@@ -25,6 +42,8 @@ export default function Bookings() {
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusTab, setStatusTab] = useState<StatusTab>("active");
+  const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
   const [shippingLines, setShippingLines] = useState<ShippingLineRow[]>([]);
   const [formData, setFormData] = useState<CreateBookingData>({
     booking_number: "",
@@ -147,6 +166,31 @@ export default function Bookings() {
     } finally {
       setCreating(false);
     }
+  };
+
+  const countFor = (t: StatusTab) => (t === "all" ? bookings.length : bookings.filter((b) => b.status === t).length);
+  // A search looks through every booking, so a finished one is still found
+  // from the Active tab.
+  const visibleBookings = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return bookings.filter((b) =>
+      q
+        ? b.booking_number.toLowerCase().includes(q) || b.customer_name.toLowerCase().includes(q)
+        : statusTab === "all" || b.status === statusTab,
+    );
+  }, [bookings, searchTerm, statusTab]);
+  const pager = usePagination(visibleBookings, 50, JSON.stringify([searchTerm, statusTab]));
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', cancelTarget.id);
+    if (error) {
+      toast({ title: "Couldn't cancel the booking", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `Booking ${cancelTarget.booking_number} cancelled` });
+    }
+    setCancelTarget(null);
+    fetchBookings();
   };
 
   const getStatusColor = (status: string) => {
@@ -312,113 +356,130 @@ export default function Bookings() {
             </CardContent>
           </Card>
         ) : (
-          bookings
-            .filter(b => {
-              const q = searchTerm.trim().toLowerCase();
-              if (!q) return true;
-              return (
-                b.booking_number.toLowerCase().includes(q) ||
-                b.customer_name.toLowerCase().includes(q)
-              );
-            })
-            .map((booking) => (
-            <Card
-              key={booking.id}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => navigate(`/bookings/${booking.id}`)}
-            >
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold">{booking.booking_number}</h3>
-                    <p className="text-muted-foreground flex items-center gap-2 mt-1">
-                      <Users className="h-4 w-4" />
-                      {booking.customer_name}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {booking.shipping_line || "No line"}
-                    </Badge>
-                    {isSuperAdmin() && (
-                      <Badge variant="outline" className="text-xs">
-                        {yardName(booking.yard_id)}
-                      </Badge>
-                    )}
-                    <Badge className={getStatusColor(booking.status)}>
-                      {booking.status}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">
-                      Total: {booking.total_containers} containers
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">
-                      Gated Out: {booking.gated_out_containers} containers
-                    </span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Created: {formatDate(booking.created_at)}
-                  </div>
-                </div>
-
-                {booking.total_containers > 0 && (
-                  <div className="mt-4">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Progress</span>
-                      <span>{Math.round((booking.gated_out_containers / booking.total_containers) * 100)}%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className="bg-primary h-2 rounded-full transition-all"
-                        style={{
-                          width: `${(booking.gated_out_containers / booking.total_containers) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-end mt-4">
-                  {booking.status === 'active' && isAdmin() && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-2 text-destructive hover:text-destructive"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', booking.id);
-                        fetchBookings();
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/bookings/${booking.id}`);
-                    }}
-                  >
-                    View Details
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <Tabs value={statusTab} onValueChange={(v) => setStatusTab(v as StatusTab)}>
+                <TabsList>
+                  {STATUS_TABS.map((t) => (
+                    <TabsTrigger key={t} value={t} className="capitalize">
+                      {t} <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">{countFor(t)}</span>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+              {searchTerm.trim() && statusTab !== "all" && (
+                <p className="text-xs text-muted-foreground">Searching all bookings, whatever their status.</p>
+              )}
+              {visibleBookings.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  No {statusTab === "all" || searchTerm.trim() ? "" : `${statusTab} `}bookings match.
+                </p>
+              ) : (
+                <>
+                  <Table containerClassName="rounded-md border">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Booking</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Line</TableHead>
+                        {isSuperAdmin() && <TableHead>Yard</TableHead>}
+                        <TableHead className="w-56">Gated out</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pager.pageItems.map((booking) => {
+                        const pct = booking.total_containers > 0
+                          ? Math.round((booking.gated_out_containers / booking.total_containers) * 100)
+                          : 0;
+                        return (
+                          <TableRow
+                            key={booking.id}
+                            className="cursor-pointer"
+                            onClick={() => navigate(`/bookings/${booking.id}`)}
+                          >
+                            <TableCell className="font-semibold whitespace-nowrap">{booking.booking_number}</TableCell>
+                            <TableCell className="max-w-[16rem] truncate">{booking.customer_name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{booking.shipping_line || "No line"}</Badge>
+                            </TableCell>
+                            {isSuperAdmin() && <TableCell className="text-xs">{yardName(booking.yard_id)}</TableCell>}
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 w-20 shrink-0 rounded-full bg-muted" aria-hidden>
+                                  <div className="h-1.5 rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="text-sm tabular-nums whitespace-nowrap">
+                                  {booking.gated_out_containers} of {booking.total_containers}{" "}
+                                  {booking.total_containers === 1 ? "container" : "containers"}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDate(booking.created_at)}</TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(booking.status)}>{booking.status}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right whitespace-nowrap">
+                              {booking.status === 'active' && isAdmin() && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCancelTarget(booking);
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/bookings/${booking.id}`);
+                                }}
+                              >
+                                View <ArrowRight className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  <TablePager {...pager} noun="bookings" />
+                </>
+              )}
+            </CardContent>
+          </Card>
         )}
       </div>
+
+      <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel booking {cancelTarget?.booking_number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {cancelTarget?.customer_name} · {cancelTarget?.gated_out_containers} of {cancelTarget?.total_containers} gated out.
+              A cancelled booking can no longer be attached at gate-out.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep booking</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void confirmCancel()}
+            >
+              Cancel booking
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
