@@ -55,7 +55,7 @@ export function useDashboardData(currentYardId: () => string | null) {
       const yardId = currentYardId();
       let portQuery = supabase
         .from("container_port_data")
-        .select("container_number, port_arrival_date, shipping_line, yard_id")
+        .select("container_number, port_arrival_date, free_days, shipping_line, yard_id")
         .in("container_number", numbers);
       if (yardId) portQuery = portQuery.eq("yard_id", yardId);
 
@@ -91,6 +91,7 @@ export function useDashboardData(currentYardId: () => string | null) {
             c.containerType,
             port.port_arrival_date,
             c.gateInTime,
+            port.free_days,
           );
           owed = r.totalJOD;
         }

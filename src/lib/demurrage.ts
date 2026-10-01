@@ -143,16 +143,79 @@ export const firstGateInOfTrip = (
   return sorted.find((t) => t.getTime() >= tripStart) ?? null;
 };
 
+// ── Free days per container ─────────────────────────────────────────────────
+// A line's port list gives each container its own free days, which can differ
+// from the line's standard free time. The list wins: the free period becomes
+// that many days, and each paid period keeps its length and moves with the end
+// of free time. So a WOM container granted 30 free days pays $50/day from day
+// 31, and an SLG container granted 16 pays days 17-23 at the first rate.
+
+/** The free days that apply: the port list's value when valid, else the line's standard. */
+export const effectiveFreeDays = (
+  shippingLine: DemurrageShippingLine,
+  freeDays?: number | null,
+): number => {
+  if (freeDays == null || !Number.isFinite(freeDays) || freeDays < 0) {
+    return DEMURRAGE_RULES[shippingLine].freeDays;
+  }
+  return Math.floor(freeDays);
+};
+
+const periodLabel = (from: number, to: number | null) =>
+  to == null ? `Day ${from}+` : from === to ? `Day ${from}` : `Days ${from}-${to}`;
+
+/** The line's tiers with the free period set to `freeDays` (standard tiers when omitted). */
+export const tiersForFreeDays = (
+  shippingLine: DemurrageShippingLine,
+  freeDays?: number | null,
+): DemurrageTier[] => {
+  const rule = DEMURRAGE_RULES[shippingLine];
+  const free = effectiveFreeDays(shippingLine, freeDays);
+  if (free === rule.freeDays) return rule.tiers;
+
+  const shift = free - rule.freeDays;
+  const tiers: DemurrageTier[] = [];
+  if (free > 0) {
+    tiers.push({ fromDay: 1, toDay: free, rate20: 0, rate40: 0, label: `${periodLabel(1, free)} (Free)` });
+  }
+  for (const tier of rule.tiers) {
+    if (tier.rate20 === 0 && tier.rate40 === 0) continue; // the standard free period
+    const fromDay = tier.fromDay + shift;
+    const toDay = tier.toDay == null ? null : tier.toDay + shift;
+    tiers.push({ ...tier, fromDay, toDay, label: periodLabel(fromDay, toDay) });
+  }
+  return tiers;
+};
+
+/**
+ * Last free day as YYYY-MM-DD: arrival day is day 1, so arrival + freeDays - 1.
+ * Same as the lines' own sheets (Vessel Arrival Date + Free Days - 1). Null
+ * when the arrival date doesn't parse.
+ */
+export const lastFreeDay = (
+  portArrivalDate: string | null | undefined,
+  freeDays: number,
+): string | null => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(portArrivalDate ?? "");
+  if (!m) return null;
+  // Date.UTC keeps the arithmetic clear of local DST shifts.
+  const day = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + freeDays - 1));
+  return day.toISOString().slice(0, 10);
+};
+
 export const calculateDemurrage = (
   shippingLine: string,
   containerType: string,
   portArrivalDate: string | null | undefined,
   today: Date = new Date(),
+  // The container's free days from the line's port list. Omitted or invalid
+  // falls back to the line's standard free days.
+  freeDaysOverride?: number | null,
 ): DemurrageResult => {
   const empty: DemurrageResult = {
     daysElapsed: 0,
     freeDays: hasDemurrageRules(shippingLine)
-      ? DEMURRAGE_RULES[shippingLine].freeDays
+      ? effectiveFreeDays(shippingLine, freeDaysOverride)
       : 0,
     breakdown: [],
     totalUSD: 0,
@@ -175,7 +238,8 @@ export const calculateDemurrage = (
   // Inclusive of arrival day → day count = diffDays + 1
   const daysElapsed = diffDays + 1;
   const size = toDemurrageContainerType(containerType);
-  const { freeDays, tiers } = DEMURRAGE_RULES[shippingLine];
+  const freeDays = effectiveFreeDays(shippingLine, freeDaysOverride);
+  const tiers = tiersForFreeDays(shippingLine, freeDays);
 
   const breakdown: DemurrageBreakdownRow[] = [];
   let totalUSD = 0;

@@ -18,7 +18,9 @@ export type ActivityAction =
   | "month_closed"
   | "month_reopened"
   | "cash_counted"
-  | "cash_recounted";
+  | "cash_recounted"
+  | "port_data_imported"
+  | "port_list_overridden";
 
 export interface LogActivityInput {
   userId: string;

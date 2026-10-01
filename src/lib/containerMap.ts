@@ -66,5 +66,7 @@ export function mapVisit(v: VisitJoinRow): Container {
     fees: v.fees != null ? Number(v.fees) : undefined,
     yardBlock: v.yard_block ?? undefined,
     yardRow: v.yard_row ?? undefined,
+    portArrivalDate: v.port_arrival_date ?? undefined,
+    freeDays: v.free_days,
   };
 }

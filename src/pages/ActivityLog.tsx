@@ -48,6 +48,8 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   month_reopened: "Month Reopened",
   cash_counted: "Cash Counted",
   cash_recounted: "Cash Recounted",
+  port_data_imported: "Port List Imported",
+  port_list_overridden: "Port List Overridden",
 };
 
 const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline" | "destructive"> = {
@@ -68,6 +70,8 @@ const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline"
   month_reopened: "destructive",
   cash_counted: "outline",
   cash_recounted: "outline",
+  port_data_imported: "secondary",
+  port_list_overridden: "destructive",
 };
 
 /**
@@ -117,6 +121,11 @@ function detailsOf(r: Row): { lines: string[]; reason: string | null } {
       lines: [`${Number(m.amount_jod ?? 0).toFixed(3)} JOD to ${m.shipping_line} for ${Number(m.payment_count ?? 0)} payment(s)${ref}`],
       reason,
     };
+  }
+  if (r.action === "port_data_imported") {
+    const lines = Array.isArray(m.lines) ? (m.lines as string[]).join(", ") : "";
+    const file = typeof m.file_name === "string" ? ` from ${m.file_name}` : "";
+    return { lines: [`${Number(m.containers ?? 0)} ${lines} container(s) imported${file}`.replace("  ", " ")], reason };
   }
   if (r.action === "container_renamed" && typeof m.from === "string") {
     return { lines: [`Container number: ${m.from} → ${String(m.to ?? "")}`], reason };

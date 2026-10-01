@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Container, AlertTriangle, Building2 } from "lucide-react";
+import { Container, AlertTriangle, Building2, Lock, Unlock } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { GateInData } from "@/types/container";
 import type { DemurragePaymentData, PendingGateIn, PortLookupData } from "@/types/gateIn";
@@ -15,6 +16,8 @@ import { gateInSchema } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
 import DemurrageCollectionDialog, { getServiceFeeConfig } from "@/components/DemurrageCollectionDialog";
 import { logActivity } from "@/lib/activityLog";
+import { ReasonDialog } from "@/components/accounting/ReasonDialog";
+import { fmtDay } from "@/components/port-data/format";
 import { cancelInspection } from "@/lib/inspections";
 import { printGateInReceipt } from "@/lib/gateInReceipt";
 import { GateMotionOverlay } from "@/components/GateMotionOverlay";
@@ -50,6 +53,19 @@ const EMPTY_FORM: GateInData = {
   yardRow: "",
 };
 
+/**
+ * Database checks (the port-list guard, the inspection rule) raise messages
+ * written for the operator; anything else gets the generic retry text.
+ */
+const gateInErrorMessage = (error: unknown): string => {
+  const e = error as { code?: string; message?: string } | null;
+  if (e?.code === "23514" && e.message) return e.message; // check_violation
+  return "Failed to gate in container. Please try again.";
+};
+
+/** "20" / "40" / "45" — the length that sets the demurrage rate column. */
+const sizeOf = (type: string | null | undefined) => (type ?? "").slice(0, 2);
+
 const GateIn = () => {
   const { user, currentYardId, profile, isAdmin, isSuperAdmin, selectedYardId, setSelectedYardId } = useAuth();
   const { yards } = useYards();
@@ -64,19 +80,35 @@ const GateIn = () => {
     containerNumber: string;
   }>({ open: false, chargeableDays: 0, demurrageAmount: 0, containerNumber: "" });
 
+  // The container's entry on its line's port list, when it has one. Its arrival
+  // date, free days, line and size are what gets charged, so they're locked;
+  // only an admin can override them, with a reason that goes in the log. The
+  // database enforces the same lock (container_visits_port_list_guard).
+  const [listData, setListData] = useState<PortLookupData | null>(null);
+  const [override, setOverride] = useState<{ reason: string } | null>(null);
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
+
+  const applyListData = (data: PortLookupData) =>
+    setFormData(prev => ({
+      ...prev,
+      portArrivalDate: data.port_arrival_date,
+      freeDays: String(data.free_days),
+      dailyDemurrage: String(data.daily_demurrage),
+      shippingLine: data.shipping_line as ShippingLine,
+      // The list's size is what demurrage bills against. A type already picked
+      // (usually the inspector's) is kept when it's the same length, since it's
+      // the more precise code (20RF rather than 20GP).
+      ...(data.container_type && sizeOf(prev.containerType) !== sizeOf(data.container_type)
+        ? { containerType: data.container_type }
+        : {}),
+    }));
+
   // Auto-fill / clear port fields when the lookup resolves.
   const handlePortData = (data: PortLookupData | null) => {
+    setListData(data);
+    setOverride(null);
     if (data) {
-      setFormData(prev => ({
-        ...prev,
-        portArrivalDate: data.port_arrival_date,
-        freeDays: String(data.free_days),
-        dailyDemurrage: String(data.daily_demurrage),
-        shippingLine: data.shipping_line as ShippingLine,
-        // Size stored with the port data drives the size-aware demurrage; fill
-        // it so the operator doesn't re-pick (and can't contradict) it.
-        ...(data.container_type ? { containerType: data.container_type } : {}),
-      }));
+      applyListData(data);
     } else {
       setFormData(prev => ({
         ...prev,
@@ -117,23 +149,44 @@ const GateIn = () => {
   // a number typed by hand (rather than tapped from the queue) fills the type
   // too. Only ever into an empty field: port data, when there is any, is what
   // the size-aware demurrage bills against and must not be overwritten.
+  // A port list's size of the same length doesn't override it either: the
+  // inspector's code is the more precise one.
   useEffect(() => {
     const inspected = inspectionStatus?.container_type;
     if (!inspected) return;
-    setFormData((prev) => (prev.containerType ? prev : { ...prev, containerType: inspected }));
+    setFormData((prev) =>
+      !prev.containerType || (prev.containerType !== inspected && sizeOf(prev.containerType) === sizeOf(inspected))
+        ? { ...prev, containerType: inspected }
+        : prev,
+    );
   }, [inspectionStatus]);
 
-  // Auto-fill free days when shipping line changes (if rules exist for it)
-  useEffect(() => {
-    if (hasDemurrageRules(formData.shippingLine)) {
-      const rule = DEMURRAGE_RULES[formData.shippingLine];
-      setFormData(prev =>
-        prev.freeDays === String(rule.freeDays)
-          ? prev
-          : { ...prev, freeDays: String(rule.freeDays) }
-      );
-    }
-  }, [formData.shippingLine]);
+  const lineRule = hasDemurrageRules(formData.shippingLine) ? DEMURRAGE_RULES[formData.shippingLine] : null;
+  // A list entry whose trip already came and went (gated in since that arrival,
+  // and out again) is stale — this is a new trip, so it's treated as unlisted.
+  // The database guard applies the same rule.
+  const listTripDone =
+    portDataFound &&
+    listData != null &&
+    !alreadyInYard &&
+    firstGateInOfTrip(gateInTimes, listData.port_arrival_date) != null;
+  const onList = portDataFound && listData != null && !listTripDone;
+  const listLocked = onList && !override;
+  // Free days: the port list's, else the line's standard. Only an admin
+  // override can set another figure.
+  const typedFreeDays = Number.parseInt(formData.freeDays, 10);
+  const effectiveFreeDays =
+    override && !Number.isNaN(typedFreeDays) && typedFreeDays >= 0
+      ? typedFreeDays
+      : onList
+        ? listData.free_days
+        : lineRule?.freeDays ?? 7;
+  // The inspection recorded a different length than the line's list.
+  const listSizeConflict =
+    onList &&
+    !!listData.container_type &&
+    !!inspectionStatus?.container_type &&
+    sizeOf(inspectionStatus.container_type) !== sizeOf(listData.container_type);
 
   // Tiered demurrage calculation — capped at this trip's first gate-in so
   // demurrage stops accruing once the container has been picked up from the port.
@@ -145,12 +198,14 @@ const GateIn = () => {
       formData.containerType,
       formData.portArrivalDate,
       asOf,
+      effectiveFreeDays,
     );
   }, [
     formData.portArrivalDate,
     formData.containerType,
     formData.shippingLine,
     tripGateIn,
+    effectiveFreeDays,
   ]);
 
   const portArrivalIsFuture = useMemo(() => {
@@ -213,8 +268,44 @@ const GateIn = () => {
 
   const showNoPortDataWarning = lookupDone && !portDataFound && lineChargesDemurrage;
 
+  // Whether this line has sent a port list at all — then a container missing
+  // from it is worth a warning, not just a note.
+  const { data: lineHasList = false } = useQuery({
+    queryKey: ["container_port_data", "line-has-list", formData.shippingLine, currentYardId() ?? "all"],
+    enabled: lineChargesDemurrage,
+    queryFn: async () => {
+      let q = supabase
+        .from("container_port_data")
+        .select("container_number")
+        .eq("shipping_line", formData.shippingLine);
+      const yardId = currentYardId();
+      if (yardId) q = q.eq("yard_id", yardId);
+      const { data, error } = await q.limit(1);
+      if (error) throw error;
+      return (data ?? []).length > 0;
+    },
+  });
+
+  // Clear the stale list's values so this trip's arrival date gets entered.
+  useEffect(() => {
+    if (listTripDone) setFormData((prev) => ({ ...prev, portArrivalDate: "", freeDays: "" }));
+  }, [listTripDone]);
+
+  const startOverride = async (reason: string) => {
+    setOverride({ reason });
+    setFormData((prev) => ({ ...prev, freeDays: String(effectiveFreeDays) }));
+    setOverrideDialogOpen(false);
+  };
+
+  const undoOverride = () => {
+    setOverride(null);
+    if (listData) applyListData(listData);
+  };
+
   const clearForm = () => {
     setFormData(EMPTY_FORM);
+    setListData(null);
+    setOverride(null);
     resetLookup();
   };
 
@@ -330,7 +421,7 @@ const GateIn = () => {
       console.error('Error gating in container:', error);
       toast({
         title: "Error",
-        description: "Failed to gate in container. Please try again.",
+        description: gateInErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -352,14 +443,16 @@ const GateIn = () => {
 
     if (existingMaster?.id) {
       masterId = existingMaster.id;
-      // Keep type/line current in case they've changed.
-      await supabase
+      // Keep type/line current in case they've changed. The port-list guard on
+      // the visit insert checks these, so a failed update must not pass silently.
+      const { error: masterUpdateErr } = await supabase
         .from("containers")
         .update({
           container_type: formData.containerType,
           shipping_line: formData.shippingLine,
         })
         .eq("id", masterId);
+      if (masterUpdateErr) throw masterUpdateErr;
     } else {
       const { data: newMaster, error: masterErr } = await supabase
         .from("containers")
@@ -402,7 +495,7 @@ const GateIn = () => {
         yard_block: formData.yardBlock || null,
         yard_row: formData.yardRow || null,
         port_arrival_date: formData.portArrivalDate || null,
-        free_days: formData.freeDays ? parseInt(formData.freeDays, 10) : 7,
+        free_days: effectiveFreeDays,
         daily_demurrage: formData.dailyDemurrage
           ? parseFloat(formData.dailyDemurrage)
           : null,
@@ -424,8 +517,38 @@ const GateIn = () => {
         block: formData.yardBlock || null,
         row: formData.yardRow || null,
         demurrage_collected_jod: demurragePayment?.totalCollected ?? 0,
+        on_port_list: onList,
       },
     });
+
+    // An admin override of the port list is logged field by field with its reason.
+    if (override) {
+      const before = {
+        port_arrival_date: listData?.port_arrival_date ?? null,
+        free_days: listData?.free_days ?? lineRule?.freeDays ?? null,
+        shipping_line: listData?.shipping_line ?? null,
+        container_type: listData?.container_type ?? null,
+      };
+      const after = {
+        port_arrival_date: formData.portArrivalDate || null,
+        free_days: effectiveFreeDays,
+        shipping_line: formData.shippingLine,
+        container_type: formData.containerType,
+      };
+      const changes = (Object.keys(before) as (keyof typeof before)[])
+        .filter((k) => before[k] != null && before[k] !== after[k])
+        .map((field) => ({ field, from: before[field], to: after[field] }));
+      if (changes.length > 0) {
+        await logActivity({
+          userId: user!.id,
+          yardId,
+          action: "port_list_overridden",
+          containerId: visit.id,
+          containerNumber,
+          metadata: { changes, reason: override.reason, on_port_list: onList, visit_id: visit.id },
+        });
+      }
+    }
 
     toast({
       title: "Success",
@@ -550,11 +673,19 @@ const GateIn = () => {
                     <SelectValue placeholder="Select container type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CONTAINER_TYPES.map((t) => (
-                      <SelectItem key={t.code} value={t.code}>{t.label}</SelectItem>
-                    ))}
+                    {CONTAINER_TYPES
+                      // While locked to the port list, only types of the list's length.
+                      .filter((t) => !listLocked || !listData?.container_type || sizeOf(t.code) === sizeOf(listData.container_type))
+                      .map((t) => (
+                        <SelectItem key={t.code} value={t.code}>{t.label}</SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
+                {listSizeConflict && !override && (
+                  <p className="text-xs text-warning">
+                    The inspection recorded {inspectionStatus?.container_type}, but {listData?.shipping_line}&rsquo;s port list says {sizeOf(listData?.container_type)}ft. Demurrage follows the list; an admin can override it if the list is wrong.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -562,6 +693,7 @@ const GateIn = () => {
                 <Select
                   value={formData.shippingLine}
                   onValueChange={(value) => setFormData({ ...formData, shippingLine: value as ShippingLine })}
+                  disabled={listLocked}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select shipping line" />
@@ -621,21 +753,70 @@ const GateIn = () => {
             </div>
 
             <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                Port & Demurrage Information
-                {portDataFound && (
-                  <span className="ml-2 text-xs text-success font-normal">(Auto-filled from port data)</span>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h3 className="text-sm font-semibold text-muted-foreground">
+                  Port & Demurrage Information
+                  {onList && !override && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-xs text-success font-normal">
+                      <Lock className="h-3 w-3" /> From {listData?.shipping_line}&rsquo;s port list
+                    </span>
+                  )}
+                </h3>
+                {canOverrideInspection && lookupDone && lineChargesDemurrage && (
+                  override ? (
+                    <Button type="button" variant="outline" size="sm" onClick={undoOverride}>
+                      {onList ? "Use port list values" : "Use standard free days"}
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="outline" size="sm" onClick={() => setOverrideDialogOpen(true)}>
+                      <Unlock className="h-3.5 w-3.5 mr-1" /> Admin override
+                    </Button>
+                  )
                 )}
-              </h3>
+              </div>
 
-              {showNoPortDataWarning && (
+              {override && (
                 <Alert className="mb-4 border-warning/40 bg-warning/10 text-warning [&>svg]:text-warning">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>No port data found for this container</AlertTitle>
+                  <Unlock className="h-4 w-4" />
+                  <AlertTitle>Admin override</AlertTitle>
                   <AlertDescription>
-                    Enter the port arrival date below. Demurrage will be calculated automatically from the shipping line's tier rules. You can still proceed with gate-in.
+                    {onList ? "Port list values are unlocked" : "Free days are unlocked"}. Any change is logged with your reason: &ldquo;{override.reason}&rdquo;.
                   </AlertDescription>
                 </Alert>
+              )}
+
+              {listTripDone && lineChargesDemurrage && (
+                <Alert className="mb-4 border-warning/40 bg-warning/10 text-warning [&>svg]:text-warning">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>The port list entry is from an earlier trip</AlertTitle>
+                  <AlertDescription>
+                    {listData?.shipping_line}&rsquo;s list has this container arriving {fmtDay(listData?.port_arrival_date)}, but it has already been gated in and out since then.
+                    Check the new arrival date with {formData.shippingLine} and enter it below.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {showNoPortDataWarning && (
+                lineHasList ? (
+                  <Alert className="mb-4 border-warning/40 bg-warning/10 text-warning [&>svg]:text-warning">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>
+                      {formData.containerNumber.trim().toUpperCase()} isn&rsquo;t on {formData.shippingLine}&rsquo;s port list
+                    </AlertTitle>
+                    <AlertDescription>
+                      Check with {formData.shippingLine} before accepting it. If they confirm, enter the port arrival date below —
+                      demurrage uses {formData.shippingLine}&rsquo;s standard {lineRule?.freeDays} free days.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Alert className="mb-4 border-warning/40 bg-warning/10 text-warning [&>svg]:text-warning">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>No port data found for this container</AlertTitle>
+                    <AlertDescription>
+                      Enter the port arrival date below. Demurrage will be calculated automatically from the shipping line's tier rules. You can still proceed with gate-in.
+                    </AlertDescription>
+                  </Alert>
+                )
               )}
 
               <Tabs defaultValue="port" className="w-full">
@@ -654,6 +835,7 @@ const GateIn = () => {
                         value={formData.portArrivalDate}
                         onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
                         max={new Date().toISOString().split('T')[0]}
+                        disabled={listLocked}
                       />
                       {portArrivalIsFuture && (
                         <p className="text-xs text-destructive">Port arrival date cannot be in the future.</p>
@@ -667,13 +849,15 @@ const GateIn = () => {
                         type="number"
                         min="0"
                         max="365"
-                        value={formData.freeDays}
+                        value={override ? formData.freeDays : String(effectiveFreeDays)}
                         onChange={(e) => setFormData({ ...formData, freeDays: e.target.value })}
-                        placeholder="Auto from shipping line"
+                        disabled={!override}
                       />
-                      {hasDemurrageRules(formData.shippingLine) && (
+                      {lineRule && (
                         <p className="text-xs text-muted-foreground">
-                          {formData.shippingLine} default: {DEMURRAGE_RULES[formData.shippingLine].freeDays} days
+                          {onList
+                            ? `From the port list · ${formData.shippingLine} standard: ${lineRule.freeDays} days`
+                            : `${formData.shippingLine} standard: ${lineRule.freeDays} days`}
                         </p>
                       )}
                     </div>
@@ -695,6 +879,7 @@ const GateIn = () => {
                   <div className="space-y-2">
                     <Label htmlFor="shippingLineTab">Shipping Line *</Label>
                     <Select
+                      disabled={listLocked}
                       value={formData.shippingLine}
                       onValueChange={(value) => setFormData({ ...formData, shippingLine: value as ShippingLine })}
                     >
@@ -716,6 +901,7 @@ const GateIn = () => {
                     <DemurrageTierRulesTable
                       shippingLine={formData.shippingLine}
                       containerType={formData.containerType}
+                      freeDays={effectiveFreeDays}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -841,6 +1027,20 @@ const GateIn = () => {
       )}
       </div>
 
+      <ReasonDialog
+        open={overrideDialogOpen}
+        title="Override port data"
+        description={
+          onList
+            ? `Unlock the arrival date, free days, line and size that ${listData?.shipping_line}'s port list sets for this container. What you change is logged with this reason.`
+            : "Unlock the free days for this container. What you change is logged with this reason."
+        }
+        confirmLabel="Unlock"
+        destructive
+        onCancel={() => setOverrideDialogOpen(false)}
+        onConfirm={startOverride}
+      />
+
       <DemurrageCollectionDialog
         open={demurrageDialog.open}
         shippingLine={formData.shippingLine}
@@ -905,7 +1105,7 @@ const GateIn = () => {
             console.error('Error gating in container:', error);
             toast({
               title: "Error",
-              description: "Failed to gate in container. Please try again.",
+              description: gateInErrorMessage(error),
               variant: "destructive",
             });
           } finally {

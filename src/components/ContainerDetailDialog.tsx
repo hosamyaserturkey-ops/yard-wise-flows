@@ -218,6 +218,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
         container.containerType,
         portData.port_arrival_date,
         capDate,
+        portData.free_days,
       )
     : null;
 
