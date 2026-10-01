@@ -46,7 +46,9 @@ import {
 const EMPTY_FORM: GateInData = {
   containerNumber: "",
   containerType: "",
-  shippingLine: "SLD",
+  // No default line: a preselected one was easy to leave unchanged, and
+  // demurrage is charged by line. A port-list match fills it in.
+  shippingLine: "",
   driverName: "",
   truckNumber: "",
   portArrivalDate: "",
@@ -271,8 +273,6 @@ const GateIn = () => {
 
   const showNoPortDataWarning = lookupDone && !portDataFound && lineChargesDemurrage;
 
-  // Whether this line has sent a port list at all — then a container missing
-  // from it is worth a warning, not just a note.
   // Blocks and rows already in use in this yard, offered as suggestions so
   // the same slot isn't typed three different ways.
   const { data: knownSlots } = useQuery({
@@ -295,6 +295,8 @@ const GateIn = () => {
   }, [knownSlots, formData.yardBlock]);
   const blockIsNew = !!formData.yardBlock.trim() && knownBlocks.length > 0 && !knownBlocks.includes(normalizeBlock(formData.yardBlock));
 
+  // Whether this line has sent a port list at all — then a container missing
+  // from it is worth a warning, not just a note.
   const { data: lineHasList = false } = useQuery({
     queryKey: ["container_port_data", "line-has-list", formData.shippingLine, currentYardId() ?? "all"],
     enabled: lineChargesDemurrage,
@@ -906,7 +908,7 @@ const GateIn = () => {
                     <DemurragePreviewCard preview={demurragePreview} />
                   )}
 
-                  {!hasDemurrageRules(formData.shippingLine) && formData.portArrivalDate && (
+                  {formData.shippingLine && !hasDemurrageRules(formData.shippingLine) && formData.portArrivalDate && (
                     <p className="text-xs text-muted-foreground">
                       No tiered demurrage rules configured for {formData.shippingLine}. No demurrage will be charged.
                     </p>
@@ -943,7 +945,9 @@ const GateIn = () => {
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      No tier rules configured for {formData.shippingLine}.
+                      {formData.shippingLine
+                        ? `No tier rules configured for ${formData.shippingLine}.`
+                        : "Select a shipping line to see its demurrage rules."}
                     </p>
                   )}
                 </TabsContent>
@@ -1037,7 +1041,7 @@ const GateIn = () => {
               <Button
                 type="submit"
                 className="bg-maritime hover:bg-maritime/90"
-                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !portDataComplete || inspectionBlocksGateIn}
+                disabled={isSubmitting || hasDemurrageDue || alreadyInYard || !formData.shippingLine || !portDataComplete || inspectionBlocksGateIn}
               >
                 {isSubmitting
                   ? "Processing..."
@@ -1049,7 +1053,9 @@ const GateIn = () => {
                           : "Awaiting Approved Inspection")
                       : hasDemurrageDue
                         ? "Demurrage Due — Collect Payment First"
-                        : !formData.portArrivalDate
+                        : !formData.shippingLine
+                          ? "Select Shipping Line"
+                          : !formData.portArrivalDate
                           ? "Enter Port Arrival Date"
                           : portArrivalIsFuture
                             ? "Invalid Port Arrival Date"
