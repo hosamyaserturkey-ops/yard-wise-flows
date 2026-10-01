@@ -24,6 +24,11 @@ const ROUTE_LABELS: Record<string, string> = {
   "/admin/users":  "Users",
   "/admin/yards":  "Yards",
   "/inspector":    "Inspect",
+  "/activity":     "Activity",
+  "/yard-map":     "Yard Map",
+  "/photos":       "Photos",
+  "/terminal-check": "Terminal Check",
+  "/account":      "Account",
 };
 
 const Layout = () => {
@@ -54,7 +59,7 @@ const Layout = () => {
         </header>
 
         {/* ── Page Content ────────────────────────────── */}
-        <main className="flex-1 overflow-auto bg-background">
+        <div className="flex-1 overflow-auto bg-background">
           <div className="mx-auto w-full max-w-[1600px]">
             <Suspense
               fallback={
@@ -66,7 +71,7 @@ const Layout = () => {
               <Outlet />
             </Suspense>
           </div>
-        </main>
+        </div>
       </SidebarInset>
 
       {/* Command palette — always mounted so ⌘K works everywhere */}
