@@ -45,6 +45,9 @@ const GRADE_COLOR: Record<string, string> = {
   D: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
+/** How many of the newest inspections to show before anything is searched. */
+const RECENT_CHECKS = 12;
+
 const PhotoArchive = () => {
   const { user, currentYardId, isInspector, isAdmin, isSuperAdmin } = useAuth();
   const { toast } = useToast();
@@ -64,16 +67,19 @@ const PhotoArchive = () => {
   const canCancelChecks = isAdmin() || isSuperAdmin();
   const [pendingCancel, setPendingCancel] = useState<EnrichedCheck | null>(null);
 
+  // With fewer than 3 characters typed, show the latest inspections instead
+  // of an empty page; a search lists matches by container number.
   const runSearch = useCallback(async (q: string) => {
+    const recent = q.length < 3;
     setLoading(true);
     try {
       const yardId = currentYardId();
       let query = supabase
         .from("inspector_checks")
         .select("id, container_number, grade, status, notes, photo_urls, created_at, inspector_id, cancel_reason, yard_id")
-        .ilike("container_number", `%${q}%`)
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(recent ? RECENT_CHECKS : 200);
+      if (!recent) query = query.ilike("container_number", `%${q}%`);
       if (yardId) query = query.eq("yard_id", yardId);
       const { data } = await query;
       const checks = (data ?? []) as Check[];
@@ -114,7 +120,8 @@ const PhotoArchive = () => {
         );
         out.push({ container_number: num, checks: enriched });
       }
-      setGroups(out.sort((a, b) => a.container_number.localeCompare(b.container_number)));
+      // Recent: newest first (the order they came back in). Search: by number.
+      setGroups(recent ? out : out.sort((a, b) => a.container_number.localeCompare(b.container_number)));
     } finally {
       setLoading(false);
     }
@@ -122,11 +129,7 @@ const PhotoArchive = () => {
 
   useEffect(() => {
     const q = search.trim().toUpperCase();
-    if (q.length < 3) {
-      setGroups([]);
-      return;
-    }
-    const t = setTimeout(() => { void runSearch(q); }, 300);
+    const t = setTimeout(() => { void runSearch(q); }, q.length < 3 ? 0 : 300);
     return () => clearTimeout(t);
   }, [search, runSearch]);
 
@@ -197,7 +200,14 @@ const PhotoArchive = () => {
         />
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground">Searching…</p>}
+      {loading && <p className="text-sm text-muted-foreground">{search.trim().length >= 3 ? "Searching…" : "Loading the latest inspections…"}</p>}
+
+      {!loading && search.trim().length < 3 && groups.length > 0 && (
+        <h2 className="text-sm font-semibold text-muted-foreground">Latest inspections — type a container number to search all</h2>
+      )}
+      {!loading && search.trim().length < 3 && groups.length === 0 && (
+        <p className="text-sm text-muted-foreground">No inspections recorded yet.</p>
+      )}
 
       {!loading && search.trim().length >= 3 && groups.length === 0 && (
         <p className="text-sm text-muted-foreground">No inspection records found.</p>
