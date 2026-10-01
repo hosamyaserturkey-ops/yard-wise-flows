@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePager } from "@/components/TablePager";
 import { AlertTriangle, Download, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,8 +31,6 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
 ];
 
 // Rendering thousands of rows makes the page sluggish; search or export instead.
-const MAX_ROWS = 300;
-
 const money = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 /**
@@ -78,6 +78,8 @@ export const PortListTable = ({
   }, [rows, search, line, status]);
 
   const summary = useMemo(() => summarizePortList(filtered), [filtered]);
+  // The summary cards and the export use the whole filtered list; only the table pages.
+  const pager = usePagination(filtered, 50, JSON.stringify([search, line, status]));
 
   const exportList = async () => {
     setExporting(true);
@@ -158,9 +160,10 @@ export const PortListTable = ({
         ) : filtered.length === 0 ? (
           <p className="text-muted-foreground">No containers match.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
+          <div>
+            {/* Scrolls inside its own box so the column headers stay in view. */}
+            <Table containerClassName="max-h-[70vh] rounded-md border">
+              <TableHeader className="sticky top-0 z-10 bg-muted shadow-[0_1px_0_hsl(var(--border))]">
                 <TableRow>
                   <TableHead>Container</TableHead>
                   {showYard && <TableHead>Yard</TableHead>}
@@ -175,7 +178,7 @@ export const PortListTable = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.slice(0, MAX_ROWS).map((r) => (
+                {pager.pageItems.map((r) => (
                   <TableRow key={`${r.container_number}-${r.yard_id ?? ""}`}>
                     <TableCell className="font-mono">{r.container_number}</TableCell>
                     {showYard && <TableCell className="text-xs">{yardName(r.yard_id)}</TableCell>}
@@ -208,11 +211,7 @@ export const PortListTable = ({
                 ))}
               </TableBody>
             </Table>
-            {filtered.length > MAX_ROWS && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Showing the first {MAX_ROWS} of {filtered.length}. Search or filter to narrow it, or export for the full list.
-              </p>
-            )}
+            <TablePager {...pager} noun="containers" />
           </div>
         )}
         <p className="text-xs text-muted-foreground">

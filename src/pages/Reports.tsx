@@ -1,4 +1,6 @@
 import { useCallback, useState, useEffect } from "react";
+import { usePagination } from "@/hooks/usePagination";
+import { TablePager } from "@/components/TablePager";
 import { DateInput } from "@/components/DateInput";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -231,6 +233,8 @@ const Reports = () => {
     }
   };
 
+  // Totals and the Excel export use the whole filtered list; only the table pages.
+  const pager = usePagination(filteredContainers, 50, JSON.stringify([filters, searchTerm]));
   const totalFees = filteredContainers.reduce((sum, container) => sum + (container.fees || 0), 0);
   const totalDemurrage = filteredContainers.reduce(
     (sum, c) => sum + (demurragePaid[c.containerNumber] || 0),
@@ -417,8 +421,9 @@ const Reports = () => {
           <CardTitle>Container Activity Report</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
+          {/* Scrolls inside its own box so the column headers stay in view. */}
+          <Table containerClassName="max-h-[70vh] rounded-md border">
+            <TableHeader className="sticky top-0 z-10 bg-muted shadow-[0_1px_0_hsl(var(--border))]">
               <TableRow>
                 <TableHead>Container Number</TableHead>
                 <TableHead>Type</TableHead>
@@ -444,7 +449,7 @@ const Reports = () => {
                     ))}
                   </TableRow>
                 ))}
-              {!loading && filteredContainers.map((container) => (
+              {!loading && pager.pageItems.map((container) => (
                 <TableRow
                   key={container.id}
                   className="cursor-pointer"
@@ -475,7 +480,7 @@ const Reports = () => {
                       "-"
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <StatusBadge status={container.status} dot />
                   </TableCell>
                   <TableCell className="font-mono">
@@ -497,6 +502,7 @@ const Reports = () => {
               ))}
             </TableBody>
           </Table>
+          {!loading && <TablePager {...pager} noun="containers" />}
           {!loading && filteredContainers.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
               <Search className="h-8 w-8 opacity-40" />
