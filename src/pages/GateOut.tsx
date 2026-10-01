@@ -432,8 +432,8 @@ const GateOut = () => {
           <CardContent>
             {loading ? (
               <div className="space-y-2">
-                {[0, 1, 2].map((i) => (
-                  <Skeleton key={i} className="h-24 w-full rounded-lg" />
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="h-14 w-full rounded-lg" />
                 ))}
               </div>
             ) : filteredContainers.length === 0 ? (
@@ -454,56 +454,46 @@ const GateOut = () => {
               // Radix wraps the content in a display:table div that grows to
               // its widest line and clips the dwell column on phones; force
               // it to block so the cards fit the list width.
-              <ScrollArea className="h-[26rem] pr-3 [&_[data-radix-scroll-area-viewport]>div]:!block">
-                <div className="space-y-2">
+              <ScrollArea className="h-[26rem] lg:h-[calc(100vh-17rem)] lg:min-h-[26rem] pr-3 [&_[data-radix-scroll-area-viewport]>div]:!block">
+                <div className="space-y-1.5">
                   {filteredContainers.map((container) => {
                     const isSelected = selectedContainer?.id === container.id;
                     const days = dwellDays(container.gateInTime);
+                    // Two compact lines per container so about a dozen fit on
+                    // screen; same details as before, same click to select.
                     return (
                       <button
                         key={container.id}
                         type="button"
                         aria-pressed={isSelected}
                         onClick={() => handleContainerSelect(container)}
-                        className={`w-full text-left p-4 border rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                        className={`w-full text-left px-3 py-2 border rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                           isSelected
                             ? "border-maritime bg-maritime/5"
                             : "border-border hover:border-maritime/50 hover:bg-muted/40"
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono font-semibold text-lg">
-                                {container.containerNumber}
-                              </span>
-                              <StatusBadge status={container.status} short dot />
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {container.containerType} • {container.shippingLine}
-                            </div>
-                            <div className="text-sm text-muted-foreground truncate">
-                              In: {container.driverName || "—"} • {container.truckNumber || "—"}
-                            </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="font-mono font-semibold">{container.containerNumber}</span>
+                            <StatusBadge status={container.status} short dot />
+                          </div>
+                          <span className="shrink-0 text-sm font-semibold">
+                            {formatDwell(days)} <span className="text-xs font-normal text-muted-foreground">in yard</span>
+                          </span>
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                          <span className="min-w-0 truncate">
+                            {container.containerType} · {container.shippingLine} · In: {container.driverName || "—"} · {container.truckNumber || "—"} ·{" "}
                             {container.bookingNumber ? (
-                              <div className="text-sm text-maritime font-medium truncate">
-                                Booking: {container.bookingNumber}
-                              </div>
+                              <span className="font-medium text-maritime">Booking {container.bookingNumber}</span>
                             ) : (
-                              <div className="text-sm text-muted-foreground">No booking</div>
+                              "No booking"
                             )}
-                          </div>
-                          <div className="shrink-0 text-right text-xs text-muted-foreground">
-                            <div className="text-sm font-semibold text-foreground">
-                              {formatDwell(days)}
-                            </div>
-                            <div>in yard</div>
-                            <div className="mt-1">
-                              {formatDate(container.gateInTime)}
-                              <br />
-                              {formatTime(container.gateInTime)}
-                            </div>
-                          </div>
+                          </span>
+                          <span className="shrink-0 tabular-nums">
+                            {formatDate(container.gateInTime)} {formatTime(container.gateInTime)}
+                          </span>
                         </div>
                       </button>
                     );
@@ -515,7 +505,7 @@ const GateOut = () => {
         </Card>
 
         {/* Gate Out Form */}
-        <Card className="lg:sticky lg:top-6">
+        <Card className="lg:sticky lg:top-20">
           <CardHeader>
             <CardTitle>Gate Out Information</CardTitle>
           </CardHeader>
