@@ -40,7 +40,9 @@ const Layout = () => {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      {/* min-w-0: as a flex item the inset otherwise grows to its widest
+          table, so the page scrolls sideways instead of the table. */}
+      <SidebarInset className="min-w-0">
         {/* ── Top Bar ─────────────────────────────────── */}
         <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/85 backdrop-blur-md px-4 sticky top-0 z-10 md:px-6">
           <SidebarTrigger className="-ml-1" />

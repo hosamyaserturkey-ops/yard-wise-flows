@@ -450,7 +450,10 @@ const GateOut = () => {
                 )}
               </div>
             ) : (
-              <ScrollArea className="h-[26rem] pr-3">
+              // Radix wraps the content in a display:table div that grows to
+              // its widest line and clips the dwell column on phones; force
+              // it to block so the cards fit the list width.
+              <ScrollArea className="h-[26rem] pr-3 [&_[data-radix-scroll-area-viewport]>div]:!block">
                 <div className="space-y-2">
                   {filteredContainers.map((container) => {
                     const isSelected = selectedContainer?.id === container.id;
