@@ -42,6 +42,7 @@ import {
   firstGateInOfTrip,
   DEMURRAGE_RULES,
 } from "@/lib/demurrage";
+import { formatJod } from "@/lib/accounting";
 
 const EMPTY_FORM: GateInData = {
   containerNumber: "",
@@ -995,9 +996,9 @@ const GateIn = () => {
                 <div className="mt-4 p-4 bg-destructive/10 border border-destructive/30 rounded-md text-destructive text-sm space-y-3">
                   <p className="font-medium">Demurrage Due — Collect payment before gate-in</p>
                   <div className="space-y-1 text-xs">
-                    <div className="flex justify-between"><span>Demurrage Total</span><strong>{demurragePreview.totalJOD.toLocaleString()} JOD</strong></div>
-                    <div className="flex justify-between"><span>Service Fee</span><strong>{feeCfg.total} JOD</strong></div>
-                    <div className="flex justify-between border-t border-destructive/20 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{(demurragePreview.totalJOD + feeCfg.total).toLocaleString()} JOD</strong></div>
+                    <div className="flex justify-between"><span>Demurrage Total</span><strong>{formatJod(demurragePreview.totalJOD)}</strong></div>
+                    <div className="flex justify-between"><span>Service Fee</span><strong>{formatJod(feeCfg.total)}</strong></div>
+                    <div className="flex justify-between border-t border-destructive/20 pt-1 text-sm"><span className="font-semibold">Total to Collect</span><strong>{formatJod(demurragePreview.totalJOD + feeCfg.total)}</strong></div>
                   </div>
                   <Button
                     type="button"

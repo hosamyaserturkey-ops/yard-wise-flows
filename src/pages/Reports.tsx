@@ -42,6 +42,7 @@ import {
 import { fetchYards, loadReportData } from "@/lib/reports/fetchReportData";
 import { filtersLabel, periodFromFilters, type ReportFilters } from "@/lib/reports/reportFilters";
 import { formatDate, formatTime } from "@/lib/format";
+import { formatJod } from "@/lib/accounting";
 
 const EXPORTS: { kind: ReportKind; label: string; description: string; adminOnly?: boolean }[] = [
   {
@@ -396,14 +397,14 @@ const Reports = () => {
         />
         <StatCard
           label="Total Fees"
-          value={`${totalFees.toFixed(2)} JOD`}
+          value={formatJod(totalFees)}
           color="container"
           icon={<Coins className="h-5 w-5 text-container" />}
           loading={loading}
         />
         <StatCard
           label="Demurrage Collected"
-          value={`${totalDemurrage.toFixed(2)} JOD`}
+          value={formatJod(totalDemurrage)}
           color="success"
           icon={<Wallet className="h-5 w-5 text-success" />}
           loading={loading}
@@ -481,12 +482,12 @@ const Reports = () => {
                     {container.bookingNumber || "-"}
                   </TableCell>
                   <TableCell>
-                    {container.fees ? `${container.fees.toFixed(2)} JOD` : "-"}
+                    {container.fees ? formatJod(container.fees) : "-"}
                   </TableCell>
                   <TableCell>
                     {demurragePaid[container.containerNumber] != null ? (
                       <Badge className="bg-success/10 text-success border-success/30">
-                        {demurragePaid[container.containerNumber].toFixed(2)} JOD
+                        {formatJod(demurragePaid[container.containerNumber])}
                       </Badge>
                     ) : (
                       "-"

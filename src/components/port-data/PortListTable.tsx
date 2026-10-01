@@ -15,6 +15,7 @@ import {
 } from "@/lib/portListStatus";
 import { fmtDay, todayLocalISO } from "./format";
 import { formatDayMonth } from "@/lib/format";
+import { formatJod } from "@/lib/accounting";
 
 type StatusFilter = "all" | "awaiting" | "overdue" | "in_yard" | "gated_out" | "mismatch";
 
@@ -118,7 +119,7 @@ export const PortListTable = ({
           <Tile
             label="Past free time"
             value={summary.overdue}
-            hint={summary.overdue > 0 ? `${money(summary.overdueUSD)} USD · ${money(summary.overdueJOD)} JOD owed` : undefined}
+            hint={summary.overdue > 0 ? `${money(summary.overdueUSD)} USD · ${formatJod(summary.overdueJOD)} owed` : undefined}
             tone={summary.overdue > 0 ? "danger" : undefined}
           />
           <Tile label="In yard" value={summary.inYard} />
@@ -199,7 +200,7 @@ export const PortListTable = ({
                       {r.demurrageUSD > 0 ? (
                         <>
                           <div>${money(r.demurrageUSD)}</div>
-                          <div className="text-xs text-muted-foreground">{money(r.demurrageJOD)} JOD</div>
+                          <div className="text-xs text-muted-foreground">{formatJod(r.demurrageJOD)}</div>
                         </>
                       ) : "—"}
                     </TableCell>
