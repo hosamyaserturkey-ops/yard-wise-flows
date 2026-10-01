@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 /**
  * Admin corrections to container, visit and booking records.
@@ -115,11 +116,11 @@ const showValue = (field: string, v: EditValue): string => {
   if (v === null || v === "") return "—";
   // Calendar dates (the port arrival date) read as DD/MM/YYYY, with no time-zone shift.
   const day = field === "port_arrival_date" && typeof v === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(v) : null;
-  if (day) return `${day[3]}/${day[2]}/${day[1]}`;
+  if (day) return formatDate(v);
   if (TIME_FIELDS.has(field) && typeof v === "string") {
     const d = new Date(v);
     if (!Number.isNaN(d.getTime())) {
-      return `${d.toLocaleDateString("en-GB")} ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+      return formatDateTime(d);
     }
   }
   return String(v);

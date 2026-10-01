@@ -28,6 +28,7 @@ import {
   matchesGateOutSearch,
   normalizeFees,
 } from "@/lib/gateOut";
+import { formatDate, formatTime } from "@/lib/format";
 
 type FieldErrors = Partial<
   Record<"bookingNumber" | "sealNumber" | "driverName" | "truckNumber" | "fees", string>
@@ -498,12 +499,9 @@ const GateOut = () => {
                             </div>
                             <div>in yard</div>
                             <div className="mt-1">
-                              {container.gateInTime.toLocaleDateString()}
+                              {formatDate(container.gateInTime)}
                               <br />
-                              {container.gateInTime.toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              {formatTime(container.gateInTime)}
                             </div>
                           </div>
                         </div>
@@ -542,7 +540,7 @@ const GateOut = () => {
                     <dt className="text-muted-foreground">In yard</dt>
                     <dd>
                       {formatDwell(dwellDays(selectedContainer.gateInTime))} · since{" "}
-                      {selectedContainer.gateInTime.toLocaleDateString()}
+                      {formatDate(selectedContainer.gateInTime)}
                     </dd>
                     <dt className="text-muted-foreground">Gate-in driver</dt>
                     <dd>{selectedContainer.driverName || "—"}</dd>

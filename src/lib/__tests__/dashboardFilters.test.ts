@@ -170,7 +170,7 @@ describe("describeFilters", () => {
 
 describe("formatDayKey", () => {
   it("renders a day key as local-time day/month/year", () => {
-    expect(formatDayKey("2026-01-05")).toBe("5 Jan 2026");
+    expect(formatDayKey("2026-01-05")).toBe("05 Jan 2026");
   });
 
   it("passes through anything unparseable", () => {

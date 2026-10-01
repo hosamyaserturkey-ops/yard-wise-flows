@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Container as ContainerType } from "@/types/container";
 import { daysInYard } from "@/lib/dashboardStats";
+import { formatDate } from "@/lib/format";
 
 export interface DemurrageInfo {
   paidJOD?: number;
@@ -153,7 +154,7 @@ const ContainerKanbanCard = ({ container: c, demurrage, onClick, onReserve, inde
         <span className="text-[11px] text-muted-foreground">
           {c.status === "out"
             ? c.gateOutTime
-              ? `Out ${c.gateOutTime.toLocaleDateString()}`
+              ? `Out ${formatDate(c.gateOutTime)}`
               : "Out"
             : `${days}d in yard`}
         </span>

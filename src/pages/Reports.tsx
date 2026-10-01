@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from "react";
+import { DateInput } from "@/components/DateInput";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ import {
 } from "@/lib/reports/reportData";
 import { fetchYards, loadReportData } from "@/lib/reports/fetchReportData";
 import { filtersLabel, periodFromFilters, type ReportFilters } from "@/lib/reports/reportFilters";
+import { formatDate, formatTime } from "@/lib/format";
 
 const EXPORTS: { kind: ReportKind; label: string; description: string; adminOnly?: boolean }[] = [
   {
@@ -292,21 +294,19 @@ const Reports = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label htmlFor="dateFrom">From Date</Label>
-              <Input
+              <DateInput
                 id="dateFrom"
-                type="date"
                 value={filters.dateFrom}
-                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                onChange={(v) => setFilters({ ...filters, dateFrom: v })}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="dateTo">To Date</Label>
-              <Input
+              <DateInput
                 id="dateTo"
-                type="date"
                 value={filters.dateTo}
-                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                onChange={(v) => setFilters({ ...filters, dateTo: v })}
               />
             </div>
 
@@ -460,15 +460,15 @@ const Reports = () => {
                   </TableCell>
                   <TableCell>{container.driverName}</TableCell>
                   <TableCell className="font-mono">{container.truckNumber}</TableCell>
-                  <TableCell className="text-sm">
-                    {container.gateInTime.toLocaleDateString()}<br />
-                    {container.gateInTime.toLocaleTimeString()}
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {formatDate(container.gateInTime)}<br />
+                    <span className="text-muted-foreground">{formatTime(container.gateInTime)}</span>
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-sm whitespace-nowrap">
                     {container.gateOutTime ? (
                       <>
-                        {container.gateOutTime.toLocaleDateString()}<br />
-                        {container.gateOutTime.toLocaleTimeString()}
+                        {formatDate(container.gateOutTime)}<br />
+                        <span className="text-muted-foreground">{formatTime(container.gateOutTime)}</span>
                       </>
                     ) : (
                       "-"

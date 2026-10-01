@@ -14,6 +14,7 @@ import {
   type PortListRow,
 } from "@/lib/portListStatus";
 import { fmtDay, todayLocalISO } from "./format";
+import { formatDayMonth } from "@/lib/format";
 
 type StatusFilter = "all" | "awaiting" | "overdue" | "in_yard" | "gated_out" | "mismatch";
 
@@ -227,7 +228,7 @@ const StatusBadge = ({ row }: { row: PortListRow }) => {
       ? <Badge variant="destructive" className="whitespace-nowrap">Past free time</Badge>
       : <Badge variant="outline" className="whitespace-nowrap">Not returned</Badge>;
   }
-  const since = row.gateInTime?.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  const since = row.gateInTime ? formatDayMonth(row.gateInTime) : undefined;
   return (
     <Badge variant={row.status === "in_yard" ? "default" : "secondary"} className="whitespace-nowrap" title={portListStatusLabel(row)}>
       {row.status === "in_yard" ? `In yard · ${since}` : "Gated out"}

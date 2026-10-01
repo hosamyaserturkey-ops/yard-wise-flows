@@ -16,6 +16,7 @@ import type { Booking, CreateBookingData } from "@/types/booking";
 import { fetchShippingLines, type ShippingLineRow } from "@/lib/shippingLines";
 import { PageHeader } from "@/components/PageHeader";
 import { YardSelectionGuard } from "@/components/YardSelectionGuard";
+import { formatDate } from "@/lib/format";
 
 export default function Bookings() {
   const navigate = useNavigate();
@@ -364,7 +365,7 @@ export default function Bookings() {
                     </span>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Created: {booking.created_at.toLocaleDateString()}
+                    Created: {formatDate(booking.created_at)}
                   </div>
                 </div>
 

@@ -1,3 +1,5 @@
+import { formatDayMonth, formatWeekdayDate } from "@/lib/format";
+
 // Pure dashboard statistics helpers — no React, no Supabase.
 // Every function takes an optional `now` so calculations are testable.
 
@@ -110,15 +112,13 @@ export function lastNDayLabels(
   days: number,
   now: Date = new Date(),
 ): { date: Date; label: string }[] {
-  // Longer windows drop the weekday so the axis stays legible.
-  const format: Intl.DateTimeFormatOptions =
-    days > 14 ? { day: "numeric", month: "short" } : { weekday: "short", day: "numeric" };
 
   return Array.from({ length: days }).map((_, i) => {
     const d = new Date(now);
     d.setDate(d.getDate() - (days - 1 - i));
     d.setHours(0, 0, 0, 0);
-    return { date: d, label: d.toLocaleDateString("en-GB", format) };
+    // Longer windows drop the weekday so the axis stays legible.
+    return { date: d, label: days > 14 ? formatDayMonth(d) : `${formatWeekdayDate(d, false).slice(0, 3)} ${d.getDate()}` };
   });
 }
 

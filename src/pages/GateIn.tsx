@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { DateInput } from "@/components/DateInput";
+import { toIsoDay } from "@/lib/format";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -829,12 +831,11 @@ const GateIn = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="portArrivalDate">Port Arrival Date *</Label>
-                      <Input
+                      <DateInput
                         id="portArrivalDate"
-                        type="date"
                         value={formData.portArrivalDate}
-                        onChange={(e) => setFormData({ ...formData, portArrivalDate: e.target.value })}
-                        max={new Date().toISOString().split('T')[0]}
+                        onChange={(v) => setFormData({ ...formData, portArrivalDate: v })}
+                        max={toIsoDay(new Date())}
                         disabled={listLocked}
                       />
                       {portArrivalIsFuture && (

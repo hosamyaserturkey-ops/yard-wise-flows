@@ -12,6 +12,7 @@ import {
   type AgingBucketKey,
   type SizeBucket,
 } from "./dashboardStats";
+import { formatDate } from "@/lib/format";
 
 export interface DashboardFilters {
   /** Shipping line — donut slice, stock-table row. */
@@ -112,15 +113,11 @@ export function describeFilters(filters: DashboardFilters): FilterChip[] {
   return chips;
 }
 
-/** `2026-07-15` → `15 Jul 2026`. Parsed as local time, not UTC. */
+/** `2026-07-15` → `15 Jul 2026`, `2026-01-05` → `05 Jan 2026`. Parsed as local time, not UTC. */
 export function formatDayKey(key: string): string {
   const [y, m, d] = key.split("-").map(Number);
   if (!y || !m || !d) return key;
-  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDate(new Date(y, m - 1, d));
 }
 
 /** Toggle a dimension: selecting the active value again clears it. */

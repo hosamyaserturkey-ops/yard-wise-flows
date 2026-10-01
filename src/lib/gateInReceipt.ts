@@ -49,6 +49,7 @@ export const operatorSignatureName = (
 // then throws `ISO_DESCRIPTIONS is not defined`, which aborted the receipt after
 // the window opened and left a blank page.
 import { ISO_DESCRIPTIONS } from "@/lib/containerTypes";
+import { formatDate, formatTime, formatDateTime } from "@/lib/format";
 export { ISO_DESCRIPTIONS };
 
 /** Brand palette shared by both ticket types. */
@@ -202,8 +203,8 @@ export const printGateInReceipt = (
   context?: ReceiptContext,
 ): boolean => {
   const gateInDateRaw = new Date(containerData.gate_in_time);
-  const dateStr = escapeHtml(gateInDateRaw.toLocaleDateString("en-GB"));
-  const timeStr = escapeHtml(gateInDateRaw.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
+  const dateStr = escapeHtml(formatDate(gateInDateRaw));
+  const timeStr = escapeHtml(formatTime(gateInDateRaw));
   const ticketNum = containerData.ticket_number != null
     ? String(containerData.ticket_number).padStart(6, "0")
     : "—";
@@ -213,7 +214,7 @@ export const printGateInReceipt = (
   // reprint, so the ticket never credits the person pressing print.
   const receivedByName = escapeHtml(operatorSignatureName(profile, context));
   const printedBy = escapeHtml(profile?.username || profile?.full_name || "system");
-  const printedAt = escapeHtml(new Date().toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).replace(",", ""));
+  const printedAt = escapeHtml(formatDateTime(new Date()));
   const printLabel = context?.isReprint ? "Reprinted" : "Printed";
   const containerNumberSafe = escapeHtml(containerData.container_number);
   const shippingLineSafe = escapeHtml(containerData.shipping_line);

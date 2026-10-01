@@ -36,6 +36,7 @@ import { fetchVisitOperators, type VisitOperators } from "@/lib/gateOperators";
 import { resolveSignedUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { EditContainerDialog } from "@/components/EditContainerDialog";
+import { formatDate, formatTime } from "@/lib/format";
 
 interface PortData {
   port_arrival_date: string | null;
@@ -224,8 +225,8 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
 
   const statusInfo = STATUS_LABEL[container.status] ?? { label: container.status.toUpperCase(), variant: "secondary" as const };
 
-  const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  const fmtTime = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const fmt = (d: Date) => formatDate(d);
+  const fmtTime = (d: Date) => formatTime(d);
 
   // Reprint the gate-in reception ticket from stored data. Payment details are
   // included when a demurrage payment is on file for this container.

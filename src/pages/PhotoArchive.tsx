@@ -13,6 +13,7 @@ import { Camera, Search, Plus, Ban } from "lucide-react";
 import { CancelInspectionDialog } from "@/components/CancelInspectionDialog";
 import { cancelInspection } from "@/lib/inspections";
 import { useSearchParams } from "react-router-dom";
+import { formatDateTime } from "@/lib/format";
 
 interface Check {
   id: string;
@@ -221,7 +222,7 @@ const PhotoArchive = () => {
                       {c.status}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(c.created_at).toLocaleString("en-GB")}
+                      {formatDateTime(c.created_at)}
                     </span>
                     {c.inspectorName && (
                       <span className="text-xs text-muted-foreground ml-auto">

@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { formatJod } from "@/lib/accounting";
 import { previousShiftSlot, shiftSlotFor, type ShiftSlot } from "@/lib/shifts";
+import { formatWeekdayDate } from "@/lib/format";
 
 interface MyCount {
   id: string;
@@ -29,7 +30,7 @@ interface MyCount {
 
 const slotKey = (s: ShiftSlot) => `${s.shiftDate}|${s.shift}`;
 const slotLabel = (s: ShiftSlot) =>
-  `${new Date(`${s.shiftDate}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })} · ${s.shift === "day" ? "Day (06:00–18:00)" : "Night (18:00–06:00)"}`;
+  `${formatWeekdayDate(s.shiftDate, false)} · ${s.shift === "day" ? "Day (06:00–18:00)" : "Night (18:00–06:00)"}`;
 
 /**
  * End-of-shift drawer count. The cashier enters what is physically in the

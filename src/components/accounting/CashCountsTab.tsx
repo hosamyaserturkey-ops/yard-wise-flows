@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatJod } from "@/lib/accounting";
 import { ReasonDialog } from "./ReasonDialog";
+import { formatWeekdayDate } from "@/lib/format";
 
 interface CashCountRow {
   id: string;
@@ -120,7 +121,7 @@ export function CashCountsTab({ yardId }: { yardId: string | null }) {
                 return (
                   <TableRow key={r.id}>
                     <TableCell className="whitespace-nowrap">
-                      {new Date(`${r.shift_date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}
+                      {formatWeekdayDate(r.shift_date, false)}
                       {" · "}<span className="capitalize">{r.shift}</span>
                     </TableCell>
                     <TableCell className="text-sm">{names[r.counted_by] || "—"}</TableCell>

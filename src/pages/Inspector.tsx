@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 import { uploadPhotoFiles } from "@/lib/photoUpload";
 import { CONTAINER_SIZES, typesForSize, ISO_DESCRIPTIONS } from "@/lib/containerTypes";
+import { formatTime } from "@/lib/format";
 
 type Grade = "A" | "B" | "C" | "D";
 type Decision = "approved" | "rejected";
@@ -111,10 +112,7 @@ const Inspector = () => {
 
       const parts: string[] = [];
       if (prior) {
-        const at = new Date(prior.created_at).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        const at = formatTime(prior.created_at);
         parts.push(`already inspected at ${at} (grade ${prior.grade}, ${prior.status})`);
       }
       if (openVisit) {

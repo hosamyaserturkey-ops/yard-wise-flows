@@ -5,6 +5,7 @@
 
 import { calculateDemurrage, firstGateInOfTrip, hasDemurrageRules, lastFreeDay } from "@/lib/demurrage";
 import type { ReportSpec } from "@/lib/reports/reportModel";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 export interface PortListEntry {
   container_number: string;
@@ -156,8 +157,8 @@ export function buildPortListReport(
     meta: [
       ["Yard", meta.yard],
       ["Showing", meta.filter],
-      ["Demurrage as of", meta.asOf.toLocaleDateString("en-GB")],
-      ["Generated", `${meta.asOf.toLocaleString("en-GB")} by ${meta.generatedBy}`],
+      ["Demurrage as of", formatDate(meta.asOf)],
+      ["Generated", `${formatDateTime(meta.asOf)} by ${meta.generatedBy}`],
     ],
     fileName: meta.fileName,
     sheets: [

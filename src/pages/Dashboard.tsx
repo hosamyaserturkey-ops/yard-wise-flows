@@ -56,6 +56,7 @@ import {
   Legend,
 } from "recharts";
 import { CHART_SERIES, chartColorAt } from "@/lib/chartColors";
+import { formatDate, formatTime } from "@/lib/format";
 
 const LINE_COLORS = CHART_SERIES;
 
@@ -288,7 +289,7 @@ const Dashboard = () => {
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
                   </span>
-                  Live · updated {lastUpdated.toLocaleTimeString()}
+                  Live · updated {formatTime(lastUpdated)}
                 </span>
               }
             />
@@ -728,7 +729,7 @@ const Dashboard = () => {
                         <td className="py-1.5 font-mono">{c.containerNumber}</td>
                         <td className="py-1.5">{c.shippingLine}</td>
                         <td className="py-1.5">{c.containerType}</td>
-                        <td className="py-1.5">{c.gateInTime.toLocaleDateString("en-GB")}</td>
+                        <td className="py-1.5">{formatDate(c.gateInTime)}</td>
                         <td className="py-1.5 text-right font-semibold tabular-nums">{daysInYard(c.gateInTime)}</td>
                       </tr>
                     ))}

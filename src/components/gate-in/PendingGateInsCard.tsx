@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { CancelInspectionDialog } from "@/components/CancelInspectionDialog";
 import { ClipboardCheck, X } from "lucide-react";
 import type { PendingGateIn } from "@/types/gateIn";
+import { formatTime } from "@/lib/format";
 
 const GRADE_COLORS: Record<string, string> = {
   A: "bg-success", B: "bg-maritime", C: "bg-warning", D: "bg-destructive",
@@ -64,7 +65,7 @@ export const PendingGateInsCard = ({
               </div>
               <div className="flex items-center gap-2 ml-2">
                 <div className="text-right text-xs text-muted-foreground whitespace-nowrap">
-                  {new Date(item.inspected_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {formatTime(item.inspected_at)}
                   <div className="text-success font-medium mt-0.5">Tap to select →</div>
                 </div>
                 {canCancel && (

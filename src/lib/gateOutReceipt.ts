@@ -21,6 +21,7 @@ import {
   type ReceiptContext,
   type ReceiptProfile,
 } from "@/lib/gateInReceipt";
+import { formatDate, formatTime, formatDateTime } from "@/lib/format";
 
 export interface GateOutReceiptData {
   /** Sequential ticket number for this visit — shared with the gate-in ticket. */
@@ -51,8 +52,8 @@ export const printGateOutReceipt = (
   if (!receiptWindow) return false;
 
   const outTime = data.gate_out_time;
-  const dateStr = escapeHtml(outTime.toLocaleDateString("en-GB"));
-  const timeStr = escapeHtml(outTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
+  const dateStr = escapeHtml(formatDate(outTime));
+  const timeStr = escapeHtml(formatTime(outTime));
   const ticketNum = String(data.ticket_number).padStart(6, "0");
   const yardNameRaw = profile?.yard_name || "YARD";
   const yardName = escapeHtml(yardNameRaw);
@@ -60,9 +61,7 @@ export const printGateOutReceipt = (
   // reprint, so the ticket never credits the person pressing print.
   const releasedByName = escapeHtml(operatorSignatureName(profile, context));
   const printedBy = escapeHtml(profile?.username || profile?.full_name || "system");
-  const printedAt = escapeHtml(new Date()
-    .toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
-    .replace(",", ""));
+  const printedAt = escapeHtml(formatDateTime(new Date()));
   const printLabel = context?.isReprint ? "Reprinted" : "Printed";
 
   const words = yardNameRaw.trim().split(/\s+/);
@@ -70,7 +69,7 @@ export const printGateOutReceipt = (
   const logoLine2 = escapeHtml(words.slice(1).join(" "));
 
   const isoLabel = escapeHtml(ISO_DESCRIPTIONS[data.container_type] || data.container_type);
-  const gateInStr = escapeHtml(`${data.gate_in_time.toLocaleDateString("en-GB")} ${data.gate_in_time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`);
+  const gateInStr = escapeHtml(formatDateTime(data.gate_in_time));
   const feeStr = Number(data.fees || 0).toLocaleString("en", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
   const containerNumberSafe = escapeHtml(data.container_number);
   const shippingLineSafe = escapeHtml(data.shipping_line);

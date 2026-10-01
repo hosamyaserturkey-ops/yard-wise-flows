@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { DateInput } from "@/components/DateInput";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ import {
   type ShippingLineOwed,
 } from "@/lib/accounting";
 import { buildAccountingReport } from "@/lib/accountingReport";
+import { formatDate, formatDateTime, formatWeekdayDate, formatMonthShort } from "@/lib/format";
 
 interface PaymentRow {
   id: string;
@@ -89,7 +91,7 @@ const daysSince = (iso: string | null, now: Date) =>
   iso ? Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000)) : 0;
 
 const fmtDay = (key: string) =>
-  new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+  formatWeekdayDate(key);
 
 const Accounting = () => {
   const { user, profile, currentYardId, isSuperAdmin } = useAuth();
@@ -197,7 +199,7 @@ const Accounting = () => {
       const d = new Date();
       d.setDate(1);
       d.setMonth(d.getMonth() - i);
-      const key = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+      const key = formatMonthShort(d);
       const monthPayments = scoped.filter((p) => {
         const pd = new Date(p.created_at);
         return pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear();
@@ -315,7 +317,7 @@ const Accounting = () => {
   };
 
   const periodLabel = () => {
-    const f = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    const f = (s: string) => formatDate(s);
     const range = dateFrom || dateTo ? `${dateFrom ? f(dateFrom) : "Start"} – ${dateTo ? f(dateTo) : "Today"}` : "All dates";
     return lineFilter === ALL_LINES ? range : `${range} · ${lineFilter}`;
   };
@@ -360,11 +362,11 @@ const Accounting = () => {
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">From</Label>
-              <Input type="date" className="h-8 text-sm w-40" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              <DateInput className="w-44" value={dateFrom} onChange={setDateFrom} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">To</Label>
-              <Input type="date" className="h-8 text-sm w-40" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              <DateInput className="w-44" value={dateTo} onChange={setDateTo} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Shipping line</Label>
@@ -613,7 +615,7 @@ const Accounting = () => {
                           <TableCell className={`text-right tabular-nums ${voided ? "line-through" : ""}`}>{formatJod(p.service_fee)}</TableCell>
                           <TableCell className={`text-right tabular-nums font-semibold ${voided ? "line-through" : ""}`}>{formatJod(p.total_collected)}</TableCell>
                           <TableCell><Badge variant={p.payment_method === "cash" ? "secondary" : "default"}>{methodLabel(p.payment_method)}</Badge></TableCell>
-                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(p.created_at).toLocaleDateString("en-GB")}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{formatDate(p.created_at)}</TableCell>
                           <TableCell>
                             {voided
                               ? <Badge variant="destructive" title={p.void_reason ?? undefined}>Voided</Badge>
@@ -672,7 +674,7 @@ const Accounting = () => {
                     {filteredTransfers.map((t) => (
                       <TableRow key={t.id} className={t.voided_at ? "text-muted-foreground" : undefined}>
                         <TableCell className="text-sm whitespace-nowrap">
-                          {new Date(t.transferred_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                          {formatDateTime(t.transferred_at)}
                           {t.voided_at && (
                             <div className="mt-1">
                               <Badge variant="destructive" title={t.void_reason ?? undefined}>Voided</Badge>
