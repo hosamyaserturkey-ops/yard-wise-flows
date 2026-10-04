@@ -76,6 +76,7 @@ interface VisitHistory {
   free_days: number | null;
   driver_name: string | null;
   truck_number: string | null;
+  gate_out_truck_number: string | null;
 }
 
 
@@ -183,7 +184,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
         if (masterId) {
           const { data: visitRows } = await supabase
             .from("container_visits")
-            .select("id, gate_in_time, gate_out_time, port_arrival_date, free_days, driver_name, truck_number")
+            .select("id, gate_in_time, gate_out_time, port_arrival_date, free_days, driver_name, truck_number, gate_out_truck_number")
             .eq("container_id", masterId)
             .order("gate_in_time", { ascending: false });
           setVisits(visitRows ?? []);
@@ -370,12 +371,22 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
 
             {/* ── Transport ─────────────────────────────────────── */}
             <div className="grid grid-cols-2 gap-4">
-              <InfoBlock icon={<Truck className="h-4 w-4 text-warning" />} label="Driver">
+              <InfoBlock icon={<Truck className="h-4 w-4 text-warning" />} label="Gate-In Driver">
                 {container.driverName}
               </InfoBlock>
-              <InfoBlock icon={<Truck className="h-4 w-4 text-warning" />} label="Truck">
+              <InfoBlock icon={<Truck className="h-4 w-4 text-warning" />} label="Gate-In Truck">
                 <span className="font-mono">{container.truckNumber}</span>
               </InfoBlock>
+              {container.gateOutTime && (
+                <>
+                  <InfoBlock icon={<Truck className="h-4 w-4 text-warning" />} label="Gate-Out Driver">
+                    {container.gateOutDriverName || "—"}
+                  </InfoBlock>
+                  <InfoBlock icon={<Truck className="h-4 w-4 text-warning" />} label="Gate-Out Truck">
+                    <span className="font-mono">{container.gateOutTruckNumber || "—"}</span>
+                  </InfoBlock>
+                </>
+              )}
               {(container as unknown as { yardBlock?: string; yardRow?: string }).yardBlock && (
                 <InfoBlock icon={<MapPin className="h-4 w-4 text-maritime" />} label="Yard Slot">
                   <span className="font-mono">
@@ -559,6 +570,8 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
                             <th className="text-left px-3 py-2 font-medium text-muted-foreground">Gate Out</th>
                             <th className="text-left px-3 py-2 font-medium text-muted-foreground">Port Arrival</th>
                             <th className="text-left px-3 py-2 font-medium text-muted-foreground">Driver</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">In Truck</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Out Truck</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -573,6 +586,8 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
                               <td className="px-3 py-2">{v.gate_out_time ? fmt(new Date(v.gate_out_time)) : "—"}</td>
                               <td className="px-3 py-2">{v.port_arrival_date ? fmt(new Date(v.port_arrival_date)) : "—"}</td>
                               <td className="px-3 py-2 text-muted-foreground">{v.driver_name ?? "—"}</td>
+                              <td className="px-3 py-2 font-mono text-muted-foreground">{v.truck_number ?? "—"}</td>
+                              <td className="px-3 py-2 font-mono text-muted-foreground">{v.gate_out_truck_number ?? "—"}</td>
                             </tr>
                           ))}
                         </tbody>
