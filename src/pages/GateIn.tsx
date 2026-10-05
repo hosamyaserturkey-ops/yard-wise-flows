@@ -904,9 +904,10 @@ const GateIn = () => {
                     </div>
                   </div>
 
-                  {/* Demurrage calculation result */}
-                  {demurragePreview && formData.portArrivalDate && !portArrivalIsFuture && (
-                    <DemurragePreviewCard preview={demurragePreview} />
+                  {/* Demurrage calculation result. Lines without demurrage rules
+                      get the note below instead: they have no free time to count. */}
+                  {demurragePreview && formData.portArrivalDate && !portArrivalIsFuture && lineChargesDemurrage && (
+                    <DemurragePreviewCard preview={demurragePreview} portArrivalDate={formData.portArrivalDate} />
                   )}
 
                   {formData.shippingLine && !hasDemurrageRules(formData.shippingLine) && formData.portArrivalDate && (

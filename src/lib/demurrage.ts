@@ -203,6 +203,29 @@ export const lastFreeDay = (
   return day.toISOString().slice(0, 10);
 };
 
+export interface FreeTimeStatus {
+  /** Last free day (YYYY-MM-DD); null when there are no free days. */
+  lastFreeDay: string | null;
+  /** First charged day (YYYY-MM-DD), the day after the last free day. */
+  firstChargedDay: string | null;
+  /** Free days not yet used, counted to the same day as the result. */
+  freeDaysLeft: number;
+  /** Days past free time, i.e. the days being charged. */
+  chargedDays: number;
+}
+
+/** Where a calculated result stands against its free time, in dates and days. */
+export const freeTimeStatus = (
+  result: DemurrageResult,
+  portArrivalDate: string | null | undefined,
+): FreeTimeStatus => ({
+  lastFreeDay: result.freeDays > 0 ? lastFreeDay(portArrivalDate, result.freeDays) : null,
+  // Free days + 1 counts one day past the last free one.
+  firstChargedDay: lastFreeDay(portArrivalDate, result.freeDays + 1),
+  freeDaysLeft: Math.max(0, result.freeDays - result.daysElapsed),
+  chargedDays: Math.max(0, result.daysElapsed - result.freeDays),
+});
+
 export const calculateDemurrage = (
   shippingLine: string,
   containerType: string,

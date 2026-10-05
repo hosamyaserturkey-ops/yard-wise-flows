@@ -3,6 +3,7 @@ import {
   calculateDemurrage,
   effectiveFreeDays,
   firstGateInOfTrip,
+  freeTimeStatus,
   lastFreeDay,
   tiersForFreeDays,
   hasDemurrageRules,
@@ -372,5 +373,48 @@ describe("lastFreeDay", () => {
   it("returns null for a missing or malformed date", () => {
     expect(lastFreeDay(null, 21)).toBeNull();
     expect(lastFreeDay("20/09/2026", 21)).toBeNull();
+  });
+});
+
+describe("freeTimeStatus", () => {
+  // The Gate In screenshot case: WOM, arrived 20 Sep 2026, 21 free days.
+  const arrival = "2026-09-20";
+
+  it("gives the last free day and the days left inside free time", () => {
+    const r = calculateDemurrage("WOM", "20GP", arrival, d("2026-10-05"), 21);
+    expect(freeTimeStatus(r, arrival)).toEqual({
+      lastFreeDay: "2026-10-10",
+      firstChargedDay: "2026-10-11",
+      freeDaysLeft: 5,
+      chargedDays: 0,
+    });
+  });
+
+  it("has no free days left on the last free day itself", () => {
+    const r = calculateDemurrage("WOM", "20GP", arrival, d("2026-10-10"), 21);
+    expect(r.totalUSD).toBe(0);
+    expect(freeTimeStatus(r, arrival)).toMatchObject({ freeDaysLeft: 0, chargedDays: 0 });
+  });
+
+  it("counts the charged days once free time has ended", () => {
+    const r = calculateDemurrage("WOM", "20GP", arrival, d("2026-10-15"), 21);
+    const s = freeTimeStatus(r, arrival);
+    expect(s).toMatchObject({ lastFreeDay: "2026-10-10", firstChargedDay: "2026-10-11", freeDaysLeft: 0, chargedDays: 5 });
+    // Same days the bill charges for.
+    expect(s.chargedDays).toBe(r.breakdown.reduce((n, row) => n + row.days, 0));
+  });
+
+  it("uses the port list's free days, not the line's standard", () => {
+    const r = calculateDemurrage("WOM", "20GP", arrival, d("2026-10-05"), 30);
+    expect(freeTimeStatus(r, arrival)).toMatchObject({ lastFreeDay: "2026-10-19", freeDaysLeft: 14 });
+  });
+
+  it("has no last free day when free time is zero", () => {
+    const r = calculateDemurrage("WOM", "20GP", arrival, d("2026-09-22"), 0);
+    expect(freeTimeStatus(r, arrival)).toMatchObject({
+      lastFreeDay: null,
+      firstChargedDay: "2026-09-20",
+      chargedDays: 3,
+    });
   });
 });
