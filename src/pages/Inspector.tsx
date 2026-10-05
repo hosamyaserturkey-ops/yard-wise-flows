@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { Camera, CheckCircle, XCircle, ChevronRight, Trash2, ClipboardCheck, ImagePlus, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +9,8 @@ import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 import { uploadPhotoFiles } from "@/lib/photoUpload";
 import { CONTAINER_SIZES, typesForSize, ISO_DESCRIPTIONS } from "@/lib/containerTypes";
 import { formatTime } from "@/lib/format";
+import { CONTAINER_NUMBER_REGEX } from "@/lib/validation";
+import { ContainerNumberInput } from "@/components/ContainerNumberInput";
 
 type Grade = "A" | "B" | "C" | "D";
 type Decision = "approved" | "rejected";
@@ -263,18 +264,15 @@ const Inspector = () => {
           <div className="space-y-6 pt-4">
             <div>
               <h2 className="text-2xl font-bold mb-1">Container Number</h2>
-              <p className="text-muted-foreground text-sm mb-5">Enter the container number to begin the inspection</p>
-              <Input
+              <p className="text-muted-foreground text-sm mb-5">
+                Type the 4 letters, then the 7 numbers — the keypad switches to numbers by itself
+              </p>
+              <ContainerNumberInput
                 value={containerNumber}
-                onChange={(e) => {
-                  setContainerNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                onChange={(next) => {
+                  setContainerNumber(next);
                   setDuplicateWarning(null);
                 }}
-                placeholder="e.g. SLDX1234567"
-                className="text-xl font-mono h-16 text-center uppercase tracking-widest"
-                autoComplete="off"
-                inputMode="text"
-                autoCapitalize="characters"
               />
             </div>
 
@@ -364,7 +362,7 @@ const Inspector = () => {
             <Button
               className="w-full h-14 text-lg"
               disabled={
-                containerNumber.trim().length < 4 || !containerType || checkingDuplicate
+                !CONTAINER_NUMBER_REGEX.test(containerNumber) || !containerType || checkingDuplicate
               }
               onClick={() => void checkForDuplicate()}
             >
