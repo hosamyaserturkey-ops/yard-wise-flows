@@ -109,9 +109,13 @@ export const getCellByAliases = (row: SpreadsheetRow, aliases: readonly string[]
 
 const isBlank = (value: unknown) => value == null || String(value).trim() === "";
 
+// What a bare length means. A 40ft box is a high cube unless the list says GP;
+// that is the standard the lines ship. 20ft has no high cube.
+const DEFAULT_FOR_LENGTH: Record<string, string> = { "20": "20GP", "40": "40HC", "45": "45HC" };
+
 // ISO 6346 group codes for the suffix a line might write after the length.
 const TYPE_SUFFIXES: Record<string, string> = {
-  "": "GP", GP: "GP", DV: "GP", DC: "GP", SD: "GP", ST: "GP", STD: "GP", DRY: "GP", G1: "GP",
+  GP: "GP", DV: "GP", DC: "GP", SD: "GP", ST: "GP", STD: "GP", DRY: "GP", G1: "GP",
   HC: "HC", HQ: "HC", HIGHCUBE: "HC", DH: "HC",
   RF: "RF", RE: "RF", REEFER: "RF", RT: "RF",
   RH: "RH", REEFERHC: "RH", HR: "RH",
@@ -122,8 +126,8 @@ const TYPE_SUFFIXES: Record<string, string> = {
 
 /**
  * Maps a size/type value to one of the app's ISO codes: "20" → 20GP,
- * "40" → 40GP, "40HC" / "40 HQ" → 40HC, "45" → 45HC. A plain length is a
- * standard dry box. Null when there is no 20/40/45 length to go on.
+ * "40" → 40HC, "40GP" → 40GP, "40 HQ" → 40HC, "45" → 45HC. A plain length is
+ * that length's standard box. Null when there is no 20/40/45 length to go on.
  */
 export const toIsoContainerType = (value: unknown): string | null => {
   if (value == null) return null;
@@ -132,12 +136,13 @@ export const toIsoContainerType = (value: unknown): string | null => {
   if (!["20", "40", "45"].includes(length)) return null;
   if (length === "45") return "45HC";
   const suffix = normalized.slice(2).replace(/^(FT|FEET|FOOT)/, "");
-  const code = `${length}${TYPE_SUFFIXES[suffix] ?? "GP"}`;
-  return CONTAINER_TYPE_CODES.includes(code) ? code : `${length}GP`;
+  const group = TYPE_SUFFIXES[suffix];
+  const code = group ? `${length}${group}` : null;
+  return code && CONTAINER_TYPE_CODES.includes(code) ? code : DEFAULT_FOR_LENGTH[length];
 };
 
 // Resolve the type from a row that may have separate "Size" and "Container Type"
-// columns: Size="40" + Type="HC" → 40HC; Type="40HC" alone → 40HC; Size=20 → 20GP.
+// columns: Size="40" + Type="GP" → 40GP; Type="40HC" alone → 40HC; Size=40 → 40HC.
 export const resolveContainerType = (row: SpreadsheetRow): string | null => {
   const typeVal = getCellByAliases(row, HEADER_ALIASES.containerType);
   const sizeVal = getCellByAliases(row, HEADER_ALIASES.containerSize);
