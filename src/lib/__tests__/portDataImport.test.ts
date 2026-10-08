@@ -147,15 +147,19 @@ describe("parsePortRows", () => {
 });
 
 describe("toIsoContainerType / resolveContainerType", () => {
-  it("maps a bare length to a standard dry box", () => {
+  it("maps a bare length to that length's standard box", () => {
     expect(toIsoContainerType(20)).toBe("20GP");
-    expect(toIsoContainerType("40")).toBe("40GP");
     expect(toIsoContainerType("20'")).toBe("20GP");
     expect(toIsoContainerType("20FT")).toBe("20GP");
+    expect(toIsoContainerType(40)).toBe("40HC");
+    expect(toIsoContainerType("40")).toBe("40HC");
+    expect(toIsoContainerType("40'")).toBe("40HC");
+    expect(toIsoContainerType("40 FT")).toBe("40HC");
     expect(toIsoContainerType("45")).toBe("45HC");
   });
 
   it("keeps the type group", () => {
+    expect(toIsoContainerType("40GP")).toBe("40GP");
     expect(toIsoContainerType("40HC")).toBe("40HC");
     expect(toIsoContainerType("40 HQ")).toBe("40HC");
     expect(toIsoContainerType("40' high cube")).toBe("40HC");
@@ -172,7 +176,9 @@ describe("toIsoContainerType / resolveContainerType", () => {
 
   it("combines separate size and type columns", () => {
     expect(resolveContainerType({ Size: 40, Type: "HC" })).toBe("40HC");
+    expect(resolveContainerType({ Size: 40, Type: "GP" })).toBe("40GP");
     expect(resolveContainerType({ Size: "40", "Container Type": "40HC" })).toBe("40HC");
+    expect(resolveContainerType({ Size: 40 })).toBe("40HC");
     expect(resolveContainerType({ Size: 20 })).toBe("20GP");
     expect(resolveContainerType({ Type: "HC" })).toBeNull();
     expect(resolveContainerType({})).toBeNull();

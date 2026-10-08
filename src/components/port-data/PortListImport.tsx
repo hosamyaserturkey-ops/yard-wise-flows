@@ -210,7 +210,7 @@ export const PortListImport = ({
         <p>Upload the port list a line sends: which containers to accept, and each one&rsquo;s arrival date and free days. Columns read:</p>
         <ul className="list-disc list-inside space-y-1">
           <li><strong>Container Id</strong>, <strong>Container #</strong> or <strong>Container Number</strong></li>
-          <li><strong>Size</strong> (20 / 40 / 45) and/or <strong>Container Type</strong> (40HC, HC…)</li>
+          <li><strong>Size</strong> (20 / 40 / 45) and/or <strong>Container Type</strong> (40HC, HC…) — a plain 40 is read as 40HC; only 40GP is a standard box</li>
           <li><strong>Vessel Arrival Date</strong> or <strong>Port Arrival Date</strong> — Excel dates, or DD/MM/YYYY</li>
           <li><strong>Free Days</strong> — charged as given; the line&rsquo;s standard is used when missing</li>
           <li><strong>Line</strong> — optional; rows without it use the line picked below</li>
