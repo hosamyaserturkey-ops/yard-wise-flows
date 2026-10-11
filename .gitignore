@@ -26,3 +26,6 @@ dist-ssr
 # Python bytecode from skill scripts
 __pycache__/
 *.pyc
+
+# Local Wrangler (wrangler dev) state
+.wrangler

@@ -13,11 +13,9 @@ function stubGlobalFetch(apm: (url: string) => Response, authorized = true) {
     if (url.endsWith("/auth/v1/user")) {
       return new Response(JSON.stringify({ id: "user-1" }), { status: 200 });
     }
-    if (url.includes("/rpc/is_super_admin")) {
-      return new Response(JSON.stringify(false), { status: 200 });
-    }
-    if (url.includes("/rpc/has_role")) {
-      return new Response(JSON.stringify(authorized), { status: 200 });
+    if (url.includes("/rest/v1/user_roles")) {
+      const roles = authorized ? [{ role: "user" }] : [];
+      return new Response(JSON.stringify(roles), { status: 200 });
     }
     return apm(url);
   }) as typeof fetch;
@@ -101,6 +99,13 @@ describe("GET /api/terminal/empty-returns", () => {
     stubGlobalFetch(() => new Response("[]", { status: 200 }), false);
     const res = await call("assetId=MRKU7137914");
     expect(res.status).toBe(403);
+  });
+
+  it("reads only the caller's own roles", async () => {
+    const seen = stubGlobalFetch(() => new Response("[]", { status: 200 }));
+    await call("assetId=MRKU7137914");
+    const rolesCall = seen.find((u) => u.includes("/rest/v1/user_roles"))!;
+    expect(rolesCall).toContain("user_id=eq.user-1");
   });
 
   it("refuses an unauthenticated caller", async () => {

@@ -141,7 +141,29 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
           .eq("container_number", num);
         if (yardId) portQuery = portQuery.eq("yard_id", yardId);
 
-        const [portRes, inspRes, payRes, visitOperators] = await Promise.all([
+        // Full visit history — every trip keeps its own snapshot of port
+        // arrival date and free days, taken at gate-in. Fetched alongside the
+        // rest rather than after it.
+        const loadVisits = async () => {
+          let masterId = container.containerId;
+          if (!masterId) {
+            const { data: master } = await supabase
+              .from("containers")
+              .select("id")
+              .eq("container_number", num)
+              .maybeSingle();
+            masterId = master?.id;
+          }
+          if (!masterId) return [];
+          const { data: visitRows } = await supabase
+            .from("container_visits")
+            .select("id, gate_in_time, gate_out_time, port_arrival_date, free_days, driver_name, truck_number, gate_out_truck_number")
+            .eq("container_id", masterId)
+            .order("gate_in_time", { ascending: false });
+          return visitRows ?? [];
+        };
+
+        const [portRes, inspRes, payRes, visitOperators, visitHistory] = await Promise.all([
           portQuery
             .order("updated_at", { ascending: false })
             .limit(1)
@@ -162,6 +184,8 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
             .order("created_at", { ascending: false }),
 
           fetchVisitOperators(container.id),
+
+          loadVisits(),
         ]);
 
         setOperators(visitOperators);
@@ -169,28 +193,7 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
         const insp = inspRes.data ? { ...inspRes.data, photo_urls: Array.isArray(inspRes.data.photo_urls) ? inspRes.data.photo_urls as string[] : null } : null;
         setInspection(insp);
         setPayments(payRes.data ?? []);
-
-        // Full visit history — every trip keeps its own snapshot of port
-        // arrival date and free days, taken at gate-in.
-        let masterId = container.containerId;
-        if (!masterId) {
-          const { data: master } = await supabase
-            .from("containers")
-            .select("id")
-            .eq("container_number", num)
-            .maybeSingle();
-          masterId = master?.id;
-        }
-        if (masterId) {
-          const { data: visitRows } = await supabase
-            .from("container_visits")
-            .select("id, gate_in_time, gate_out_time, port_arrival_date, free_days, driver_name, truck_number, gate_out_truck_number")
-            .eq("container_id", masterId)
-            .order("gate_in_time", { ascending: false });
-          setVisits(visitRows ?? []);
-        } else {
-          setVisits([]);
-        }
+        setVisits(visitHistory);
         if (insp?.photo_urls?.length) {
           const signed = await Promise.all(
             insp.photo_urls.map((p) => resolveSignedUrl("inspection-photos", p)),

@@ -9,7 +9,8 @@ import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { YardSwitcher } from "@/components/YardSwitcher";
-import { Keyboard, Loader2 } from "lucide-react";
+import { Keyboard } from "lucide-react";
+import { AppLoading } from "@/components/AppLoading";
 
 const ROUTE_LABELS: Record<string, string> = {
   "/":             "Dashboard",
@@ -61,13 +62,7 @@ const Layout = () => {
         {/* ── Page Content ────────────────────────────── */}
         <div className="flex-1 overflow-auto bg-background">
           <div className="mx-auto w-full max-w-[1600px]">
-            <Suspense
-              fallback={
-                <div className="flex h-[60vh] items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading page" />
-                </div>
-              }
-            >
+            <Suspense fallback={<AppLoading label="Loading page…" />}>
               <Outlet />
             </Suspense>
           </div>

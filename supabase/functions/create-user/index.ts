@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,33 +64,19 @@ Deno.serve(async (req) => {
 
     // Authorization: super_admin can create any role; yard admins can create
     // 'user' or 'inspector' in their own yard.
-    const { data: isSuper, error: isSuperErr } = await admin.rpc(
-      "is_super_admin",
-      { _uid: caller.id },
-    );
-    if (isSuperErr) {
-      console.error("is_super_admin RPC failed:", isSuperErr);
+    const access = await callerAccess(admin, caller.id);
+    if ("error" in access) {
+      console.error("Caller role lookup failed:", access.error);
       return json(
-        { error: `Authorization check failed: ${isSuperErr.message}` },
+        { error: `Authorization check failed: ${access.error.message}` },
         500,
       );
     }
-    if (!isSuper) {
+    if (!access.roles.includes("super_admin")) {
       if (role === "admin") {
         return json({ error: "Only super-admins can create admins" }, 403);
       }
-      const { data: isYardAdmin, error: isYardAdminErr } = await admin.rpc(
-        "is_yard_admin",
-        { _uid: caller.id, _yard: yard_id },
-      );
-      if (isYardAdminErr) {
-        console.error("is_yard_admin RPC failed:", isYardAdminErr);
-        return json(
-          { error: `Authorization check failed: ${isYardAdminErr.message}` },
-          500,
-        );
-      }
-      if (!isYardAdmin) {
+      if (!access.roles.includes("admin") || access.yardId !== yard_id) {
         return json({ error: "Not a yard admin for this yard" }, 403);
       }
     }
@@ -158,6 +144,25 @@ Deno.serve(async (req) => {
     return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
   }
 });
+
+// The caller's roles and yard. Mirrors the database's is_super_admin /
+// is_yard_admin (a yard admin holds the 'admin' role and has that yard on
+// their profile), which live in a schema the API doesn't expose.
+async function callerAccess(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<{ roles: string[]; yardId: string | null } | { error: { message: string } }> {
+  const [rolesRes, profileRes] = await Promise.all([
+    admin.from("user_roles").select("role").eq("user_id", userId),
+    admin.from("profiles").select("yard_id").eq("user_id", userId).maybeSingle(),
+  ]);
+  const error = rolesRes.error ?? profileRes.error;
+  if (error) return { error };
+  return {
+    roles: (rolesRes.data ?? []).map((r: { role: string }) => r.role),
+    yardId: (profileRes.data as { yard_id: string | null } | null)?.yard_id ?? null,
+  };
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

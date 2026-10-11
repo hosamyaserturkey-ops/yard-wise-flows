@@ -15,6 +15,7 @@ import {
   mountainBandSvg,
   operatorSignatureName,
   personSigSvg,
+  RECEIPT_PRINT_SCRIPT,
   receiptCss,
   shipSigSvg,
   truckWatermarkSvg,
@@ -215,9 +216,7 @@ export const printGateOutReceipt = (
   </div>
 
 </div>
-<script>
-  window.onload = function () { setTimeout(function () { window.print(); }, 300); };
-</script>
+<script>${RECEIPT_PRINT_SCRIPT}</script>
 </body>
 </html>`);
   receiptWindow.document.close();

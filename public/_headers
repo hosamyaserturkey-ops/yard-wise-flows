@@ -1,0 +1,47 @@
+# Response headers for the static site (Cloudflare Workers static assets).
+# Vite copies this file into dist/; Cloudflare applies it and doesn't serve it.
+# It covers files and the single-page-app fallback, not the Worker's own
+# /api/* responses.
+#
+# A header set by two matching rules is joined with a comma, so each header
+# below is set by exactly one rule. Cache-Control especially: "no-cache" on
+# /* would be joined onto the /assets/* value and defeat it.
+#
+# Content-Security-Policy, by directive:
+#   script-src   the app's own bundles, plus the one inline script in printed
+#                gate tickets (RECEIPT_PRINT_SCRIPT in src/lib/gateInReceipt.ts),
+#                allowed by hash. The ticket window inherits this policy.
+#   style-src    Google Fonts' stylesheet; 'unsafe-inline' for the <style>
+#                blocks that toasts, drawers and the printed tickets inject.
+#   img-src      blob: for photos fetched through /api/photos, the Supabase
+#                project for older photos and receipts kept in Storage.
+#   connect-src  the Supabase project: REST, Auth and Storage over https,
+#                Realtime over wss.
+#
+# Permissions-Policy: inspection photos come from a file input with
+# capture="environment", which opens the phone's camera app and needs no
+# permission. camera=(self) still lets this site use the camera directly and
+# keeps it from anything embedded; microphone and location are off.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-3P1FBtARhFdIZHP+RQnbsgMrWSAJl2pQ4msZ5e4lfJw='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://qctvjwlaxnidprhcxodj.supabase.co; connect-src 'self' https://qctvjwlaxnidprhcxodj.supabase.co wss://qctvjwlaxnidprhcxodj.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# Vite puts a content hash in every file name under /assets, so a changed file
+# always gets a new URL and the old one can be cached for good.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The app shell must be revalidated on every load, or a browser keeps running an
+# old build that points at hashed files a newer deploy has removed. Client-side
+# routes (/gate-in, ...) are answered with index.html by the SPA fallback and get
+# Cloudflare's default "public, max-age=0, must-revalidate", which revalidates
+# just the same.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache

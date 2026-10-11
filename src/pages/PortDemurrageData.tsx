@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { DateInput } from "@/components/DateInput";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Anchor, Plus, Upload, FileSpreadsheet } from "lucide-react";
+import { Anchor, Plus, Upload, FileSpreadsheet, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
@@ -19,9 +19,14 @@ import { CONTAINER_TYPES } from "@/lib/containerTypes";
 import { DEMURRAGE_RULES, hasDemurrageRules, lastFreeDay, tiersForFreeDays, toDemurrageContainerType } from "@/lib/demurrage";
 import { PageHeader } from "@/components/PageHeader";
 import { usePortList } from "@/hooks/usePortList";
-import { PortListImport } from "@/components/port-data/PortListImport";
 import { PortListTable } from "@/components/port-data/PortListTable";
 import { fmtDay } from "@/components/port-data/format";
+
+// The importer carries the spreadsheet parser (xlsx, ~300 KB). Loading it on
+// its own lets the page and its port list render without waiting for it.
+const PortListImport = lazy(() =>
+  import("@/components/port-data/PortListImport").then((m) => ({ default: m.PortListImport })),
+);
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   return error instanceof Error ? error.message : fallback;
@@ -177,14 +182,22 @@ const PortDemurrageData = () => {
           <Card>
             <CardHeader><CardTitle className="flex items-center space-x-2"><Upload className="h-5 w-5" /><span>Import a port list</span></CardTitle></CardHeader>
             <CardContent>
-              <PortListImport
-                chargedLines={CHARGED_LINES}
-                repLine={repLine}
-                userId={user?.id}
-                resolveYardIds={fetchTargetYardIds}
-                scopedYardId={scopedYardId}
-                onImported={() => queryClient.invalidateQueries({ queryKey: ["container_port_data"] })}
-              />
+              <Suspense
+                fallback={
+                  <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading the importer…
+                  </p>
+                }
+              >
+                <PortListImport
+                  chargedLines={CHARGED_LINES}
+                  repLine={repLine}
+                  userId={user?.id}
+                  resolveYardIds={fetchTargetYardIds}
+                  scopedYardId={scopedYardId}
+                  onImported={() => queryClient.invalidateQueries({ queryKey: ["container_port_data"] })}
+                />
+              </Suspense>
             </CardContent>
           </Card>
         </TabsContent>
