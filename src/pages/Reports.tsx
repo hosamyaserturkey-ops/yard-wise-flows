@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { lazy, Suspense, useCallback, useState, useEffect } from "react";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePager } from "@/components/TablePager";
 import { DateInput } from "@/components/DateInput";
@@ -31,7 +31,6 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import type { ShippingLine } from "@/lib/shippingLines";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
-import ContainerDetailDialog from "@/components/ContainerDetailDialog";
 import { useAuth } from "@/hooks/useAuth";
 import {
   buildDriversReport,
@@ -45,6 +44,9 @@ import { fetchYards, loadReportData } from "@/lib/reports/fetchReportData";
 import { filtersLabel, periodFromFilters, type ReportFilters } from "@/lib/reports/reportFilters";
 import { formatDate, formatTime } from "@/lib/format";
 import { formatJod } from "@/lib/accounting";
+
+// Opened from a row; its edit form and ticket templates load on first use.
+const ContainerDetailDialog = lazy(() => import("@/components/ContainerDetailDialog"));
 
 const EXPORTS: { kind: ReportKind; label: string; description: string; adminOnly?: boolean }[] = [
   {
@@ -515,12 +517,16 @@ const Reports = () => {
         </CardContent>
       </Card>
 
-      <ContainerDetailDialog
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        container={detailContainer}
-        onUpdated={fetchContainers}
-      />
+      {detailContainer && (
+        <Suspense fallback={null}>
+          <ContainerDetailDialog
+            open={detailOpen}
+            onOpenChange={setDetailOpen}
+            container={detailContainer}
+            onUpdated={fetchContainers}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

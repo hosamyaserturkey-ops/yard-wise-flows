@@ -2,14 +2,14 @@
 // new inspection photos in R2 (see wrangler.jsonc's `main` + `r2_buckets`).
 // Everything else falls through to the static site via the ASSETS binding.
 //
-// Auth: has_role/is_super_admin are SECURITY DEFINER Postgres functions
-// already granted EXECUTE to the `authenticated` role (see
-// supabase/migrations), so we can check the caller's role by calling them
-// with the caller's own JWT — no service-role key needed in this Worker at
-// all, just the public URL + anon key (both already public in the built
-// frontend).
+// Auth: the caller's roles are read from user_roles with the caller's own JWT.
+// RLS lets every account read its own role rows, so no service-role key is
+// needed in this Worker at all, just the public URL + anon key (both already
+// public in the built frontend). The role helpers (is_super_admin, has_role)
+// live in a schema the API doesn't expose, so they can't be called from here.
 import { ApmError, fetchEmptyReturns } from "./apmTerminals";
 import { MAX_CONTAINERS_PER_LOOKUP } from "../src/lib/emptyReturns";
+import { isAppRoute, isPageRequest } from "./appRoutes";
 
 // Minimal local shapes for the Workers runtime bindings actually used here —
 // not pulling in @cloudflare/workers-types as a real npm dependency keeps
@@ -80,36 +80,19 @@ async function authorize(
   const { id: userId } = (await userRes.json()) as { id: string };
   if (!userId) return json({ error: "Not authenticated" }, 401);
 
-  const superRes = await fetch(
-    `${env.SUPABASE_URL}/rest/v1/rpc/is_super_admin`,
-    {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ _uid: userId }),
-    },
+  // Filter on the caller's id: admins can read other accounts' roles too, and
+  // only the caller's own count here.
+  const rolesRes = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(userId)}`,
+    { headers },
   );
-  const isSuper = superRes.ok && (await superRes.json()) === true;
+  const roles = rolesRes.ok
+    ? ((await rolesRes.json()) as { role: string }[]).map((r) => r.role)
+    : [];
 
-  let allowed = isSuper && allowedRoles.includes("super_admin");
-  if (!allowed) {
-    for (const role of allowedRoles) {
-      if (role === "super_admin") continue;
-      const roleRes = await fetch(
-        `${env.SUPABASE_URL}/rest/v1/rpc/has_role`,
-        {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({ _user_id: userId, _role: role }),
-        },
-      );
-      if (roleRes.ok && (await roleRes.json()) === true) {
-        allowed = true;
-        break;
-      }
-    }
+  if (!roles.some((role) => allowedRoles.includes(role))) {
+    return json({ error: "Not authorized" }, 403);
   }
-
-  if (!allowed) return json({ error: "Not authorized" }, 403);
   return { userId };
 }
 
@@ -256,7 +239,32 @@ export default {
     if (url.pathname === "/api/terminal/empty-returns" && req.method === "GET") {
       return handleEmptyReturns(req, env, url);
     }
+    if (url.pathname.startsWith("/api/")) {
+      return json({ error: "Not found" }, 404);
+    }
 
-    return env.ASSETS.fetch(req);
+    const asset = await env.ASSETS.fetch(req);
+    if (asset.status !== 404) return asset;
+    if (isPageRequest(req, url)) return serveAppShell(url, env);
+    // A missing file under /assets would otherwise carry that rule's
+    // year-long "immutable" caching from public/_headers.
+    const headers = new Headers(asset.headers);
+    headers.set("Cache-Control", "no-store");
+    return new Response(asset.body, { status: 404, statusText: "Not Found", headers });
   },
 };
+
+// The app's index.html for a page-like path that isn't a file: 200 for a route
+// the app has, 404 (and kept out of search results) for anything else. The
+// shell is fetched without the browser's conditional headers, so a 304 can't
+// stand in for the page body of a 404.
+async function serveAppShell(url: URL, env: Env): Promise<Response> {
+  const shell = await env.ASSETS.fetch(
+    new Request(new URL("/", url), { headers: { Accept: "text/html" } }),
+  );
+  if (isAppRoute(url.pathname)) return shell;
+  const headers = new Headers(shell.headers);
+  headers.delete("ETag");
+  headers.set("X-Robots-Tag", "noindex");
+  return new Response(shell.body, { status: 404, statusText: "Not Found", headers });
+}

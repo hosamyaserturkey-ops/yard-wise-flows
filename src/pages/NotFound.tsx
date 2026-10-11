@@ -8,6 +8,17 @@ const NotFound = () => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
   }, [location.pathname]);
 
+  // Keep the page out of search results. A full page load of an unknown URL
+  // already gets HTTP 404 and X-Robots-Tag from the Worker; this covers
+  // following a bad link inside the app.
+  useEffect(() => {
+    const meta = document.createElement("meta");
+    meta.name = "robots";
+    meta.content = "noindex";
+    document.head.appendChild(meta);
+    return () => meta.remove();
+  }, []);
+
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background p-6">
       <div className="text-center">

@@ -13,24 +13,26 @@ export function usePendingGateIns(currentYardId: () => string | null) {
     const yardId = currentYardId();
     if (!yardId) return;
 
-    // Latest inspection per container
-    // Cancelled checks are excluded in the query, not filtered afterwards: the
-    // "latest per container" pass below would otherwise let a cancelled row
-    // shadow an older, still-valid approval for the same number.
-    const { data: checks } = await supabase
-      .from("inspector_checks")
-      .select("id, container_number, container_type, grade, status, notes, created_at")
-      .eq("yard_id", yardId)
-      .neq("status", "cancelled")
-      .order("created_at", { ascending: false });
+    const [{ data: checks }, { data: visitRows }] = await Promise.all([
+      // Latest inspection per container
+      // Cancelled checks are excluded in the query, not filtered afterwards: the
+      // "latest per container" pass below would otherwise let a cancelled row
+      // shadow an older, still-valid approval for the same number.
+      supabase
+        .from("inspector_checks")
+        .select("id, container_number, container_type, grade, status, notes, created_at")
+        .eq("yard_id", yardId)
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false }),
 
-    // All visits for this yard: open visits mark containers currently in yard
-    // (exclude from queue); the latest gate-out per container tells us whether
-    // an approval was already spent on a completed trip (also exclude).
-    const { data: visitRows } = await supabase
-      .from("container_visits")
-      .select("gate_out_time, containers!inner(container_number)")
-      .eq("yard_id", yardId);
+      // All visits for this yard: open visits mark containers currently in yard
+      // (exclude from queue); the latest gate-out per container tells us whether
+      // an approval was already spent on a completed trip (also exclude).
+      supabase
+        .from("container_visits")
+        .select("gate_out_time, containers!inner(container_number)")
+        .eq("yard_id", yardId),
+    ]);
 
     const inYardSet = new Set<string>();
     const lastGateOut = new Map<string, string>();

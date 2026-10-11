@@ -11,14 +11,15 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    // Serve index.html for unknown paths so client-side routes like /gate-in
-    // and /photos work on refresh / deep link (the app uses BrowserRouter).
-    "not_found_handling": "single-page-application",
-    // Without this, the SPA fallback above answers GET /api/* with index.html
-    // BEFORE the Worker runs, so GET /api/photos/view returned the app HTML
-    // instead of the image (uploads use POST, which assets never serve, so
-    // they were unaffected). Run the Worker first for API paths; everything
-    // else still falls through to static assets + the SPA fallback.
+    // A path that isn't a file in dist/ goes to the Worker, which answers the
+    // app's client-side routes (/gate-in, /photos, ...) with index.html and a
+    // 200, and any other page-like path with index.html and a 404, so a wrong
+    // URL is a real 404 (worker/appRoutes.ts). Files such as robots.txt,
+    // sitemap.xml and favicon.ico are still served directly. The built-in
+    // "single-page-application" mode answered every unknown path with a 200.
+    "not_found_handling": "none",
+    // Run the Worker first for API paths, so no static-asset rule can ever
+    // answer GET /api/photos/view with the app's HTML instead of the image.
     "run_worker_first": ["/api/*"]
   },
   "r2_buckets": [

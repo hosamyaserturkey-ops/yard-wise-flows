@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { bookingSchema, gateInSchema, gateOutSchema } from "../validation";
+import {
+  bookingSchema,
+  driverNameSchema,
+  gateInSchema,
+  gateOutSchema,
+  truckNumberSchema,
+  truckNumberWarning,
+} from "../validation";
 
 const validGateIn = {
   containerNumber: "SLDX1234567",
@@ -156,5 +163,95 @@ describe("bookingSchema", () => {
     expect(bookingSchema.safeParse({ ...validBooking, total_containers: 0 }).success).toBe(false);
     expect(bookingSchema.safeParse({ ...validBooking, total_containers: 2.5 }).success).toBe(false);
     expect(bookingSchema.safeParse({ ...validBooking, total_containers: 10001 }).success).toBe(false);
+  });
+});
+
+describe("driverNameSchema", () => {
+  const parse = (v: string) => driverNameSchema.safeParse(v);
+  const error = (v: string) => { const r = parse(v); return r.success ? null : r.error.issues[0].message; };
+
+  it("stores one spelling: trimmed, single-spaced, Latin letters in capitals", () => {
+    const r = parse("  mohammad   al-hassan ");
+    expect(r.success && r.data).toBe("MOHAMMAD AL-HASSAN");
+    const lower = parse("mohammad");
+    expect(lower.success && lower.data).toBe("MOHAMMAD");
+  });
+
+  it("keeps Arabic names as typed", () => {
+    const r = parse(" محمد  علي ");
+    expect(r.success && r.data).toBe("محمد علي");
+  });
+
+  it("accepts the punctuation names use", () => {
+    for (const name of ["O'NEIL", "ABU-ALI", "M. KHALED"]) expect(parse(name).success, name).toBe(true);
+  });
+
+  it("refuses placeholders and blanks, saying why", () => {
+    for (const v of ["N/A", "n/a", "unknown", "UNKNOWN", "-", "none", "0"]) {
+      expect(error(v), v).toMatch(/placeholder/);
+    }
+    expect(error("   ")).toBe("Driver name is required");
+  });
+
+  it("refuses digits and symbols in a name", () => {
+    expect(error("ALI 2")).toMatch(/only contain letters/);
+    expect(error("ALI/OMAR")).toMatch(/only contain letters/);
+  });
+});
+
+describe("truckNumberSchema", () => {
+  const parse = (v: string) => truckNumberSchema.safeParse(v);
+  const error = (v: string) => { const r = parse(v); return r.success ? null : r.error.issues[0].message; };
+
+  it("stores plates as one run of capitals and digits", () => {
+    expect(parse(" 60-70415 ").success && parse(" 60-70415 ").data).toBe("6070415");
+    expect(parse("abc 1234").success && parse("abc 1234").data).toBe("ABC1234");
+  });
+
+  it("accepts local, older and foreign plate shapes", () => {
+    for (const v of ["6070415", "607041", "60704", "12A34567", "A12345", "ABC1234"]) expect(parse(v).success, v).toBe(true);
+  });
+
+  it("refuses the placeholders found in the data", () => {
+    for (const v of ["000000", "UNKNOWN", "N/A", "0"]) expect(error(v), v).toMatch(/placeholder/);
+  });
+
+  it("refuses symbols, and plates too short to be real", () => {
+    expect(error("60/70415")).toBe("Only letters and numbers allowed");
+    expect(error("123")).toBe("Truck number is too short");
+  });
+});
+
+describe("truckNumberWarning", () => {
+  it("is quiet for a 7-digit local plate, however it was typed", () => {
+    expect(truckNumberWarning("6070415")).toBeNull();
+    expect(truckNumberWarning("60-70415")).toBeNull();
+  });
+
+  it("asks for a second look at other shapes without refusing them", () => {
+    for (const v of ["607041", "ABC1234"]) {
+      expect(truckNumberWarning(v), v).toMatch(/7 digits/);
+      expect(truckNumberSchema.safeParse(v).success, v).toBe(true);
+    }
+  });
+
+  it("leaves invalid input to the error message", () => {
+    expect(truckNumberWarning("")).toBeNull();
+    expect(truckNumberWarning("UNKNOWN")).toBeNull();
+  });
+});
+
+describe("gate schemas hand back the normalized driver and truck", () => {
+  it("gate-in", () => {
+    const r = gateInSchema.safeParse({ ...validGateIn, driverName: " ali  hassan ", truckNumber: "60-70415" });
+    expect(r.success && r.data.driverName).toBe("ALI HASSAN");
+    expect(r.success && r.data.truckNumber).toBe("6070415");
+  });
+
+  it("gate-out refuses a placeholder driver or truck", () => {
+    const gateOut = { bookingNumber: "BK-1", sealNumber: "SL1", driverName: "Ali", truckNumber: "6070415", fees: "0" };
+    expect(gateOutSchema.safeParse(gateOut).success).toBe(true);
+    expect(gateOutSchema.safeParse({ ...gateOut, driverName: "unknown" }).success).toBe(false);
+    expect(gateOutSchema.safeParse({ ...gateOut, truckNumber: "000000" }).success).toBe(false);
   });
 });

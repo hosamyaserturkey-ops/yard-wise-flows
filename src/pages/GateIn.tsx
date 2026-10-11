@@ -15,7 +15,7 @@ import { GateInData } from "@/types/container";
 import type { DemurragePaymentData, PendingGateIn, PortLookupData } from "@/types/gateIn";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { gateInSchema } from "@/lib/validation";
+import { gateInSchema, normalizeDriverName, normalizeTruckNumber, truckNumberWarning } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
 import DemurrageCollectionDialog, { getServiceFeeConfig } from "@/components/DemurrageCollectionDialog";
 import { logActivity } from "@/lib/activityLog";
@@ -213,6 +213,9 @@ const GateIn = () => {
     tripGateIn,
     effectiveFreeDays,
   ]);
+
+  // A second look for plates that aren't the local 7 digits; never blocks.
+  const truckWarning = truckNumberWarning(formData.truckNumber);
 
   const portArrivalIsFuture = useMemo(() => {
     if (!formData.portArrivalDate) return false;
@@ -518,8 +521,8 @@ const GateIn = () => {
         container_id: masterId!,
         yard_id: yardId,
         status: "in-yard",
-        driver_name: formData.driverName,
-        truck_number: formData.truckNumber,
+        driver_name: normalizeDriverName(formData.driverName),
+        truck_number: normalizeTruckNumber(formData.truckNumber),
         yard_block: normalizeBlock(formData.yardBlock) || null,
         yard_row: normalizeRow(formData.yardRow) || null,
         port_arrival_date: formData.portArrivalDate || null,
@@ -591,8 +594,8 @@ const GateIn = () => {
         container_number: containerNumber,
         container_type: formData.containerType,
         shipping_line: formData.shippingLine,
-        driver_name: formData.driverName,
-        truck_number: formData.truckNumber,
+        driver_name: normalizeDriverName(formData.driverName),
+        truck_number: normalizeTruckNumber(formData.truckNumber),
         gate_in_time: visit.gate_in_time,
       },
       demurragePayment,
@@ -740,7 +743,10 @@ const GateIn = () => {
                   id="driverName"
                   value={formData.driverName}
                   onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
+                  // Show the spelling that will be saved.
+                  onBlur={(e) => setFormData({ ...formData, driverName: normalizeDriverName(e.target.value) })}
                   placeholder="Enter driver's full name"
+                  autoComplete="off"
                 />
               </div>
 
@@ -750,9 +756,17 @@ const GateIn = () => {
                   id="truckNumber"
                   value={formData.truckNumber}
                   onChange={(e) => setFormData({ ...formData, truckNumber: e.target.value.toUpperCase() })}
-                  placeholder="e.g., TRK001"
+                  onBlur={(e) => setFormData({ ...formData, truckNumber: normalizeTruckNumber(e.target.value) })}
+                  placeholder="e.g., 6070415"
                   className="font-mono"
+                  autoComplete="off"
+                  aria-describedby={truckWarning ? "truckNumber-hint" : undefined}
                 />
+                {truckWarning && (
+                  <p id="truckNumber-hint" className="text-sm text-amber-700 dark:text-amber-400">
+                    {truckWarning}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

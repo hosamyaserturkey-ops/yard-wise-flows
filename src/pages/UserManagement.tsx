@@ -62,15 +62,16 @@ const UserManagement = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: profiles, error: pErr } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, username, created_at")
-        .order("created_at", { ascending: false });
+      const [{ data: profiles, error: pErr }, { data: roles, error: rErr }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, username, created_at")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("user_roles")
+          .select("user_id, role"),
+      ]);
       if (pErr) throw pErr;
-
-      const { data: roles, error: rErr } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
       if (rErr) throw rErr;
 
       const rolesByUser = new Map<string, string[]>();

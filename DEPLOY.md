@@ -20,7 +20,7 @@ end.
 This repo is set up to deploy as a **Cloudflare Worker with static assets** — the
 build command produces `dist/` and `npx wrangler deploy` serves it. The
 `wrangler.jsonc` at the repo root configures this (worker name `everest-container-terminal`,
-assets from `./dist`, SPA fallback), which also stops Wrangler from trying to
+assets from `./dist`, the Worker in `worker/`), which also stops Wrangler from trying to
 auto-configure the framework (that path requires Vite 6+; this project is on
 Vite 5).
 
@@ -29,14 +29,21 @@ Cloudflare project settings (Workers Builds):
 - **Deploy command:** `npx wrangler deploy`
 - **Production branch:** `main`
 
-Every push to `main` builds and deploys. SPA routing (serving `index.html` for
-client-side routes like `/gate-in`) is handled by
-`not_found_handling: "single-page-application"` in `wrangler.jsonc`.
+Every push to `main` builds and deploys. Client-side routes like `/gate-in`
+are served by the Worker: any path that isn't a file in `dist/` reaches it
+(`not_found_handling: "none"` in `wrangler.jsonc`), and it answers with
+`index.html` — status 200 for the routes listed in `worker/appRoutes.ts`, 404
+with `X-Robots-Tag: noindex` for anything else. **When you add a route to
+`src/App.tsx`, add it to `worker/appRoutes.ts` too** (a test fails until you
+do; a missed route still works in the browser, it just answers 404).
+
+Response headers (Content-Security-Policy, HSTS, caching) live in
+`public/_headers`. If the app starts loading anything from a new domain, add
+that domain to the CSP there.
 
 > Note: do **not** add a `public/_redirects` file for the Workers deploy — the
 > Workers asset validator rejects the SPA rule `/*  /index.html  200` as an
-> infinite loop. `not_found_handling` in `wrangler.jsonc` is the Workers-native
-> equivalent and is all that's needed.
+> infinite loop, and the Worker already handles client-side routes.
 
 > Prefer Cloudflare **Pages** instead of Workers? Create a Pages project via
 > **Workers & Pages → Create → Pages → Connect to Git**, build `npm run build`,
@@ -72,9 +79,33 @@ stores the snapshot as a workflow artifact. To enable it:
 
 ## 4. Supabase security hardening (before real operations)
 
-- **Auth → Providers/Policies:** enable **leaked-password protection**.
+- **Leaked-password protection** (Authentication → Sign In / Providers → Email →
+  "Prevent use of leaked passwords") is a **Pro plan** feature; it can't be
+  turned on while the project is on the free plan. Until then, set a minimum
+  password length of at least 10 and require letters and digits on the same
+  page, matching what the user-management screens already enforce.
 - Confirm every table has Row-Level Security enabled (run the security advisor in
   the Supabase dashboard after any schema change).
+- The RLS helper functions (`is_super_admin`, `is_yard_admin`, `has_role`, …)
+  live in the `private` schema, which the Data API doesn't expose. Anything
+  outside the database that needs a user's role reads `user_roles` /
+  `profiles` instead of calling them over REST.
+
+### Deploy order for migrations that move or rename API functions
+
+When a migration removes a function that the Worker or an Edge Function calls
+(for example `20261011120000_lock_down_security_definer_functions.sql`), ship the
+callers first so nothing is ever pointing at a missing function:
+
+1. Merge to `main` — Cloudflare deploys the new frontend and Worker.
+2. Deploy the Edge Functions:
+   `npx supabase functions deploy create-user reset-user-password --project-ref qctvjwlaxnidprhcxodj`
+3. Apply the migration the way earlier ones were applied (Supabase MCP
+   `apply_migration`, or paste the file into the SQL editor). Don't use
+   `supabase db push`: the early migration files here carry different version
+   numbers from the project's migration history, so it would try to re-run
+   them.
+4. Re-run the security and performance advisors.
 
 ## 5. Terminal empty-return check (APM Terminals API)
 
@@ -129,7 +160,8 @@ answers 503 and the page reports the check as unavailable.
 
 1. Open the deployed site; log in.
 2. Visit `/gate-in` **directly** in the address bar — should load, not 404
-   (proves the SPA rewrite).
+   (proves the client-side routing). A made-up path such as `/nope` should show
+   the "Page not found" screen with HTTP status 404.
 3. Gate a test container in and out; collect demurrage; print and reprint a
    receipt.
 4. On `/terminal-check`, enter a container currently out for return, leave the

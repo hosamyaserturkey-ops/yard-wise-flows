@@ -33,10 +33,33 @@
         "description": "Container yard management for gate operations, demurrage, bookings and accounting."
       }
     </script>
+    <!-- Loading state shown the moment the HTML arrives, until the app's
+         JavaScript replaces #root. Colours follow the app's light and dark
+         themes; AppLoading.tsx draws the same thing once React is running. -->
+    <style>
+      .boot { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+              background: hsl(210 40% 98%); color: hsl(222 47% 11%); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      .boot-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+      .boot-bar { width: 160px; height: 3px; border-radius: 3px; background: hsl(214 32% 91%); overflow: hidden; }
+      .boot-bar::after { content: ""; display: block; width: 40%; height: 100%; border-radius: 3px; background: hsl(221 83% 53%);
+                         animation: boot-slide 1.1s ease-in-out infinite; }
+      @keyframes boot-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+      @media (prefers-color-scheme: dark) {
+        .boot { background: hsl(222 30% 9%); color: hsl(210 20% 92%); }
+        .boot-bar { background: hsl(217 33% 20%); }
+        .boot-bar::after { background: hsl(217 91% 60%); }
+      }
+      @media (prefers-reduced-motion: reduce) { .boot-bar::after { animation: none; width: 100%; opacity: 0.6; } }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot" role="status" aria-label="Loading Container Yard">
+        <span class="boot-name">Container Yard</span>
+        <span class="boot-bar"></span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

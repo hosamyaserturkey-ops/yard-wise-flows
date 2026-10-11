@@ -37,12 +37,34 @@ export default function BookingDetail() {
 
   const fetchBookingDetails = useCallback(async () => {
     try {
-      // Fetch booking details
-      const { data: bookingData, error: bookingError } = await supabase
-        .from("bookings")
-        .select("*")
-        .eq("id", bookingId)
-        .single();
+      // The booking, its containers and the yard's unbooked containers don't
+      // depend on each other, so they load side by side.
+      const [
+        { data: bookingData, error: bookingError },
+        { data: assignedData, error: assignedError },
+        { data: availableData, error: availableError },
+      ] = await Promise.all([
+        supabase
+          .from("bookings")
+          .select("*")
+          .eq("id", bookingId)
+          .single(),
+        // Assigned visits (reserved or gated out)
+        supabase
+          .from("container_visits")
+          .select(VISIT_WITH_CONTAINER)
+          .eq("booking_id", bookingId)
+          .in("status", ["reserved", "out"])
+          .order("created_at", { ascending: false }),
+        // Available visits (in-yard with no booking)
+        supabase
+          .from("container_visits")
+          .select(VISIT_WITH_CONTAINER)
+          .eq("status", "in-yard")
+          .is("booking_id", null)
+          .is("gate_out_time", null)
+          .order("gate_in_time", { ascending: false }),
+      ]);
 
       if (bookingError) throw bookingError;
 
@@ -53,28 +75,11 @@ export default function BookingDetail() {
         updated_at: new Date(bookingData.updated_at),
       });
 
-      // Fetch assigned visits (reserved or gated out)
-      const { data: assignedData, error: assignedError } = await supabase
-        .from("container_visits")
-        .select(VISIT_WITH_CONTAINER)
-        .eq("booking_id", bookingId)
-        .in("status", ["reserved", "out"])
-        .order("created_at", { ascending: false });
-
       if (assignedError) throw assignedError;
 
       setAssignedContainers(
         (assignedData ?? []).map((row) => mapVisit(row as unknown as VisitJoinRow))
       );
-
-      // Fetch available visits (in-yard with no booking)
-      const { data: availableData, error: availableError } = await supabase
-        .from("container_visits")
-        .select(VISIT_WITH_CONTAINER)
-        .eq("status", "in-yard")
-        .is("booking_id", null)
-        .is("gate_out_time", null)
-        .order("gate_in_time", { ascending: false });
 
       if (availableError) throw availableError;
 
