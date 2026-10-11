@@ -2,12 +2,11 @@
 // new inspection photos in R2 (see wrangler.jsonc's `main` + `r2_buckets`).
 // Everything else falls through to the static site via the ASSETS binding.
 //
-// Auth: has_role/is_super_admin are SECURITY DEFINER Postgres functions
-// already granted EXECUTE to the `authenticated` role (see
-// supabase/migrations), so we can check the caller's role by calling them
-// with the caller's own JWT — no service-role key needed in this Worker at
-// all, just the public URL + anon key (both already public in the built
-// frontend).
+// Auth: the caller's roles are read from user_roles with the caller's own JWT.
+// RLS lets every account read its own role rows, so no service-role key is
+// needed in this Worker at all, just the public URL + anon key (both already
+// public in the built frontend). The role helpers (is_super_admin, has_role)
+// live in a schema the API doesn't expose, so they can't be called from here.
 import { ApmError, fetchEmptyReturns } from "./apmTerminals";
 import { MAX_CONTAINERS_PER_LOOKUP } from "../src/lib/emptyReturns";
 
@@ -80,36 +79,19 @@ async function authorize(
   const { id: userId } = (await userRes.json()) as { id: string };
   if (!userId) return json({ error: "Not authenticated" }, 401);
 
-  const superRes = await fetch(
-    `${env.SUPABASE_URL}/rest/v1/rpc/is_super_admin`,
-    {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ _uid: userId }),
-    },
+  // Filter on the caller's id: admins can read other accounts' roles too, and
+  // only the caller's own count here.
+  const rolesRes = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(userId)}`,
+    { headers },
   );
-  const isSuper = superRes.ok && (await superRes.json()) === true;
+  const roles = rolesRes.ok
+    ? ((await rolesRes.json()) as { role: string }[]).map((r) => r.role)
+    : [];
 
-  let allowed = isSuper && allowedRoles.includes("super_admin");
-  if (!allowed) {
-    for (const role of allowedRoles) {
-      if (role === "super_admin") continue;
-      const roleRes = await fetch(
-        `${env.SUPABASE_URL}/rest/v1/rpc/has_role`,
-        {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({ _user_id: userId, _role: role }),
-        },
-      );
-      if (roleRes.ok && (await roleRes.json()) === true) {
-        allowed = true;
-        break;
-      }
-    }
+  if (!roles.some((role) => allowedRoles.includes(role))) {
+    return json({ error: "Not authorized" }, 403);
   }
-
-  if (!allowed) return json({ error: "Not authorized" }, 403);
   return { userId };
 }
 

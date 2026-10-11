@@ -72,9 +72,33 @@ stores the snapshot as a workflow artifact. To enable it:
 
 ## 4. Supabase security hardening (before real operations)
 
-- **Auth → Providers/Policies:** enable **leaked-password protection**.
+- **Leaked-password protection** (Authentication → Sign In / Providers → Email →
+  "Prevent use of leaked passwords") is a **Pro plan** feature; it can't be
+  turned on while the project is on the free plan. Until then, set a minimum
+  password length of at least 10 and require letters and digits on the same
+  page, matching what the user-management screens already enforce.
 - Confirm every table has Row-Level Security enabled (run the security advisor in
   the Supabase dashboard after any schema change).
+- The RLS helper functions (`is_super_admin`, `is_yard_admin`, `has_role`, …)
+  live in the `private` schema, which the Data API doesn't expose. Anything
+  outside the database that needs a user's role reads `user_roles` /
+  `profiles` instead of calling them over REST.
+
+### Deploy order for migrations that move or rename API functions
+
+When a migration removes a function that the Worker or an Edge Function calls
+(for example `20261011120000_lock_down_security_definer_functions.sql`), ship the
+callers first so nothing is ever pointing at a missing function:
+
+1. Merge to `main` — Cloudflare deploys the new frontend and Worker.
+2. Deploy the Edge Functions:
+   `npx supabase functions deploy create-user reset-user-password --project-ref qctvjwlaxnidprhcxodj`
+3. Apply the migration the way earlier ones were applied (Supabase MCP
+   `apply_migration`, or paste the file into the SQL editor). Don't use
+   `supabase db push`: the early migration files here carry different version
+   numbers from the project's migration history, so it would try to re-run
+   them.
+4. Re-run the security and performance advisors.
 
 ## 5. Terminal empty-return check (APM Terminals API)
 

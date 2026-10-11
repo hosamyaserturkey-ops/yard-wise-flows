@@ -819,24 +819,14 @@ export type Database = {
         Args: { _changes: Json; _reason: string; _visit_id: string }
         Returns: Json
       }
-      current_yard_id: { Args: never; Returns: string }
       get_user_role: {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
-      }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
       }
       increment_gated_out_containers: {
         Args: { booking_num: string }
         Returns: undefined
       }
-      is_super_admin: { Args: { _uid: string }; Returns: boolean }
-      is_yard_admin: { Args: { _uid: string; _yard: string }; Returns: boolean }
       record_shipping_line_transfer: {
         Args: {
           _notes?: string | null
@@ -869,7 +859,6 @@ export type Database = {
         Args: { _month: string; _notes?: string | null; _yard_id: string }
         Returns: Json
       }
-      is_month_closed: { Args: { _ts: string; _yard: string }; Returns: boolean }
       record_cash_count: {
         Args: {
           _counted: number
@@ -887,7 +876,6 @@ export type Database = {
         Args: { _cash_count_id: string; _counted: number; _reason: string }
         Returns: undefined
       }
-      transfer_receipt_in_use: { Args: { _path: string }; Returns: boolean }
       rename_container: {
         Args: {
           _container_id: string
