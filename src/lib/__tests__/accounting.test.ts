@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  agingBucket, buildDailyClose, buildLineStatement, monthRange, recentMonths, buildShippingLineBreakdown, formatJod, summarizePayments, shippingLineOwed,
+  agingBucket, buildDailyClose, buildLineStatement, monthRange, paymentsInRow, recentMonths, buildShippingLineBreakdown, formatJod, summarizePayments, shippingLineOwed,
   sumJod, yardEarned,
   type AccountingPayment,
 } from "../accounting";
@@ -126,6 +126,22 @@ describe("buildShippingLineBreakdown", () => {
     );
     expect(row.aging).toEqual({ days0to7: 10, days8to30: 20, days31to60: 30, days61plus: 40 });
     expect(row.oldestPendingAt).toBe(daysAgo(90));
+  });
+});
+
+describe("paymentsInRow", () => {
+  it("returns only the row's pending payments, oldest first", () => {
+    const payments = [
+      make({ id: "new", demurrage_amount: 100, created_at: daysAgo(1) }),
+      make({ id: "done", demurrage_amount: 50, created_at: daysAgo(9), transferred: true }),
+      make({ id: "old", demurrage_amount: 200, created_at: daysAgo(6) }),
+      make({ id: "other", shipping_line: "WOM", demurrage_amount: 70, created_at: daysAgo(4) }),
+    ];
+    const [eel] = buildShippingLineBreakdown(payments, [], NOW);
+    const picked = paymentsInRow(eel, payments);
+    expect(picked.map((p) => p.id)).toEqual(["old", "new"]);
+    // Settling just one of them leaves the rest owed.
+    expect(sumJod(picked.slice(0, 1).map(shippingLineOwed))).toBe(200);
   });
 });
 
