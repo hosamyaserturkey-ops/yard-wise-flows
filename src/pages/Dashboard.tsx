@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { Container, Ship, Clock, Users, Calendar, Search, TrendingUp, BarChart3,
 import { Container as ContainerType } from "@/types/container";
 import { useAuth } from "@/hooks/useAuth";
 import ReserveContainerDialog from "@/components/ReserveContainerDialog";
-import ContainerDetailDialog from "@/components/ContainerDetailDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { KanbanColumn } from "@/components/dashboard/KanbanColumn";
@@ -57,6 +56,9 @@ import {
 } from "recharts";
 import { CHART_SERIES, chartColorAt } from "@/lib/chartColors";
 import { formatDate, formatTime } from "@/lib/format";
+
+// Opened from a row; its edit form and ticket templates load on first use.
+const ContainerDetailDialog = lazy(() => import("@/components/ContainerDetailDialog"));
 
 const LINE_COLORS = CHART_SERIES;
 
@@ -818,12 +820,16 @@ const Dashboard = () => {
         }}
       />
 
-      <ContainerDetailDialog
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        container={detailContainer}
-        onUpdated={fetchContainers}
-      />
+      {detailContainer && (
+        <Suspense fallback={null}>
+          <ContainerDetailDialog
+            open={detailOpen}
+            onOpenChange={setDetailOpen}
+            container={detailContainer}
+            onUpdated={fetchContainers}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

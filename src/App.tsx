@@ -1,5 +1,4 @@
 import { lazy, Suspense } from "react";
-import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { AppLoading } from "./components/AppLoading";
 
 // Route-level code splitting: each page ships in its own chunk and loads on
 // demand, keeping the initial bundle small. The Suspense boundary lives in
@@ -44,13 +44,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Suspense
-              fallback={
-                <div className="flex min-h-dvh items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
-                </div>
-              }
-            >
+            <Suspense fallback={<AppLoading fullScreen />}>
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<Layout />}>

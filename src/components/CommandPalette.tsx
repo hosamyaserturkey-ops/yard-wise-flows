@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { lazy, Suspense, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart3, Container, Ship, FileText, Calendar, Anchor,
@@ -10,9 +10,13 @@ import {
 } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import ContainerDetailDialog from "@/components/ContainerDetailDialog";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
 import type { Container as ContainerType } from "@/types/container";
+
+// The palette is mounted on every page, but the detail dialog (with its edit
+// form and ticket templates) is only needed once a container is picked, so it
+// loads then rather than with the first page.
+const ContainerDetailDialog = lazy(() => import("@/components/ContainerDetailDialog"));
 
 interface ContainerResult {
   container_number: string;
@@ -185,13 +189,17 @@ export function CommandPalette() {
       </CommandList>
     </CommandDialog>
 
-    <ContainerDetailDialog
-      open={detailOpen}
-      onOpenChange={setDetailOpen}
-      container={detailContainer}
-      // Nothing to refresh here: the palette searches on demand, so the next
-      // search already reads the corrected number.
-    />
+    {detailContainer && (
+      <Suspense fallback={null}>
+        <ContainerDetailDialog
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          container={detailContainer}
+          // Nothing to refresh here: the palette searches on demand, so the next
+          // search already reads the corrected number.
+        />
+      </Suspense>
+    )}
     </>
   );
 }

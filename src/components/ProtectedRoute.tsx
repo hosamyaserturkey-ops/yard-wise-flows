@@ -1,7 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AppLoading } from "@/components/AppLoading";
 import { toast } from "sonner";
 
 interface ProtectedRouteProps {
@@ -32,20 +32,10 @@ const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false, l
     }
   }, [denied]);
 
+  // The sidebar and top bar are already on screen; this fills the page area
+  // for the one round trip that loads the profile and roles.
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-maritime/10 to-industrial/10 p-6">
-        <div className="space-y-6">
-          <Skeleton className="h-16 w-full" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-          </div>
-          <Skeleton className="h-64 w-full" />
-        </div>
-      </div>
-    );
+    return <AppLoading label="Loading your workspace…" />;
   }
 
   if (!user) {

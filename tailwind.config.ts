@@ -86,6 +86,11 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       keyframes: {
+        // The loading bar (AppLoading.tsx, and index.html before the app loads).
+        "boot-slide": {
+          from: { transform: "translateX(-100%)" },
+          to: { transform: "translateX(250%)" },
+        },
         "accordion-down": {
           from: {
             height: "0",
@@ -128,6 +133,7 @@ export default {
         },
       },
       animation: {
+        "boot-slide": "boot-slide 1.1s ease-in-out infinite",
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-up": "fade-up 0.4s ease-out both",

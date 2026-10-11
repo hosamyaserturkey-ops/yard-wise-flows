@@ -27,17 +27,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const fetchProfile = async (userId: string) => {
     activeUserIdRef.current = userId;
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, user_id, full_name, username, yard_id, shipping_line, created_at, updated_at')
-        .eq('user_id', userId)
-        .single();
+      // Every page waits on this, so it is one round trip: the profile (with its
+      // yard's name embedded) and the roles are fetched side by side.
+      const [{ data: row, error }, { data: allRoles }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, user_id, full_name, username, yard_id, shipping_line, created_at, updated_at, yards(name)')
+          .eq('user_id', userId)
+          .single(),
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId),
+      ]);
       if (error) throw error;
+      const { yards, ...data } = row;
 
-      const { data: allRoles } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
       const roles = (allRoles || []).map((r) => r.role as AppRole);
       let role: AppRole = 'user';
       if (roles.includes('super_admin')) role = 'super_admin';
@@ -45,15 +50,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       else if (roles.includes('inspector')) role = 'inspector';
       else if (roles.includes('line_rep')) role = 'line_rep';
 
-      let yard_name: string | null = null;
-      if (data.yard_id) {
-        const { data: yard } = await supabase
-          .from('yards')
-          .select('name')
-          .eq('id', data.yard_id)
-          .maybeSingle();
-        yard_name = yard?.name ?? null;
-      }
+      const yard_name = yards?.name ?? null;
 
       // Discard if the user has signed out (or switched) while we were fetching.
       if (activeUserIdRef.current !== userId) return;
