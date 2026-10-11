@@ -3,6 +3,7 @@ import { DateInput } from "@/components/DateInput";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,7 +37,8 @@ import {
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis } from "recharts";
 import {
-  buildDailyClose, buildShippingLineBreakdown, formatJod, localDateKey, summarizePayments, sumJod, yardEarned,
+  buildDailyClose, buildShippingLineBreakdown, formatJod, localDateKey, paymentsInRow, shippingLineOwed,
+  summarizePayments, sumJod, yardEarned,
   type ShippingLineOwed,
 } from "@/lib/accounting";
 import { buildAccountingReport } from "@/lib/accountingReport";
@@ -106,6 +108,9 @@ const Accounting = () => {
   const [lineFilter, setLineFilter] = useState(ALL_LINES);
   const [search, setSearch] = useState("");
   const [settleRow, setSettleRow] = useState<ShippingLineOwed | null>(null);
+  // Which of the row's payments this transfer covers — all of them unless unticked.
+  const [settleIds, setSettleIds] = useState<Set<string>>(new Set());
+  const [settleSearch, setSettleSearch] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
@@ -213,15 +218,58 @@ const Accounting = () => {
     return months;
   }, [payments, lineFilter]);
 
+  // The pending payments behind the row being settled, and the ones ticked.
+  const settlePayments = useMemo(
+    () => (settleRow ? paymentsInRow(settleRow, filteredPayments) : []),
+    [settleRow, filteredPayments],
+  );
+  const settleSelected = useMemo(
+    () => settlePayments.filter((p) => settleIds.has(p.id)),
+    [settlePayments, settleIds],
+  );
+  const settleAmount = useMemo(() => sumJod(settleSelected.map(shippingLineOwed)), [settleSelected]);
+  const shownSettlePayments = useMemo(() => {
+    const q = settleSearch.trim().toUpperCase();
+    return q ? settlePayments.filter((p) => p.container_number.toUpperCase().includes(q)) : settlePayments;
+  }, [settlePayments, settleSearch]);
+  const settleSearching = settleSearch.trim() !== "";
+
+  const openSettle = (row: ShippingLineOwed) => {
+    setSettleRow(row);
+    setSettleIds(new Set(row.paymentIds));
+    setSettleSearch("");
+  };
+
+  const toggleSettlePayment = (id: string, on: boolean) => {
+    setSettleIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
+
+  // Select / clear acts on the rows on screen, so a search narrows it.
+  const setShownSettled = (on: boolean) => {
+    setSettleIds((prev) => {
+      const next = new Set(prev);
+      for (const p of shownSettlePayments) {
+        if (on) next.add(p.id); else next.delete(p.id);
+      }
+      return next;
+    });
+  };
+
   const closeSettle = () => {
     setSettleRow(null);
+    setSettleIds(new Set());
+    setSettleSearch("");
     setReceiptFile(null);
     setReference("");
     setNotes("");
   };
 
   const handleSettle = async () => {
-    if (!settleRow || !receiptFile || !user) return;
+    if (!settleRow || !receiptFile || !user || settleSelected.length === 0) return;
     if (!yardId) {
       toast({ title: "Pick a yard", description: "Choose a yard from the switcher to record a transfer.", variant: "destructive" });
       return;
@@ -241,7 +289,7 @@ const Accounting = () => {
       const { data, error } = await supabase.rpc("record_shipping_line_transfer", {
         _yard_id: yardId,
         _shipping_line: settleRow.shipping_line,
-        _payment_ids: settleRow.paymentIds,
+        _payment_ids: settleSelected.map((p) => p.id),
         _receipt_path: filePath,
         _reference: reference.trim() || null,
         _notes: notes.trim() || null,
@@ -250,7 +298,7 @@ const Accounting = () => {
       const result = (data ?? {}) as { amount?: number; payment_count?: number };
       toast({
         title: "Transfer Recorded",
-        description: `${formatJod(result.amount ?? settleRow.totalOwed)} for ${result.payment_count ?? settleRow.count} payment(s) transferred to ${settleRow.shipping_line}.`,
+        description: `${formatJod(result.amount ?? settleAmount)} for ${result.payment_count ?? settleSelected.length} payment(s) transferred to ${settleRow.shipping_line}.`,
       });
       closeSettle();
       fetchData();
@@ -460,8 +508,8 @@ const Accounting = () => {
             <CardHeader>
               <CardTitle>Owed to Shipping Lines</CardTitle>
               <CardDescription>
-                Demurrage held for each line, aged from the day it was collected. Settling a row
-                covers exactly the payments counted in it.
+                Demurrage held for each line, aged from the day it was collected. Recording a transfer
+                lets you pick which of the row's containers it pays; the rest stay owed.
                 {!yardId && " Pick a yard from the switcher to record transfers."}
               </CardDescription>
             </CardHeader>
@@ -508,7 +556,7 @@ const Accounting = () => {
                                 size="sm"
                                 className="bg-success hover:bg-success/90 text-white"
                                 disabled={!yardId}
-                                onClick={() => setSettleRow(row)}
+                                onClick={() => openSettle(row)}
                               >
                                 <CheckCircle2 className="h-3 w-3 mr-1" /> Record Transfer
                               </Button>
@@ -785,21 +833,70 @@ const Accounting = () => {
 
       {/* Settle Dialog */}
       <Dialog open={settleRow !== null} onOpenChange={(o) => !o && !isTransferring && closeSettle()}>
-        <DialogContent>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record Transfer to {settleRow?.shipping_line}</DialogTitle>
             <DialogDescription>
-              Settles the {settleRow?.count} pending payment{settleRow?.count !== 1 ? "s" : ""} shown
-              {filtered ? " under the current filters" : ""}. The amount is computed from those payments
-              when the transfer is saved.
+              Tick the containers this transfer pays. All {settleRow?.count} pending
+              payment{settleRow?.count !== 1 ? "s" : ""}{filtered ? " under the current filters" : ""} start
+              ticked; anything you untick stays owed to the line. The amount is computed from the ticked
+              payments when the transfer is saved.
             </DialogDescription>
           </DialogHeader>
           {settleRow && (
             <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label>Containers</Label>
+                  <div className="flex gap-1">
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2" disabled={isTransferring} onClick={() => setShownSettled(true)}>
+                      {settleSearching ? "Select shown" : "Select all"}
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2" disabled={isTransferring} onClick={() => setShownSettled(false)}>
+                      {settleSearching ? "Clear shown" : "Clear all"}
+                    </Button>
+                  </div>
+                </div>
+                {settlePayments.length > 6 && (
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+                    <Input className="h-8 pl-8 text-sm" placeholder="Find container" value={settleSearch} onChange={(e) => setSettleSearch(e.target.value)} />
+                  </div>
+                )}
+                <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+                  {shownSettlePayments.length === 0 ? (
+                    <p className="p-3 text-sm text-muted-foreground text-center">No container matches.</p>
+                  ) : shownSettlePayments.map((p) => {
+                    const age = daysSince(p.created_at, now);
+                    return (
+                      <label key={p.id} className="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-muted/50">
+                        <Checkbox
+                          checked={settleIds.has(p.id)}
+                          disabled={isTransferring}
+                          onCheckedChange={(v) => toggleSettlePayment(p.id, v === true)}
+                        />
+                        <span className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                          <span className="font-mono">{p.container_number}</span>
+                          <span className={`text-xs whitespace-nowrap ${age > 30 ? "text-destructive" : "text-muted-foreground"}`}>
+                            {formatDate(p.created_at)} · {age}d
+                          </span>
+                        </span>
+                        <span className="ml-auto tabular-nums font-medium whitespace-nowrap">{formatJod(p.demurrage_amount)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
                 <div className="flex justify-between text-sm"><span className="text-muted-foreground">Shipping Line</span><span className="font-semibold">{settleRow.shipping_line}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Payments</span><span className="font-semibold">{settleRow.count}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount</span><span className="font-bold text-lg">{formatJod(settleRow.totalOwed)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Payments</span><span className="font-semibold">{settleSelected.length} of {settlePayments.length}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount</span><span className="font-bold text-lg">{formatJod(settleAmount)}</span></div>
+                {settleSelected.length > 0 && settleSelected.length < settlePayments.length && (
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Stays owed</span>
+                    <span className="tabular-nums">{formatJod(sumJod([settleRow.totalOwed, -settleAmount]))}</span>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reference">Bank / cheque reference</Label>
@@ -817,7 +914,11 @@ const Accounting = () => {
           )}
           <DialogFooter>
             <Button variant="outline" disabled={isTransferring} onClick={closeSettle}>Cancel</Button>
-            <Button className="bg-success hover:bg-success/90 text-white" disabled={!receiptFile || isTransferring} onClick={handleSettle}>
+            <Button
+              className="bg-success hover:bg-success/90 text-white"
+              disabled={!receiptFile || isTransferring || settleSelected.length === 0 || settleAmount <= 0}
+              onClick={handleSettle}
+            >
               {isTransferring ? "Processing…" : <><Upload className="h-4 w-4 mr-1" />Confirm Transfer</>}
             </Button>
           </DialogFooter>

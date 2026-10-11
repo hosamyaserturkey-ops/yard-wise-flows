@@ -180,6 +180,17 @@ export const buildShippingLineBreakdown = (
   return rows;
 };
 
+/**
+ * The payments one breakdown row counts, oldest first — what a transfer for
+ * that line can pick from, so a single container can be settled on its own.
+ */
+export const paymentsInRow = <P extends AccountingPayment>(row: ShippingLineOwed, payments: P[]): P[] => {
+  const ids = new Set(row.paymentIds);
+  return payments
+    .filter((p) => p.id !== undefined && ids.has(p.id))
+    .sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+};
+
 /** Local calendar day of an ISO timestamp, YYYY-MM-DD. */
 export const localDateKey = (iso: string): string => {
   const d = new Date(iso);
