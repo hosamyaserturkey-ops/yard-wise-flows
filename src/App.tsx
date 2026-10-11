@@ -142,8 +142,11 @@ const App = () => (
                     <TerminalCheck />
                   </ProtectedRoute>
                 } />
-                <Route path="*" element={<NotFound />} />
               </Route>
+              {/* Outside the layout: an unknown URL gets the standalone 404
+                  page, not the signed-in shell and its data queries. The
+                  Worker serves these paths with HTTP 404 (worker/appRoutes.ts). */}
+              <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
           </BrowserRouter>

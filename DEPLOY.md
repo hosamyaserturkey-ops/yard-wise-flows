@@ -20,7 +20,7 @@ end.
 This repo is set up to deploy as a **Cloudflare Worker with static assets** — the
 build command produces `dist/` and `npx wrangler deploy` serves it. The
 `wrangler.jsonc` at the repo root configures this (worker name `everest-container-terminal`,
-assets from `./dist`, SPA fallback), which also stops Wrangler from trying to
+assets from `./dist`, the Worker in `worker/`), which also stops Wrangler from trying to
 auto-configure the framework (that path requires Vite 6+; this project is on
 Vite 5).
 
@@ -29,14 +29,21 @@ Cloudflare project settings (Workers Builds):
 - **Deploy command:** `npx wrangler deploy`
 - **Production branch:** `main`
 
-Every push to `main` builds and deploys. SPA routing (serving `index.html` for
-client-side routes like `/gate-in`) is handled by
-`not_found_handling: "single-page-application"` in `wrangler.jsonc`.
+Every push to `main` builds and deploys. Client-side routes like `/gate-in`
+are served by the Worker: any path that isn't a file in `dist/` reaches it
+(`not_found_handling: "none"` in `wrangler.jsonc`), and it answers with
+`index.html` — status 200 for the routes listed in `worker/appRoutes.ts`, 404
+with `X-Robots-Tag: noindex` for anything else. **When you add a route to
+`src/App.tsx`, add it to `worker/appRoutes.ts` too** (a test fails until you
+do; a missed route still works in the browser, it just answers 404).
+
+Response headers (Content-Security-Policy, HSTS, caching) live in
+`public/_headers`. If the app starts loading anything from a new domain, add
+that domain to the CSP there.
 
 > Note: do **not** add a `public/_redirects` file for the Workers deploy — the
 > Workers asset validator rejects the SPA rule `/*  /index.html  200` as an
-> infinite loop. `not_found_handling` in `wrangler.jsonc` is the Workers-native
-> equivalent and is all that's needed.
+> infinite loop, and the Worker already handles client-side routes.
 
 > Prefer Cloudflare **Pages** instead of Workers? Create a Pages project via
 > **Workers & Pages → Create → Pages → Connect to Git**, build `npm run build`,
@@ -153,7 +160,8 @@ answers 503 and the page reports the check as unavailable.
 
 1. Open the deployed site; log in.
 2. Visit `/gate-in` **directly** in the address bar — should load, not 404
-   (proves the SPA rewrite).
+   (proves the client-side routing). A made-up path such as `/nope` should show
+   the "Page not found" screen with HTTP status 404.
 3. Gate a test container in and out; collect demurrage; print and reprint a
    receipt.
 4. On `/terminal-check`, enter a container currently out for return, leave the

@@ -9,6 +9,7 @@
 // live in a schema the API doesn't expose, so they can't be called from here.
 import { ApmError, fetchEmptyReturns } from "./apmTerminals";
 import { MAX_CONTAINERS_PER_LOOKUP } from "../src/lib/emptyReturns";
+import { isAppRoute, isPageRequest } from "./appRoutes";
 
 // Minimal local shapes for the Workers runtime bindings actually used here —
 // not pulling in @cloudflare/workers-types as a real npm dependency keeps
@@ -238,7 +239,32 @@ export default {
     if (url.pathname === "/api/terminal/empty-returns" && req.method === "GET") {
       return handleEmptyReturns(req, env, url);
     }
+    if (url.pathname.startsWith("/api/")) {
+      return json({ error: "Not found" }, 404);
+    }
 
-    return env.ASSETS.fetch(req);
+    const asset = await env.ASSETS.fetch(req);
+    if (asset.status !== 404) return asset;
+    if (isPageRequest(req, url)) return serveAppShell(url, env);
+    // A missing file under /assets would otherwise carry that rule's
+    // year-long "immutable" caching from public/_headers.
+    const headers = new Headers(asset.headers);
+    headers.set("Cache-Control", "no-store");
+    return new Response(asset.body, { status: 404, statusText: "Not Found", headers });
   },
 };
+
+// The app's index.html for a page-like path that isn't a file: 200 for a route
+// the app has, 404 (and kept out of search results) for anything else. The
+// shell is fetched without the browser's conditional headers, so a 304 can't
+// stand in for the page body of a 404.
+async function serveAppShell(url: URL, env: Env): Promise<Response> {
+  const shell = await env.ASSETS.fetch(
+    new Request(new URL("/", url), { headers: { Accept: "text/html" } }),
+  );
+  if (isAppRoute(url.pathname)) return shell;
+  const headers = new Headers(shell.headers);
+  headers.delete("ETag");
+  headers.set("X-Robots-Tag", "noindex");
+  return new Response(shell.body, { status: 404, statusText: "Not Found", headers });
+}
