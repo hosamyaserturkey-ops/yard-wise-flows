@@ -17,7 +17,7 @@ import { bookingOptionLabel, bookingsForLine } from "@/lib/bookingScope";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { gateOutSchema } from "@/lib/validation";
+import { gateOutSchema, normalizeDriverName, normalizeTruckNumber, truckNumberWarning } from "@/lib/validation";
 import { PageHeader } from "@/components/PageHeader";
 import { logActivity } from "@/lib/activityLog";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
@@ -45,6 +45,8 @@ const GateOut = () => {
   const [fees, setFees] = useState("");
   const [driverName, setDriverName] = useState("");
   const [truckNumber, setTruckNumber] = useState("");
+  // A second look for plates that aren't the local 7 digits; never blocks.
+  const truckWarning = truckNumberWarning(truckNumber);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -219,7 +221,7 @@ const GateOut = () => {
     setErrors({});
 
     const driver = result.data.driverName;
-    const truck = result.data.truckNumber.trim();
+    const truck = result.data.truckNumber;
     const seal = result.data.sealNumber;
     const booking = result.data.bookingNumber;
 
@@ -544,8 +546,8 @@ const GateOut = () => {
                       size="sm"
                       className="mt-3"
                       onClick={() => {
-                        setDriverName(selectedContainer.driverName);
-                        setTruckNumber(selectedContainer.truckNumber.toUpperCase());
+                        setDriverName(normalizeDriverName(selectedContainer.driverName));
+                        setTruckNumber(normalizeTruckNumber(selectedContainer.truckNumber));
                         setErrors((prev) => ({ ...prev, driverName: undefined, truckNumber: undefined }));
                       }}
                     >
@@ -641,6 +643,8 @@ const GateOut = () => {
                         setDriverName(e.target.value);
                         setErrors((prev) => ({ ...prev, driverName: undefined }));
                       }}
+                      // Show the spelling that will be saved.
+                      onBlur={(e) => setDriverName(normalizeDriverName(e.target.value))}
                       placeholder="Name of the driver taking the container out"
                       autoComplete="off"
                       aria-invalid={!!errors.driverName}
@@ -662,14 +666,19 @@ const GateOut = () => {
                         setTruckNumber(e.target.value.toUpperCase());
                         setErrors((prev) => ({ ...prev, truckNumber: undefined }));
                       }}
+                      onBlur={(e) => setTruckNumber(normalizeTruckNumber(e.target.value))}
                       placeholder="Plate of the collecting truck"
                       autoComplete="off"
                       aria-invalid={!!errors.truckNumber}
-                      aria-describedby={errors.truckNumber ? "truckNumber-error" : undefined}
+                      aria-describedby={errors.truckNumber ? "truckNumber-error" : truckWarning ? "truckNumber-hint" : undefined}
                     />
-                    {errors.truckNumber && (
+                    {errors.truckNumber ? (
                       <p id="truckNumber-error" className="text-sm text-destructive">
                         {errors.truckNumber}
+                      </p>
+                    ) : truckWarning && (
+                      <p id="truckNumber-hint" className="text-sm text-amber-700 dark:text-amber-400">
+                        {truckWarning}
                       </p>
                     )}
                   </div>
