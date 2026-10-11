@@ -91,6 +91,15 @@ export const shipSigSvg = (color: string): string => `<svg viewBox="0 0 24 24" x
 
 export const clipboardSigSvg = (color: string): string => `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" fill="none" stroke="${color}" stroke-width="1.6"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12l2 2 4-4"/></svg>`;
 
+/**
+ * Prints the ticket once its window has loaded. The receipt window inherits
+ * the app's Content-Security-Policy, which allows this one inline script by
+ * its SHA-256 hash (public/_headers). Changing it means updating that hash;
+ * securityHeaders.test.ts fails until they match.
+ */
+export const RECEIPT_PRINT_SCRIPT =
+  "window.onload = function () { setTimeout(function () { window.print(); }, 300); };";
+
 /** Shared ticket chrome (CSS) so gate-in and gate-out stay visually identical. */
 export const receiptCss = (): string => `
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -389,9 +398,7 @@ export const printGateInReceipt = (
   </div>
 
 </div>
-<script>
-  window.onload = function () { setTimeout(function () { window.print(); }, 300); };
-</script>
+<script>${RECEIPT_PRINT_SCRIPT}</script>
 </body>
 </html>`);
   receiptWindow.document.close();
