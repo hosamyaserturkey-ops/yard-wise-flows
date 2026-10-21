@@ -811,6 +811,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_delete_container: {
+        Args: { _reason: string; _visit_id: string }
+        Returns: Json
+      }
       admin_edit_booking: {
         Args: { _booking_id: string; _changes: Json; _reason: string }
         Returns: Json
@@ -906,6 +910,7 @@ export type Database = {
         | "cash_recounted"
         | "port_data_imported"
         | "port_list_overridden"
+        | "container_deleted"
       app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
@@ -1056,6 +1061,7 @@ export const Constants = {
         "cash_recounted",
         "port_data_imported",
         "port_list_overridden",
+        "container_deleted",
       ],
       app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
       container_status: ["in-yard", "out", "reserved"],

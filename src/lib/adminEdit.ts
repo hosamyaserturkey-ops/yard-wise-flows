@@ -152,6 +152,28 @@ export async function adminEditContainer(
   return { ok: true, changes: (data ?? []) as unknown as LoggedChange[] };
 }
 
+export interface DeleteResult {
+  ok: boolean;
+  /** False when other visits keep the container row; only this visit went. */
+  containerRemoved: boolean;
+  error?: string;
+}
+
+/**
+ * Remove a visit gated in by mistake, and the container with it when that was
+ * its only visit. The RPC refuses a gated-out visit or a trip with demurrage on
+ * file, and logs a copy of the deleted rows with the reason.
+ */
+export async function adminDeleteContainer(visitId: string, reason: string): Promise<DeleteResult> {
+  const { data, error } = await supabase.rpc("admin_delete_container", {
+    _visit_id: visitId,
+    _reason: reason.trim(),
+  });
+  if (error) return { ok: false, containerRemoved: false, error: error.message };
+  const res = (data ?? {}) as { container_removed?: boolean };
+  return { ok: true, containerRemoved: res.container_removed === true };
+}
+
 export async function adminEditBooking(
   bookingId: string,
   changes: Partial<Record<BookingEditField, EditValue>>,

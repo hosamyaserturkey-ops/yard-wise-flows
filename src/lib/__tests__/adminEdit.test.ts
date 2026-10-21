@@ -5,7 +5,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: (...args: unknown[]) => rpc(...args) },
 }));
 
-const { adminEditContainer, describeChange, diffEdits, toLocalInput, toRpcChanges } = await import("../adminEdit");
+const { adminDeleteContainer, adminEditContainer, describeChange, diffEdits, toLocalInput, toRpcChanges } = await import("../adminEdit");
 
 describe("diffEdits", () => {
   it("returns only the fields that changed, with the new value", () => {
@@ -82,5 +82,25 @@ describe("adminEditContainer", () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: "Only a yard admin can edit container records." } });
     const res = await adminEditContainer("visit-1", { shipping_line: "WOM" }, "x x");
     expect(res).toEqual({ ok: false, changes: [], error: "Only a yard admin can edit container records." });
+  });
+});
+
+describe("adminDeleteContainer", () => {
+  it("calls the RPC with the visit and the trimmed reason", async () => {
+    rpc.mockResolvedValueOnce({ data: { container_number: "CLHU3950539", container_removed: true }, error: null });
+    const res = await adminDeleteContainer("visit-1", "  gated in by mistake ");
+    expect(rpc).toHaveBeenCalledWith("admin_delete_container", { _visit_id: "visit-1", _reason: "gated in by mistake" });
+    expect(res).toEqual({ ok: true, containerRemoved: true });
+  });
+
+  it("reports when other visits kept the container", async () => {
+    rpc.mockResolvedValueOnce({ data: { container_number: "CLHU3950539", container_removed: false }, error: null });
+    expect(await adminDeleteContainer("visit-1", "duplicate")).toEqual({ ok: true, containerRemoved: false });
+  });
+
+  it("passes the database's message through on failure", async () => {
+    const message = "CLHU3950539 has already gated out, so its record stays. Use Edit to correct it.";
+    rpc.mockResolvedValueOnce({ data: null, error: { message } });
+    expect(await adminDeleteContainer("visit-1", "duplicate")).toEqual({ ok: false, containerRemoved: false, error: message });
   });
 });
