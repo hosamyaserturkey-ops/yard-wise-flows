@@ -24,6 +24,7 @@ import {
   History,
   Lock,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { Container as ContainerType } from "@/types/container";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,7 @@ import { fetchVisitOperators, type VisitOperators } from "@/lib/gateOperators";
 import { resolveSignedUrl } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { EditContainerDialog } from "@/components/EditContainerDialog";
+import { DeleteContainerDialog } from "@/components/DeleteContainerDialog";
 import { formatDate, formatTime } from "@/lib/format";
 import { formatJod } from "@/lib/accounting";
 
@@ -84,7 +86,7 @@ interface Props {
   container: ContainerType | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called after the container number is corrected, so the caller can refetch. */
+  /** Called after the container is corrected or deleted, so the caller can refetch. */
   onUpdated?: () => void;
 }
 
@@ -114,9 +116,13 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
   const [operators, setOperators] = useState<VisitOperators>({ receivedBy: null, releasedBy: null });
   const [loading, setLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   // Admins can correct any container, in the yard or gated out; the RPC checks
   // the role again and logs every change with the admin's reason.
   const canEdit = isAdmin() || isSuperAdmin();
+  // Deleting is for a gate-in made by mistake, so only while the container is
+  // still in the yard. A gated-out record is corrected with Edit instead.
+  const canDelete = canEdit && !!container && !container.gateOutTime;
 
   useEffect(() => {
     if (!open || !container) {
@@ -326,6 +332,21 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
                 onClick={() => setEditOpen(true)}
               >
                 <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete container"
+                title="Delete container"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                // The dialog says whether other visits keep the container, so
+                // wait until they have loaded.
+                disabled={loading}
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             )}
             <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
@@ -657,6 +678,19 @@ const ContainerDetailDialog = ({ container, open, onOpenChange, onUpdated }: Pro
         onSaved={() => {
           // The container prop is owned by the caller's list, so the detail
           // view closes and the list refetches with the corrected values.
+          onOpenChange(false);
+          onUpdated?.();
+        }}
+      />
+    )}
+
+    {canDelete && (
+      <DeleteContainerDialog
+        container={container}
+        otherVisits={visits.filter((v) => v.id !== container.id).length}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDeleted={() => {
           onOpenChange(false);
           onUpdated?.();
         }}

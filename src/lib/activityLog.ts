@@ -10,6 +10,7 @@ export type ActivityAction =
   | "inspection_cancelled"
   | "container_renamed"
   | "container_edited"
+  | "container_deleted"
   | "booking_edited"
   | "demurrage_transferred"
   | "payment_voided"

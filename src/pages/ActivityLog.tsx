@@ -41,6 +41,7 @@ const ACTION_LABEL: Record<ActivityAction, string> = {
   inspection_cancelled: "Inspection Cancelled",
   container_renamed: "Renamed",
   container_edited: "Container Edited",
+  container_deleted: "Container Deleted",
   booking_edited: "Booking Edited",
   demurrage_transferred: "Transferred to Line",
   payment_voided: "Payment Voided",
@@ -63,6 +64,7 @@ const ACTION_VARIANT: Record<ActivityAction, "default" | "secondary" | "outline"
   inspection_cancelled: "outline",
   container_renamed: "outline",
   container_edited: "outline",
+  container_deleted: "destructive",
   booking_edited: "outline",
   demurrage_transferred: "secondary",
   payment_voided: "destructive",
@@ -128,6 +130,13 @@ function detailsOf(r: Row): { lines: string[]; reason: string | null } {
     const lines = Array.isArray(m.lines) ? (m.lines as string[]).join(", ") : "";
     const file = typeof m.file_name === "string" ? ` from ${m.file_name}` : "";
     return { lines: [`${Number(m.containers ?? 0)} ${lines} container(s) imported${file}`.replace("  ", " ")], reason };
+  }
+  if (r.action === "container_deleted") {
+    const visit = (m.visit ?? {}) as Record<string, unknown>;
+    const ticket = m.ticket_number != null ? `Ticket #${String(m.ticket_number)}` : "Visit";
+    const gateIn = typeof visit.gate_in_time === "string" ? `, gated in ${formatDateTime(visit.gate_in_time)}` : "";
+    const removed = m.container_removed === true ? " — container removed" : " — earlier visits kept";
+    return { lines: [`${ticket}${gateIn}, deleted${removed}`], reason };
   }
   if (r.action === "container_renamed" && typeof m.from === "string") {
     return { lines: [`Container number: ${m.from} → ${String(m.to ?? "")}`], reason };
