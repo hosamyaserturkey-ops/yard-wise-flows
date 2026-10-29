@@ -31,6 +31,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePager } from "@/components/TablePager";
+import { fetchAllRows } from "@/lib/fetchAllRows";
+import {
+  ASSIGNMENT_FILTERS,
+  ASSIGNMENT_FILTER_LABELS,
+  assignedCount,
+  countReservedByBooking,
+  matchesAssignmentFilter,
+  type AssignmentFilter,
+} from "@/lib/bookingAssignment";
 
 const STATUS_TABS = ["active", "completed", "cancelled", "all"] as const;
 type StatusTab = (typeof STATUS_TABS)[number];
@@ -43,6 +52,9 @@ export default function Bookings() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusTab, setStatusTab] = useState<StatusTab>("active");
+  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("any");
+  // Containers currently reserved against each booking, by booking id.
+  const [reservedByBooking, setReservedByBooking] = useState<Map<string, number>>(new Map());
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
   const [shippingLines, setShippingLines] = useState<ShippingLineRow[]>([]);
   const [formData, setFormData] = useState<CreateBookingData>({
@@ -67,9 +79,22 @@ export default function Bookings() {
         .select("*")
         .order("created_at", { ascending: false });
       if (yardId) query = query.eq("yard_id", yardId);
-      const { data, error } = await query;
+      const [{ data, error }, reservedVisits] = await Promise.all([
+        query,
+        fetchAllRows<{ booking_id: string | null }>((from, to) => {
+          let q = supabase
+            .from("container_visits")
+            .select("booking_id")
+            .eq("status", "reserved")
+            .not("booking_id", "is", null);
+          if (yardId) q = q.eq("yard_id", yardId);
+          return q.order("id").range(from, to);
+        }),
+      ]);
 
       if (error) throw error;
+
+      setReservedByBooking(countReservedByBooking(reservedVisits));
 
       setBookings(data.map(booking => ({
         ...booking,
@@ -168,18 +193,25 @@ export default function Bookings() {
     }
   };
 
-  const countFor = (t: StatusTab) => (t === "all" ? bookings.length : bookings.filter((b) => b.status === t).length);
+  const reservedFor = useCallback((b: Booking) => reservedByBooking.get(b.id) ?? 0, [reservedByBooking]);
+  // The assignment filter narrows every tab, so the tab counts follow it too.
+  const assignmentScoped = useMemo(
+    () => bookings.filter((b) => matchesAssignmentFilter(b, reservedFor(b), assignmentFilter)),
+    [bookings, reservedFor, assignmentFilter],
+  );
+  const countFor = (t: StatusTab) =>
+    t === "all" ? assignmentScoped.length : assignmentScoped.filter((b) => b.status === t).length;
   // A search looks through every booking, so a finished one is still found
   // from the Active tab.
   const visibleBookings = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    return bookings.filter((b) =>
+    return assignmentScoped.filter((b) =>
       q
         ? b.booking_number.toLowerCase().includes(q) || b.customer_name.toLowerCase().includes(q)
         : statusTab === "all" || b.status === statusTab,
     );
-  }, [bookings, searchTerm, statusTab]);
-  const pager = usePagination(visibleBookings, 50, JSON.stringify([searchTerm, statusTab]));
+  }, [assignmentScoped, searchTerm, statusTab]);
+  const pager = usePagination(visibleBookings, 50, JSON.stringify([searchTerm, statusTab, assignmentFilter]));
 
   const confirmCancel = async () => {
     if (!cancelTarget) return;
@@ -230,15 +262,29 @@ export default function Bookings() {
         }
       />
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Search by booking number or customer…"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+      {/* Search and assignment filter */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Search by booking number or customer…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as AssignmentFilter)}>
+          <SelectTrigger className="sm:w-64" aria-label="Filter by container assignment">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ASSIGNMENT_FILTERS.map((f) => (
+              <SelectItem key={f} value={f}>
+                {ASSIGNMENT_FILTER_LABELS[f]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {showCreateForm && isSuperAdmin() && !selectedYardId ? (
@@ -372,7 +418,8 @@ export default function Bookings() {
               )}
               {visibleBookings.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">
-                  No {statusTab === "all" || searchTerm.trim() ? "" : `${statusTab} `}bookings match.
+                  No {statusTab === "all" || searchTerm.trim() ? "" : `${statusTab} `}bookings match
+                  {assignmentFilter !== "any" && ` "${ASSIGNMENT_FILTER_LABELS[assignmentFilter]}"`}.
                 </p>
               ) : (
                 <>
@@ -383,6 +430,7 @@ export default function Bookings() {
                         <TableHead>Customer</TableHead>
                         <TableHead>Line</TableHead>
                         {isSuperAdmin() && <TableHead>Yard</TableHead>}
+                        <TableHead>Assigned</TableHead>
                         <TableHead className="w-56">Gated out</TableHead>
                         <TableHead>Created</TableHead>
                         <TableHead>Status</TableHead>
@@ -394,6 +442,7 @@ export default function Bookings() {
                         const pct = booking.total_containers > 0
                           ? Math.round((booking.gated_out_containers / booking.total_containers) * 100)
                           : 0;
+                        const reserved = reservedFor(booking);
                         return (
                           <TableRow
                             key={booking.id}
@@ -406,6 +455,16 @@ export default function Bookings() {
                               <Badge variant="outline" className="text-xs">{booking.shipping_line || "No line"}</Badge>
                             </TableCell>
                             {isSuperAdmin() && <TableCell className="text-xs">{yardName(booking.yard_id)}</TableCell>}
+                            <TableCell className="whitespace-nowrap">
+                              <span className="text-sm tabular-nums">
+                                {assignedCount(booking, reserved)} of {booking.total_containers}
+                              </span>
+                              {reserved > 0 && (
+                                <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">
+                                  ({reserved} reserved)
+                                </span>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <div className="h-1.5 w-20 shrink-0 rounded-full bg-muted" aria-hidden>
