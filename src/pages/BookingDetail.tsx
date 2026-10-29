@@ -1,10 +1,12 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Package, Users, CheckCircle, Clock, Truck, DollarSign, History, Pencil } from "lucide-react";
+import { ArrowLeft, Package, Users, CheckCircle, Clock, Truck, DollarSign, History, Pencil, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +15,7 @@ import type { Container } from "@/types/container";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
 import { EditBookingDialog } from "@/components/EditBookingDialog";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { ALL, filterAvailableContainers, lineKey, lineOptions, typeOptions } from "@/lib/availableContainers";
 
 interface HistoryEvent {
   id: string;
@@ -34,6 +37,11 @@ export default function BookingDetail() {
   const [availableContainers, setAvailableContainers] = useState<Container[]>([]);
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  // Filters on the available list. The line starts on the booking's own line
+  // (null = not picked yet), since that's the only line it should take.
+  const [availableQuery, setAvailableQuery] = useState("");
+  const [availableType, setAvailableType] = useState(ALL);
+  const [pickedLine, setPickedLine] = useState<string | null>(null);
 
   const fetchBookingDetails = useCallback(async () => {
     try {
@@ -260,6 +268,28 @@ export default function BookingDetail() {
       });
     }
   };
+
+  const bookingLine = lineKey(booking?.shipping_line);
+  const availableLine = pickedLine ?? (bookingLine || ALL);
+  const availableTypes = useMemo(() => typeOptions(availableContainers), [availableContainers]);
+  const availableLines = useMemo(() => {
+    const lines = lineOptions(availableContainers);
+    // Keep the booking's line selectable even when no container on it is free.
+    if (bookingLine && !lines.some((l) => l.key === bookingLine)) {
+      lines.unshift({ key: bookingLine, label: booking?.shipping_line?.trim() ?? bookingLine });
+    }
+    return lines;
+  }, [availableContainers, bookingLine, booking?.shipping_line]);
+  const filteredAvailable = useMemo(
+    () =>
+      filterAvailableContainers(availableContainers, {
+        query: availableQuery,
+        type: availableType,
+        line: availableLine,
+      }),
+    [availableContainers, availableQuery, availableType, availableLine],
+  );
+  const availableFiltered = filteredAvailable.length !== availableContainers.length;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -528,13 +558,70 @@ export default function BookingDetail() {
       {!isLineRep() && (
       <Card>
         <CardHeader>
-          <CardTitle>Available Containers ({availableContainers.length})</CardTitle>
+          <CardTitle>
+            Available Containers (
+            {availableFiltered
+              ? `${filteredAvailable.length} of ${availableContainers.length}`
+              : availableContainers.length}
+            )
+          </CardTitle>
           <CardDescription>In-yard containers ready to be assigned</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <div className="flex flex-col gap-3 md:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search by container number, driver or truck…"
+                value={availableQuery}
+                onChange={(e) => setAvailableQuery(e.target.value)}
+              />
+            </div>
+            <Select value={availableType} onValueChange={setAvailableType}>
+              <SelectTrigger className="md:w-44" aria-label="Filter by container type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All types</SelectItem>
+                {availableTypes.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={availableLine} onValueChange={setPickedLine}>
+              <SelectTrigger className="md:w-56" aria-label="Filter by shipping line">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All lines</SelectItem>
+                {availableLines.map((l) => (
+                  <SelectItem key={l.key} value={l.key}>
+                    {l.key === bookingLine ? `${l.label} (this booking's line)` : l.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {availableFiltered && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setAvailableQuery("");
+                  setAvailableType(ALL);
+                  setPickedLine(ALL);
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
           {availableContainers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No available containers in the yard
+            </div>
+          ) : filteredAvailable.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No available containers match these filters.
             </div>
           ) : (
             <Table>
@@ -550,7 +637,7 @@ export default function BookingDetail() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {availableContainers.map((container) => (
+                {filteredAvailable.map((container) => (
                   <TableRow key={container.id}>
                     <TableCell className="font-mono">{container.containerNumber}</TableCell>
                     <TableCell>{container.containerType}</TableCell>
