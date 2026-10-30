@@ -15,7 +15,8 @@ import type { Container } from "@/types/container";
 import { mapVisit, VISIT_WITH_CONTAINER, type VisitJoinRow } from "@/lib/containerMap";
 import { EditBookingDialog } from "@/components/EditBookingDialog";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { ALL, filterAvailableContainers, lineKey, lineOptions, typeOptions } from "@/lib/availableContainers";
+import { ALL, filterAvailableContainers, lineOptions, typeOptions } from "@/lib/availableContainers";
+import { bookingMatchesLine } from "@/lib/bookingScope";
 
 interface HistoryEvent {
   id: string;
@@ -37,11 +38,11 @@ export default function BookingDetail() {
   const [availableContainers, setAvailableContainers] = useState<Container[]>([]);
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  // Filters on the available list. The line starts on the booking's own line
-  // (null = not picked yet), since that's the only line it should take.
+  // Filters on the available list. The line filter only shows for a legacy
+  // booking with no line on file; any other booking only takes its own line.
   const [availableQuery, setAvailableQuery] = useState("");
   const [availableType, setAvailableType] = useState(ALL);
-  const [pickedLine, setPickedLine] = useState<string | null>(null);
+  const [availableLine, setAvailableLine] = useState(ALL);
 
   const fetchBookingDetails = useCallback(async () => {
     try {
@@ -138,6 +139,18 @@ export default function BookingDetail() {
 
   const handleAssignContainer = async (containerId: string) => {
     if (!booking) return;
+
+    // Same rule as the reserve dialog and gate-out: a booking only takes
+    // containers on its own shipping line.
+    const container = availableContainers.find((c) => c.id === containerId);
+    if (container && !bookingMatchesLine(booking, container.shippingLine)) {
+      toast({
+        title: "Wrong shipping line",
+        description: `${container.containerNumber} is on ${container.shippingLine || "no line"}, but this booking is for ${booking.shipping_line}.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (assignedContainers.length >= booking.total_containers) {
       toast({
@@ -269,27 +282,23 @@ export default function BookingDetail() {
     }
   };
 
-  const bookingLine = lineKey(booking?.shipping_line);
-  const availableLine = pickedLine ?? (bookingLine || ALL);
-  const availableTypes = useMemo(() => typeOptions(availableContainers), [availableContainers]);
-  const availableLines = useMemo(() => {
-    const lines = lineOptions(availableContainers);
-    // Keep the booking's line selectable even when no container on it is free.
-    if (bookingLine && !lines.some((l) => l.key === bookingLine)) {
-      lines.unshift({ key: bookingLine, label: booking?.shipping_line?.trim() ?? bookingLine });
-    }
-    return lines;
-  }, [availableContainers, bookingLine, booking?.shipping_line]);
+  // The containers this booking may take: free ones on its own line.
+  const assignable = useMemo(
+    () => (booking ? availableContainers.filter((c) => bookingMatchesLine(booking, c.shippingLine)) : []),
+    [availableContainers, booking],
+  );
+  const availableTypes = useMemo(() => typeOptions(assignable), [assignable]);
+  const availableLines = useMemo(() => lineOptions(assignable), [assignable]);
   const filteredAvailable = useMemo(
     () =>
-      filterAvailableContainers(availableContainers, {
+      filterAvailableContainers(assignable, {
         query: availableQuery,
         type: availableType,
         line: availableLine,
       }),
-    [availableContainers, availableQuery, availableType, availableLine],
+    [assignable, availableQuery, availableType, availableLine],
   );
-  const availableFiltered = filteredAvailable.length !== availableContainers.length;
+  const availableFiltered = filteredAvailable.length !== assignable.length;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -561,11 +570,15 @@ export default function BookingDetail() {
           <CardTitle>
             Available Containers (
             {availableFiltered
-              ? `${filteredAvailable.length} of ${availableContainers.length}`
-              : availableContainers.length}
+              ? `${filteredAvailable.length} of ${assignable.length}`
+              : assignable.length}
             )
           </CardTitle>
-          <CardDescription>In-yard containers ready to be assigned</CardDescription>
+          <CardDescription>
+            {booking.shipping_line
+              ? `In-yard ${booking.shipping_line} containers ready to be assigned`
+              : "In-yard containers ready to be assigned. This booking has no shipping line on file, so every line is offered."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-col gap-3 md:flex-row">
@@ -589,35 +602,37 @@ export default function BookingDetail() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={availableLine} onValueChange={setPickedLine}>
-              <SelectTrigger className="md:w-56" aria-label="Filter by shipping line">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All lines</SelectItem>
-                {availableLines.map((l) => (
-                  <SelectItem key={l.key} value={l.key}>
-                    {l.key === bookingLine ? `${l.label} (this booking's line)` : l.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!booking.shipping_line && (
+              <Select value={availableLine} onValueChange={setAvailableLine}>
+                <SelectTrigger className="md:w-56" aria-label="Filter by shipping line">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All lines</SelectItem>
+                  {availableLines.map((l) => (
+                    <SelectItem key={l.key} value={l.key}>{l.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {availableFiltered && (
               <Button
                 variant="ghost"
                 onClick={() => {
                   setAvailableQuery("");
                   setAvailableType(ALL);
-                  setPickedLine(ALL);
+                  setAvailableLine(ALL);
                 }}
               >
                 Clear filters
               </Button>
             )}
           </div>
-          {availableContainers.length === 0 ? (
+          {assignable.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No available containers in the yard
+              {booking.shipping_line
+                ? `No ${booking.shipping_line} containers available in the yard`
+                : "No available containers in the yard"}
             </div>
           ) : filteredAvailable.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
