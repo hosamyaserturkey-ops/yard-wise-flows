@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-// containers is shared by every yard, so its permissive policies don't scope
-// rows to a yard. containers_staff_only (20261109200000) is the gate that
-// keeps an account with no yard (a public sign-up, say) out of it entirely.
+// containers is shared by every yard; its permissive policies scope rows to
+// the caller's yard (20261109130000, see containerPolicies.test.ts).
+// containers_staff_only (20261109200000) is the outer gate that keeps an
+// account with no yard (a public sign-up, say) out of it entirely.
 // Migrations are applied by hand, so the last one to mention the policy is
 // what production should have.
 describe("containers_staff_only in the newest migration that mentions it", () => {

@@ -149,8 +149,8 @@ Keep **Authentication → Sign In / Providers → "Allow new users to sign up"
 off**. The app never uses public sign-up: staff accounts come from the
 `create-user` Edge Function, which works with sign-up disabled. This change
 stops a sign-up from choosing its own role, but a signed-up account is still
-a signed-in `user` with no yard. The next section covers what that account can
-still reach.
+a signed-in `user` with no yard. The next two sections cover what that
+account can still reach.
 
 ### Containers are staff-only (`20261109200000`)
 
@@ -171,15 +171,54 @@ It works whether the RLS helpers are still in `public` or have moved to
 `private`. `20261011120000` moving them later doesn't affect it, and
 `20261011130000` rewriting the other `containers` policies doesn't remove it.
 
-Every other table already gives a yard-less account nothing: rows are scoped
-to the caller's yard or role. The exception is `shipping_lines`, the
-read-only list of line codes. The SECURITY DEFINER functions on the API all
-check for an admin or a yard. Until `20261011120000` is applied, though, the
-RLS helpers (`is_super_admin`, `rep_shipping_line`, …) stay callable over
-`/rest/v1/rpc`, so a signed-in account can ask whether a given user id is an
-admin or which line a rep works for. Apply that migration (see "Deploy order
-for migrations that move or rename API functions") before turning sign-up
-back on.
+### Containers scoped to the caller's yard (`20261109130000`)
+
+`containers_staff_only` keeps out accounts with no yard, but anyone with a
+yard still reads and writes every yard's containers. A box belongs to a yard
+through its visits, inspections and port-list entries there (`containers`
+has no `yard_id`), and this migration scopes the permissive policies to
+that.
+
+Now a super admin reaches every container, and anyone else needs a yard on
+their profile and a role in `user_roles` (`admin`, `user`, `inspector` to read
+and write; `line_rep` to read their own line). They see the containers with a
+visit, an inspection or a port-list entry in their yard, plus a master row
+whose gate-in hasn't inserted its visit yet. An account with no yard, or no
+role, gets no containers. The same migration stops an account from
+re-creating a deleted profile row inside a yard (`profiles_insert_self`).
+`containers_staff_only` stays as an outer gate; with both in place the
+result is what this migration allows.
+
+Every other table already gave a yard-less `user` nothing but
+`shipping_lines` (read) and their own `profiles` / `user_roles` row; the
+check below proves it table by table.
+
+No frontend or Edge Function deploy is needed, and it works with the RLS
+helpers in `public` or `private` (production has had them in `private` since
+`20261011120000` and `20261011130000` were applied on 2026-11-09). Either
+order with `20261109200000` works:
+
+1. Apply `20261109130000_scope_containers_to_caller_yard.sql` the same way as
+   above.
+2. Check it: run `supabase/checks/yard_scoped_access.sql` in the SQL editor.
+   It builds two throwaway yards with accounts and containers in a
+   transaction, acts as each account the way the API does, and rolls back
+   (its gate visits use negative ticket numbers, so real tickets keep
+   counting from where they are). It ends with "yard-scoped access: all
+   checks passed" or stops at the first wrong result.
+3. As a gate operator, open Gate In, Yard Map and the dashboard: the counts
+   should not change, since every container today is in the one yard.
+
+One thing to know once there is a second yard: an admin gating in, with no
+inspection and no port-list entry in their yard, a box that has only ever
+been in the other yard won't see its existing record, and Gate In stops with
+a duplicate-number error. Inspect the box (or put it on the port list) first.
+
+With both migrations applied and their checks passing, a signed-up account
+reaches only `shipping_lines` and its own profile, and since
+`20261011120000` the RLS helpers are no longer callable over `/rest/v1/rpc`.
+The app still has no use for public sign-up, so leaving it off remains the
+safer setting.
 
 ## 5. Terminal empty-return check (APM Terminals API)
 
