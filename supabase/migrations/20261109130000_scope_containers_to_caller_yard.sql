@@ -69,15 +69,19 @@
 -- Postgres stop with "infinite recursion detected in policy". The functions
 -- read the tables as their owner, so no policy is expanded inside them.
 --
--- Works with the RLS helpers in either schema. Production still has
--- has_role, is_super_admin, current_yard_id, ... in public (20261011120000
--- and 20261011130000 not applied yet); the repo has them in private. The new
+-- Works with the RLS helpers in either schema: public before
+-- 20261011120000, private after (production since 2026-11-09). The new
 -- functions read profiles and user_roles directly and the policies call only
--- them, so nothing here names a helper that 20261011120000 moves. That
+-- them, so nothing here names a helper that 20261011120000 moves; that
 -- migration creates the private schema with the same statements as below.
--- 20261011130000 used to rewrite containers_insert, containers_update and
--- profiles_insert_self too; those lines are gone from it, so applying it
--- after this migration doesn't put the old expressions back.
+-- These ALTER POLICYs replace what 20261011130000 set for containers_insert,
+-- containers_update and profiles_insert_self, so this must run after it
+-- wherever both are applied (it sorts after it, and production has it).
+--
+-- containers_staff_only (20261109200000), a RESTRICTIVE policy letting in
+-- only super admins and accounts with a yard, sits on top of these in either
+-- order. Everything these policies allow already passes it, so with both in
+-- place the result is what these policies allow.
 --
 -- Also: profiles_insert_self let an account insert its own profile row with
 -- any yard_id. Every account gets its profile from handle_new_user, and

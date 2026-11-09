@@ -4,9 +4,9 @@ import { resolve } from "node:path";
 
 // The behaviour is checked against a database by
 // supabase/checks/yard_scoped_access.sql. This only guards the migration files:
-// they are applied by hand, and production applies the unapplied run from
-// 20261011120000 on in whatever order it gets to them, so a later file that
-// rewrote these policies could silently put the old open ones back.
+// they are applied by hand, so the last one to rewrite a policy is what
+// production should have, and a later file that rewrote these policies could
+// silently put the old open ones back.
 
 const dir = resolve(__dirname, "../../../supabase/migrations");
 const files = readdirSync(dir)
@@ -35,11 +35,9 @@ describe("containers yard scoping in the migrations", () => {
     expect(scoping).not.toBe("");
   });
 
-  it.each(POLICIES)("only %s's yard-scoping migration rewrites it from 20261011120000 on", (policy, table) => {
-    const rewriting = files
-      .filter((f) => f.name >= "20261011120000" && touches(f.sql, policy, table))
-      .map((f) => f.name);
-    expect(rewriting).toEqual([SCOPING]);
+  it.each(POLICIES)("%s is last rewritten by the yard-scoping migration", (policy, table) => {
+    const rewriting = files.filter((f) => touches(f.sql, policy, table)).map((f) => f.name);
+    expect(rewriting.at(-1)).toBe(SCOPING);
   });
 
   it("scopes reads and writes to the caller's yard through user_roles", () => {

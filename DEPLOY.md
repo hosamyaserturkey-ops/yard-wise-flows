@@ -149,16 +149,35 @@ Keep **Authentication → Sign In / Providers → "Allow new users to sign up"
 off**. The app never uses public sign-up: staff accounts come from the
 `create-user` Edge Function, which works with sign-up disabled. This change
 stops a sign-up from choosing its own role, but a signed-up account is still
-a signed-in `user`. What that account can reach is covered in the next
-section.
+a signed-in `user` with no yard. The next two sections cover what that
+account can still reach.
+
+### Containers are staff-only (`20261109200000`)
+
+`containers` is the master list of boxes, shared by every yard (gate-in at
+any yard finds a box there and updates its type and line). Its policies only
+asked "signed in and not a line rep", so any signed-in account, including a
+public sign-up with no yard, could list, add and edit every yard's
+containers. `containers_staff_only` is a restrictive policy on top of the
+others: the caller must be a super admin or have a yard. Nothing changes for
+staff (every production account had a yard on 2026-11-09).
+
+No Edge Function or app change is involved, so apply the migration on its
+own, then run `supabase/checks/containers_staff_only.sql` in the SQL editor.
+It plays a yard-less sign-up, gate staff and a yard-less super admin against
+`containers` as the `authenticated` role, and rolls everything back.
+
+It works whether the RLS helpers are still in `public` or have moved to
+`private`. `20261011120000` moving them later doesn't affect it, and
+`20261011130000` rewriting the other `containers` policies doesn't remove it.
 
 ### Containers scoped to the caller's yard (`20261109130000`)
 
-`containers` has no `yard_id`: it holds one row per physical box, shared by
-every yard, and a box belongs to a yard through its visits, inspections and
-port-list entries there. Its policies only kept line reps to their line, so
-any other signed-in account, a yard-less sign-up included, could read every
-yard's containers and insert or update them.
+`containers_staff_only` keeps out accounts with no yard, but anyone with a
+yard still reads and writes every yard's containers. A box belongs to a yard
+through its visits, inspections and port-list entries there (`containers`
+has no `yard_id`), and this migration scopes the permissive policies to
+that.
 
 Now a super admin reaches every container, and anyone else needs a yard on
 their profile and a role in `user_roles` (`admin`, `user`, `inspector` to read
@@ -167,13 +186,17 @@ visit, an inspection or a port-list entry in their yard, plus a master row
 whose gate-in hasn't inserted its visit yet. An account with no yard, or no
 role, gets no containers. The same migration stops an account from
 re-creating a deleted profile row inside a yard (`profiles_insert_self`).
+`containers_staff_only` stays as an outer gate; with both in place the
+result is what this migration allows.
 
 Every other table already gave a yard-less `user` nothing but
 `shipping_lines` (read) and their own `profiles` / `user_roles` row; the
 check below proves it table by table.
 
-No frontend or Edge Function deploy is needed, and it works whether the RLS
-helpers are still in `public` or already in `private`, so it can go in now:
+No frontend or Edge Function deploy is needed, and it works with the RLS
+helpers in `public` or `private` (production has had them in `private` since
+`20261011120000` and `20261011130000` were applied on 2026-11-09). Either
+order with `20261109200000` works:
 
 1. Apply `20261109130000_scope_containers_to_caller_yard.sql` the same way as
    above.
@@ -186,21 +209,16 @@ helpers are still in `public` or already in `private`, so it can go in now:
 3. As a gate operator, open Gate In, Yard Map and the dashboard: the counts
    should not change, since every container today is in the one yard.
 
-`20261011130000` no longer touches `containers_insert`, `containers_update`
-or `profiles_insert_self`; the older copy of that file would put the open
-policies back. When the helper move goes ahead, apply `20261011120000` and
-`20261011130000` from `main` as it is after this change, then run the check
-again.
-
 One thing to know once there is a second yard: an admin gating in, with no
 inspection and no port-list entry in their yard, a box that has only ever
 been in the other yard won't see its existing record, and Gate In stops with
 a duplicate-number error. Inspect the box (or put it on the port list) first.
 
-Even with this, keep sign-up off: the app has no use for it, and until
-`20261011120000` is applied a signed-in account can still call the RLS helpers
-over REST (`has_role`, `rep_shipping_line`, …) to learn who the admins are
-and which line each rep works for.
+With both migrations applied and their checks passing, a signed-up account
+reaches only `shipping_lines` and its own profile, and since
+`20261011120000` the RLS helpers are no longer callable over `/rest/v1/rpc`.
+The app still has no use for public sign-up, so leaving it off remains the
+safer setting.
 
 ## 5. Terminal empty-return check (APM Terminals API)
 
