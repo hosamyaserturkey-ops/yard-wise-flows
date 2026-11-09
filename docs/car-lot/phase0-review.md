@@ -78,9 +78,11 @@ Smaller points kept as they were: `free_days` defaults to 7 instead of the manuf
 
 ---
 
-## 3. Production is three migrations behind the repo
+## 3. Production was three migrations behind the repo (now applied)
 
-Production's history ends at `20261008 forty_foot_is_high_cube`. These repo migrations are **not** applied:
+> **Update 2026-11-09, decision C done.** All three were applied to production between 19:17 and 19:21 UTC, after redeploying `reset-user-password` from `main` (version 3). Details and checks are in §3a. Production now matches the repo, and the car-lot SQL is tested for this order (`--pending-first`, 88/88).
+
+At the time of the review, production's history ended at `20261008 forty_foot_is_high_cube`, and these repo migrations were **not** applied:
 
 - `20261011120000_lock_down_security_definer_functions`: moves `is_super_admin`, `current_yard_id`, `has_role`, … to schema `private`.
 - `20261011130000_rls_initplan_fk_indexes_policy_merges`: rewrites the policies and **replaces `profiles_update_self`** with a merged `profiles_update`.
@@ -94,6 +96,26 @@ Revision 1 conflicts with them in **both** orders (tested):
 Revision 2 calls those helpers without a schema under `search_path private, public`, and leaves the profiles policy alone, so it works in either order (88/88 in both).
 
 The pending migrations themselves change one container-yard behaviour on purpose: inspectors and line reps can no longer call `increment_gated_out_containers`. That is documented in that migration. Applying them is a separate decision from the car lot.
+
+### 3a. How they were applied (2026-11-09)
+
+**Checks before applying:**
+- The app, Worker and `create-user` call only the 12 functions that stay callable. None calls a moved helper or `rename_container`.
+- **Blocker found and cleared:** the deployed `reset-user-password` (version 2) checked admin rights by calling `is_super_admin`/`is_yard_admin` through the API, which the lock-down removes. Password resets would have broken. Redeployed from `main` (version 3): the same rules, read from `user_roles`/`profiles`.
+- Production had changed that day (#103, `new_user_access_from_app_metadata`). None of the three migrations re-creates `handle_new_user`, so #103 is untouched.
+- **No hand-edits overwritten:** the 3 files were applied to a fresh copy of that day's production schema, and every function was compared before and after. Only 4 bodies change, exactly as the lock-down documents: `increment_gated_out_containers` and `record_cash_count` become allow-lists, and `admin_edit_container`/`rename_container` require a super admin for containers with records in another yard.
+
+**Applied**, each as one transaction: `lock_down_security_definer_functions`, `rls_initplan_fk_indexes_policy_merges`, `admin_delete_container`.
+
+**Checks after applying:**
+- Every function body (39), policy (52), index (48) and EXECUTE grant on production is identical to a local copy built from the three files.
+- What a real admin, gate operator, inspector, line rep and the owner can see (row counts and which rows, 16 tables and storage): **80/80 identical** before and after. Read-only, rolled back.
+- Nothing outside `public`/`private` names a moved helper, and there are no scheduled jobs.
+- Security advisor: helper functions and anon access are gone. The 12 remaining SECURITY DEFINER warnings are the app's RPCs, each with its own role and yard checks. Performance advisor: the per-row RLS and duplicate-policy warnings are gone; only informational "unused index" notes remain.
+
+**Not done:** `admin-user-management`, an old Edge Function that isn't in the repo, couldn't be read. The app never calls it.
+
+**Still open (separate from these migrations):** public sign-up is still on. After #103 a stranger only gets a plain `user` account with no yard, but `containers` is not yard-scoped, so such an account can read all containers and change a container's type or shipping line. Turning sign-up off closes it. A restrictive policy requiring a yard on `containers` would close it in the database too.
 
 ---
 
@@ -166,7 +188,7 @@ Results, revision 2:
 
 **B. Where vehicle photos live. DECIDED: Cloudflare R2**, a new private bucket `vehicle-inspections` behind the Worker, with Postgres deciding every upload and view (§4a). Part 2 already reflects this.
 
-**C. Pending repo migrations.** Recommended: apply `20261011120000` and `20261011130000` to production **first, as their own change** (their deploy notes are in DEPLOY.md), and record `20261021120000` in the history. Revision 2 doesn't require it, but production and the repo should stop drifting before more migrations land.
+**C. Pending repo migrations. DONE 2026-11-09:** all three are applied and verified (§3a).
 
 **Plan §7 (unchanged, still open):**
 1. Office role read-only? (current: read-only)
