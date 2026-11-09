@@ -209,16 +209,45 @@ order with `20261109200000` works:
 3. As a gate operator, open Gate In, Yard Map and the dashboard: the counts
    should not change, since every container today is in the one yard.
 
-One thing to know once there is a second yard: an admin gating in, with no
-inspection and no port-list entry in their yard, a box that has only ever
-been in the other yard won't see its existing record, and Gate In stops with
-a duplicate-number error. Inspect the box (or put it on the port list) first.
+With a second yard, Gate In couldn't find a box whose records are all in the
+other yard (RLS hides it) and stopped with a duplicate-number error. The next
+section fixes that.
 
 With both migrations applied and their checks passing, a signed-up account
 reaches only `shipping_lines` and its own profile, and since
 `20261011120000` the RLS helpers are no longer callable over `/rest/v1/rpc`.
 The app still has no use for public sign-up, so leaving it off remains the
 safer setting.
+
+### Gate In across yards (`20261109210000`)
+
+Gate In used to find a box with a plain select on `containers`. Since
+`20261109130000` that only returns boxes with a record in your yard, so with a
+second yard a box whose records were all in the other yard came back as "not
+found", and Gate In's insert hit the unique container number. Gate In now
+calls `container_for_gate_in(yard, number, type, line)`, which finds or
+creates the box in the database and returns its id. It refuses, with a message
+the operator sees:
+
+- a box still gated in at another yard ("gate it out there first");
+- a box last in another yard with no approved inspection since, unless the
+  caller is an admin of the yard (the same rule as the gate-in itself);
+- anyone who isn't gate staff (admin, user, inspector) of that yard or a
+  super admin.
+
+Gate In calls it once in check-only mode before collecting demurrage, so these
+refusals come before any payment is recorded. Nothing changes with one yard.
+
+**Order matters here: apply the migration before merging.** A merge to `main`
+deploys the frontend, which then calls the new function.
+
+1. Apply `20261109210000_container_for_gate_in.sql` the same way as above. The
+   current frontend doesn't call it, so applying it first changes nothing.
+2. Check it: run `supabase/checks/gate_in_across_yards.sql` in the SQL editor.
+   It replays the two-yard cases in a rolled-back transaction (negative ticket
+   numbers again) and ends with "gate-in across yards: all checks passed".
+3. Merge the PR, and once Cloudflare has deployed, gate a test container in
+   and out as a gate operator.
 
 ## 5. Terminal empty-return check (APM Terminals API)
 
