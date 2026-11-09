@@ -115,7 +115,7 @@ The pending migrations themselves change one container-yard behaviour on purpose
 
 **Not done:** `admin-user-management`, an old Edge Function that isn't in the repo, couldn't be read. The app never calls it.
 
-**Still open (separate from these migrations):** public sign-up is still on. After #103 a stranger only gets a plain `user` account with no yard, but `containers` is not yard-scoped, so such an account can read all containers and change a container's type or shipping line. Turning sign-up off closes it. A restrictive policy requiring a yard on `containers` would close it in the database too.
+**Closed later the same day (from another session):** `scope_containers_to_caller_yard` (#105) and `containers_staff_only` (#104) were applied at 19:38 UTC. Re-checked as real users: owner, admin, gate operator and inspector still see the same 622 containers, visits and inspections, and the line rep the same 530/530/522. A brand-new account with no yard now sees 0 containers (it was 622). Public sign-up is still on but grants nothing; turning it off is still tidier. **Before Phase 1:** re-run the car-lot tests on this schema, because #105 rewrote the container policies after part 2 was tested.
 
 ---
 
