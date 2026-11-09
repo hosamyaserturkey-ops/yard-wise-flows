@@ -107,6 +107,51 @@ callers first so nothing is ever pointing at a missing function:
    them.
 4. Re-run the security and performance advisors.
 
+### New-user access comes from app_metadata (`20261109120000`)
+
+`handle_new_user` (the trigger that writes a new account's `profiles` and
+`user_roles` rows) used to read `role`, `yard_id` and `shipping_line` from
+user_metadata. user_metadata is the `data` field of the public sign-up
+endpoint, so with sign-up enabled anyone holding the publishable key could
+register as `super_admin`. Now the `create-user` Edge Function puts those keys
+in app_metadata (only the service role can write it), and the trigger reads
+them from there alone. A public sign-up becomes a plain `user` with no yard,
+whatever it sends.
+
+1. Deploy the Edge Function. The function is now two files (`index.ts`
+   imports `metadata.ts`); the CLI bundles both:
+   `npx supabase functions deploy create-user --project-ref qctvjwlaxnidprhcxodj`
+   (If you deploy through the dashboard or the Supabase MCP instead, upload
+   both files.)
+2. Apply `20261109120000_new_user_access_from_app_metadata.sql` right after,
+   the same way as above.
+3. Check it: run `supabase/checks/new_user_access.sql` in the SQL editor. It
+   replays a public sign-up asking for `super_admin` and the Edge Function's
+   admin create inside a transaction, then rolls everything back. It ends
+   with "new-user access: all checks passed" or stops at the first wrong
+   result. Then create a throwaway inspector from User Management, check the
+   role and yard it shows, and delete it.
+
+Don't create users between steps 1 and 2. In that gap the function and the
+trigger disagree on where access lives, and a user created then comes out
+as a plain `user` with no yard (less access, never more). Delete and
+re-create any such user once step 2 is done. Existing users are not touched.
+
+Why there are two triggers: the Auth server's admin `createUser` inserts the
+`auth.users` row without the caller's app_metadata and merges it in with an
+UPDATE later in the same transaction. So `on_auth_user_created` provisions a
+plain `user`, and `on_auth_user_app_metadata_set` re-provisions from the
+merged app_metadata. The second one only acts on a user created in the same
+transaction, so editing an existing user's app_metadata changes nothing.
+Roles are still managed in `user_roles` after creation.
+
+Keep **Authentication → Sign In / Providers → "Allow new users to sign up"
+off**. The app never uses public sign-up: staff accounts come from the
+`create-user` Edge Function, which works with sign-up disabled. This change
+stops a sign-up from choosing its own role, but a signed-up account is still
+a signed-in `user`. Don't turn sign-up back on until RLS gives a yard-less
+`user` nothing to read or write.
+
 ## 5. Terminal empty-return check (APM Terminals API)
 
 **Terminal Check** (`/terminal-check`, in the sidebar) asks APM Terminals
