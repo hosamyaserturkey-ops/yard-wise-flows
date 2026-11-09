@@ -23,6 +23,7 @@ import { ReasonDialog } from "@/components/accounting/ReasonDialog";
 import { fmtDay } from "@/components/port-data/format";
 import { cancelInspection } from "@/lib/inspections";
 import { printGateInReceipt } from "@/lib/gateInReceipt";
+import { containerForGateIn } from "@/lib/containerForGateIn";
 import { GateMotionOverlay } from "@/components/GateMotionOverlay";
 import { useYards } from "@/hooks/useYards";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
@@ -402,19 +403,29 @@ const GateIn = () => {
     try {
       const containerNumber = formData.containerNumber.trim().toUpperCase();
 
-      // 1) Block double gate-in: if this container has an open visit anywhere,
-      //    refuse before doing anything else (so we never re-prompt for payment).
-      const { data: masterCheck } = await supabase
-        .from("containers")
-        .select("id")
-        .eq("container_number", containerNumber)
-        .maybeSingle();
+      const yardId = currentYardId();
+      if (!yardId) throw new Error("No yard assigned to your account");
 
-      if (masterCheck?.id) {
+      // 1) Block double gate-in before doing anything else (so we never
+      //    re-prompt for payment). The check-only call writes nothing; it
+      //    refuses a box still gated in at another yard, or one last seen in
+      //    another yard with no inspection since, and finds the box's id even
+      //    when RLS hides its record (all of it in another yard).
+      const masterId = await containerForGateIn(
+        {
+          yardId,
+          containerNumber,
+          containerType: formData.containerType,
+          shippingLine: formData.shippingLine,
+        },
+        { checkOnly: true },
+      );
+
+      if (masterId) {
         const { data: openVisit } = await supabase
           .from("container_visits")
           .select("id")
-          .eq("container_id", masterCheck.id)
+          .eq("container_id", masterId)
           .is("gate_out_time", null)
           .maybeSingle();
         if (openVisit) {
@@ -464,45 +475,24 @@ const GateIn = () => {
     const yardId = currentYardId();
     if (!yardId) throw new Error("No yard assigned to your account");
 
-    // 1) Upsert master container row (unique on container_number).
-    let masterId: string | null = null;
-    const { data: existingMaster } = await supabase
-      .from("containers")
-      .select("id")
-      .eq("container_number", containerNumber)
-      .maybeSingle();
-
-    if (existingMaster?.id) {
-      masterId = existingMaster.id;
-      // Keep type/line current in case they've changed. The port-list guard on
-      // the visit insert checks these, so a failed update must not pass silently.
-      const { error: masterUpdateErr } = await supabase
-        .from("containers")
-        .update({
-          container_type: formData.containerType,
-          shipping_line: formData.shippingLine,
-        })
-        .eq("id", masterId);
-      if (masterUpdateErr) throw masterUpdateErr;
-    } else {
-      const { data: newMaster, error: masterErr } = await supabase
-        .from("containers")
-        .insert({
-          container_number: containerNumber,
-          container_type: formData.containerType,
-          shipping_line: formData.shippingLine,
-        })
-        .select("id")
-        .single();
-      if (masterErr) throw masterErr;
-      masterId = newMaster.id;
-    }
+    // 1) The master container row (unique on container_number): found by
+    //    number, created for a new box, its type and line kept current. The
+    //    port-list guard on the visit insert checks those, so this throws
+    //    rather than pass silently. It runs in the database because RLS hides
+    //    a box whose records are all in another yard from a plain select.
+    const masterId = await containerForGateIn({
+      yardId,
+      containerNumber,
+      containerType: formData.containerType,
+      shippingLine: formData.shippingLine,
+    });
+    if (!masterId) throw new Error(`No container record returned for ${containerNumber}`);
 
     // 2) Guard against a concurrent open visit.
     const { data: openVisit } = await supabase
       .from("container_visits")
       .select("id")
-      .eq("container_id", masterId!)
+      .eq("container_id", masterId)
       .is("gate_out_time", null)
       .maybeSingle();
     if (openVisit) {
@@ -518,7 +508,7 @@ const GateIn = () => {
     const { data: visit, error } = await supabase
       .from("container_visits")
       .insert({
-        container_id: masterId!,
+        container_id: masterId,
         yard_id: yardId,
         status: "in-yard",
         driver_name: normalizeDriverName(formData.driverName),
