@@ -149,8 +149,37 @@ Keep **Authentication → Sign In / Providers → "Allow new users to sign up"
 off**. The app never uses public sign-up: staff accounts come from the
 `create-user` Edge Function, which works with sign-up disabled. This change
 stops a sign-up from choosing its own role, but a signed-up account is still
-a signed-in `user`. Don't turn sign-up back on until RLS gives a yard-less
-`user` nothing to read or write.
+a signed-in `user` with no yard. The next section covers what that account can
+still reach.
+
+### Containers are staff-only (`20261109200000`)
+
+`containers` is the master list of boxes, shared by every yard (gate-in at
+any yard finds a box there and updates its type and line). Its policies only
+asked "signed in and not a line rep", so any signed-in account, including a
+public sign-up with no yard, could list, add and edit every yard's
+containers. `containers_staff_only` is a restrictive policy on top of the
+others: the caller must be a super admin or have a yard. Nothing changes for
+staff (every production account had a yard on 2026-11-09).
+
+No Edge Function or app change is involved, so apply the migration on its
+own, then run `supabase/checks/containers_staff_only.sql` in the SQL editor.
+It plays a yard-less sign-up, gate staff and a yard-less super admin against
+`containers` as the `authenticated` role, and rolls everything back.
+
+It works whether the RLS helpers are still in `public` or have moved to
+`private`. `20261011120000` moving them later doesn't affect it, and
+`20261011130000` rewriting the other `containers` policies doesn't remove it.
+
+Every other table already gives a yard-less account nothing: rows are scoped
+to the caller's yard or role. The exception is `shipping_lines`, the
+read-only list of line codes. The SECURITY DEFINER functions on the API all
+check for an admin or a yard. Until `20261011120000` is applied, though, the
+RLS helpers (`is_super_admin`, `rep_shipping_line`, …) stay callable over
+`/rest/v1/rpc`, so a signed-in account can ask whether a given user id is an
+admin or which line a rep works for. Apply that migration (see "Deploy order
+for migrations that move or rename API functions") before turning sign-up
+back on.
 
 ## 5. Terminal empty-return check (APM Terminals API)
 
