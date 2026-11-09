@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { newUserMetadata } from "./metadata.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,19 +120,15 @@ Deno.serve(async (req) => {
       repLine = lineRow.code;
     }
 
+    // Role, yard and line go in app_metadata (service role only); see
+    // metadata.ts. handle_new_user turns them into the profile and role row.
     const email = `${username}@containeryard.app`;
     const { data: created, error: createErr } = await admin.auth.admin
       .createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: {
-          full_name: fullName,
-          username,
-          role,
-          yard_id,
-          ...(role === "line_rep" ? { shipping_line: repLine } : {}),
-        },
+        ...newUserMetadata({ fullName, username, role, yard_id, shipping_line: repLine }),
       });
     if (createErr) {
       console.error("createUser failed:", createErr);
