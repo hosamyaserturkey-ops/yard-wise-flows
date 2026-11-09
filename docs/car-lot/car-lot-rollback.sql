@@ -6,8 +6,8 @@
 -- Not undone here, on purpose:
 --   * the enum value 'manufacturer_rep' (Postgres cannot drop enum values;
 --     unused, it changes nothing);
---   * the bucket 'vehicle-inspections': Supabase blocks deleting storage rows
---     with SQL. Delete it in Dashboard -> Storage once it is empty;
+--   * the R2 bucket 'vehicle-inspections' (Cloudflare, not the database):
+--     delete it in the Cloudflare dashboard if it was created;
 --   * the schema "private": the pending repo migration 20261011120000 uses it.
 -- =====================================================================
 begin;
@@ -27,8 +27,6 @@ begin
 end $guard$;
 
 -- policies on existing tables and storage
-drop policy if exists vehicle_photos_insert on storage.objects;
-drop policy if exists vehicle_photos_select on storage.objects;
 drop policy if exists container_buckets_block_vehicle_side on storage.objects;
 do $fence$
 declare t text;
@@ -53,9 +51,9 @@ alter table public.profiles drop column if exists manufacturer_id;
 drop table if exists public.manufacturers;
 
 -- new functions
+drop function if exists public.vehicle_photo_upload_prefix(uuid);
 drop function if exists
-  private.can_upload_vehicle_photo(text), private.container_side_allowed(),
-  private.is_vehicle_side_user(uuid), private.lot_staff_manufacturer_ids(),
+  private.container_side_allowed(), private.is_vehicle_side_user(uuid),
   private.lot_is_owner(), private.lot_admin_yard(), private.lot_writer_yard(),
   private.lot_staff_yard(), private.current_manufacturer_id(),
   private.is_manufacturer_rep(uuid), private.yard_kind(uuid),

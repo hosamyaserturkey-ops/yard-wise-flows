@@ -75,7 +75,7 @@ apply "$CARLOT/car-lot-part2-schema.sql"
 if [ "$MODE" = "--pending-after" ]; then for f in "${PENDING[@]}"; do apply "$f"; done; fi
 probe after
 
-echo "== container yard, before vs after (expected: +1 yards row, +1 bucket, owner sees 2 yards)"
+echo "== container yard, before vs after (expected: +1 yards row, owner sees 2 yards)"
 for f in "$OUT"/before/*.txt; do
   n=$(basename "$f")
   if diff -q "$f" "$OUT/after/$n" >/dev/null; then echo "SAME     $n"; else echo "CHANGED  $n"; { diff "$f" "$OUT/after/$n" || true; } | sed 's/^/    /'; fi

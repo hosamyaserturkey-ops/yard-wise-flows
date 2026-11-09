@@ -12,9 +12,11 @@
 --   * Manufacturers are sub-tenants INSIDE the car-lot yard. A manufacturer
 --     user has role 'manufacturer_rep', profiles.yard_id = NULL and
 --     profiles.manufacturer_id = <their manufacturer>.
---   * Photos live in a new private bucket 'vehicle-inspections', foldered
---     {manufacturer_id}/{vehicle_id}/{inspection_id}/file. Nobody can update
---     or delete a photo through the API.
+--   * Photo files live in a new private Cloudflare R2 bucket
+--     'vehicle-inspections' (decision B), keyed
+--     {manufacturer_id}/{vehicle_id}/{inspection_id}/{random}.jpg, served only
+--     through the Worker after Postgres says yes. Nobody can update or delete
+--     a photo.
 --
 -- What changed from revision 1 (why: phase0-review.md)
 --   A. The fence around the container side now covers every container
@@ -38,6 +40,9 @@
 --      it can't be confused with the container bucket 'inspection-photos'.
 --   G. Policies evaluate the caller's role/yard once per query (InitPlan),
 --      FK indexes added, trigger functions have a fixed search_path.
+--   H. Photo files in Cloudflare R2, not Supabase Storage (decision B: the
+--      Free plan's 1 GB holds ~100 cars). No Supabase bucket or storage
+--      policies for vehicles; vehicle_photo_upload_prefix() replaces them.
 -- =====================================================================
 
 begin;
@@ -154,13 +159,6 @@ $$;
 create or replace function private.lot_is_owner()
 returns boolean language sql stable security definer set search_path = private, public as $$
   select coalesce(is_super_admin(auth.uid()), false);
-$$;
-
--- Manufacturer ids whose photo folders the caller's lot staff may read.
-create or replace function private.lot_staff_manufacturer_ids()
-returns uuid[] language sql stable security definer set search_path = private, public as $$
-  select coalesce(array_agg(m.id), '{}') from public.manufacturers m
-   where m.yard_id = private.lot_staff_yard();
 $$;
 
 -- "Car-lot side" = manufacturer users + staff whose yard is a car lot.
@@ -511,47 +509,39 @@ create policy vehicle_inspection_photos_insert on public.vehicle_inspection_phot
 -- no update / delete policy on purpose
 
 -- ---------------------------------------------------------------------
--- 7. Storage: new private bucket + policies
+-- 7. Photo files live in Cloudflare R2 (decision B), bucket
+--    'vehicle-inspections', separate from the container photos' R2 bucket.
+--    The Worker stores and serves the files; Postgres decides who may do
+--    what, because the Worker calls it with the USER'S OWN login:
+--      upload: vehicle_photo_upload_prefix(inspection) -> key prefix, or
+--              refused; Worker stores the file at <prefix><random>.jpg,
+--              then inserts the vehicle_inspection_photos row with the
+--              user's login (RLS + guard trigger check again; if that insert
+--              fails the Worker deletes the file).
+--      view:   Worker reads the photo ROW by id with the user's login and
+--              streams the file only if RLS returned the row. It never takes
+--              an object key from the browser.
+--      delete: no route. Photos are evidence.
+--    storage_path in vehicle_inspection_photos is the R2 object key.
 -- ---------------------------------------------------------------------
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('vehicle-inspections', 'vehicle-inspections', false, 5242880,
-        array['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
-on conflict (id) do nothing;
-
--- Upload allowed only into an OPEN inspection the caller may write to, and
--- only at {manufacturer}/{vehicle}/{inspection}/{file}.
-create or replace function private.can_upload_vehicle_photo(_name text)
-returns boolean language plpgsql stable security definer set search_path = private, public as $$
-declare
-  parts text[] := string_to_array(_name, '/');
-  uuid_re constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+create or replace function public.vehicle_photo_upload_prefix(_inspection_id uuid)
+returns text language plpgsql stable security definer set search_path = private, public as $$
+declare i record;
 begin
-  if coalesce(array_length(parts, 1), 0) <> 4 or coalesce(parts[4], '') = '' then return false; end if;
-  if not (parts[1] ~ uuid_re and parts[2] ~ uuid_re and parts[3] ~ uuid_re) then
-    return false;
+  select id, vehicle_id, manufacturer_id, yard_id, status into i
+    from public.vehicle_inspections where id = _inspection_id;
+  -- same answer for "doesn't exist" and "not yours", so nothing leaks.
+  -- coalesce: lot_writer_yard() is NULL for everyone but lot writers, and
+  -- NOT (... OR NULL) is NULL, which IF would treat as "allowed".
+  if not found
+     or not coalesce(private.lot_is_owner() or i.yard_id = private.lot_writer_yard(), false) then
+    raise exception 'not allowed to add photos to this inspection' using errcode = '42501';
   end if;
-  return exists (
-    select 1 from public.vehicle_inspections i
-    where i.id = parts[3]::uuid
-      and i.vehicle_id = parts[2]::uuid
-      and i.manufacturer_id = parts[1]::uuid
-      and i.status = 'open'
-      and (private.lot_is_owner() or i.yard_id = private.lot_writer_yard())
-  );
+  if i.status <> 'open' then
+    raise exception 'inspection is closed' using errcode = '42501';
+  end if;
+  return i.manufacturer_id::text || '/' || i.vehicle_id::text || '/' || i.id::text || '/';
 end $$;
-
-create policy vehicle_photos_insert on storage.objects for insert to authenticated
-  with check (bucket_id = 'vehicle-inspections' and private.can_upload_vehicle_photo(name));
-
-create policy vehicle_photos_select on storage.objects for select to authenticated
-  using (
-    bucket_id = 'vehicle-inspections' and (
-      (select private.lot_is_owner())
-      or (storage.foldername(name))[1] = (select private.current_manufacturer_id())::text
-      or (storage.foldername(name))[1] = any ((select private.lot_staff_manufacturer_ids())::text[])
-    )
-  );
--- no update / delete policy on purpose (also means no upsert: use unique file names)
 
 -- ---------------------------------------------------------------------
 -- 8. Fences around the EXISTING container side
@@ -577,6 +567,8 @@ begin
   end loop;
 end $fence$;
 
+-- Older container photos and every transfer receipt are still in Supabase
+-- Storage, so those two buckets are fenced too.
 create policy container_buckets_block_vehicle_side on storage.objects
   as restrictive for all to authenticated
   using (bucket_id not in ('inspection-photos', 'transfer-receipts')
@@ -585,15 +577,16 @@ create policy container_buckets_block_vehicle_side on storage.objects
               or (select private.container_side_allowed()));
 
 -- ---------------------------------------------------------------------
--- 9. Who may call what. New functions are not callable by anon at all,
---    and only the policy helpers by signed-in users (policies run as the
---    caller). The private schema is not exposed over the REST API.
+-- 9. Who may call what. New functions are not callable by anon at all.
+--    Signed-in users may run the policy helpers (policies run as the caller;
+--    the private schema is not exposed over the REST API) and
+--    vehicle_photo_upload_prefix(), which only answers for the caller.
 -- ---------------------------------------------------------------------
 revoke all on function
   private.yard_kind(uuid), private.is_manufacturer_rep(uuid), private.current_manufacturer_id(),
   private.lot_staff_yard(), private.lot_writer_yard(), private.lot_admin_yard(), private.lot_is_owner(),
-  private.lot_staff_manufacturer_ids(), private.is_vehicle_side_user(uuid), private.container_side_allowed(),
-  private.can_upload_vehicle_photo(text),
+  private.is_vehicle_side_user(uuid), private.container_side_allowed(),
+  public.vehicle_photo_upload_prefix(uuid),
   private.lot_touch_updated_at(), private.manufacturers_guard(), private.profiles_guard_manufacturer(),
   private.vehicles_guard(), private.vehicle_visits_guard(), private.vehicle_inspections_guard(),
   private.vehicle_inspection_photos_guard()
@@ -602,8 +595,8 @@ from public, anon, authenticated;
 grant execute on function
   private.yard_kind(uuid), private.is_manufacturer_rep(uuid), private.current_manufacturer_id(),
   private.lot_staff_yard(), private.lot_writer_yard(), private.lot_admin_yard(), private.lot_is_owner(),
-  private.lot_staff_manufacturer_ids(), private.is_vehicle_side_user(uuid), private.container_side_allowed(),
-  private.can_upload_vehicle_photo(text)
+  private.is_vehicle_side_user(uuid), private.container_side_allowed(),
+  public.vehicle_photo_upload_prefix(uuid)
 to authenticated, service_role;
 
 commit;
@@ -611,7 +604,6 @@ commit;
 -- =====================================================================
 -- AFTER APPLYING - sanity checks (run as separate statements)
 --   select code, kind from public.yards;                    -- expect evl/container + evl-cars/vehicle
---   select id, public from storage.buckets where id = 'vehicle-inspections';  -- public = false
 --   select tablename, policyname, permissive, cmd from pg_policies
 --    where policyname like '%block_vehicle_side' or tablename like 'vehicle%' or tablename = 'manufacturers';
 --   -- then run docs/car-lot/tests/rls_matrix.sql on the BRANCH (never production data).
