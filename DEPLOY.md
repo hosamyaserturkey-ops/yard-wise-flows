@@ -149,8 +149,58 @@ Keep **Authentication → Sign In / Providers → "Allow new users to sign up"
 off**. The app never uses public sign-up: staff accounts come from the
 `create-user` Edge Function, which works with sign-up disabled. This change
 stops a sign-up from choosing its own role, but a signed-up account is still
-a signed-in `user`. Don't turn sign-up back on until RLS gives a yard-less
-`user` nothing to read or write.
+a signed-in `user`. What that account can reach is covered in the next
+section.
+
+### Containers scoped to the caller's yard (`20261109130000`)
+
+`containers` has no `yard_id`: it holds one row per physical box, shared by
+every yard, and a box belongs to a yard through its visits, inspections and
+port-list entries there. Its policies only kept line reps to their line, so
+any other signed-in account, a yard-less sign-up included, could read every
+yard's containers and insert or update them.
+
+Now a super admin reaches every container, and anyone else needs a yard on
+their profile and a role in `user_roles` (`admin`, `user`, `inspector` to read
+and write; `line_rep` to read their own line). They see the containers with a
+visit, an inspection or a port-list entry in their yard, plus a master row
+whose gate-in hasn't inserted its visit yet. An account with no yard, or no
+role, gets no containers. The same migration stops an account from
+re-creating a deleted profile row inside a yard (`profiles_insert_self`).
+
+Every other table already gave a yard-less `user` nothing but
+`shipping_lines` (read) and their own `profiles` / `user_roles` row; the
+check below proves it table by table.
+
+No frontend or Edge Function deploy is needed, and it works whether the RLS
+helpers are still in `public` or already in `private`, so it can go in now:
+
+1. Apply `20261109130000_scope_containers_to_caller_yard.sql` the same way as
+   above.
+2. Check it: run `supabase/checks/yard_scoped_access.sql` in the SQL editor.
+   It builds two throwaway yards with accounts and containers in a
+   transaction, acts as each account the way the API does, and rolls back
+   (its gate visits use negative ticket numbers, so real tickets keep
+   counting from where they are). It ends with "yard-scoped access: all
+   checks passed" or stops at the first wrong result.
+3. As a gate operator, open Gate In, Yard Map and the dashboard: the counts
+   should not change, since every container today is in the one yard.
+
+`20261011130000` no longer touches `containers_insert`, `containers_update`
+or `profiles_insert_self`; the older copy of that file would put the open
+policies back. When the helper move goes ahead, apply `20261011120000` and
+`20261011130000` from `main` as it is after this change, then run the check
+again.
+
+One thing to know once there is a second yard: an admin gating in, with no
+inspection and no port-list entry in their yard, a box that has only ever
+been in the other yard won't see its existing record, and Gate In stops with
+a duplicate-number error. Inspect the box (or put it on the port list) first.
+
+Even with this, keep sign-up off: the app has no use for it, and until
+`20261011120000` is applied a signed-in account can still call the RLS helpers
+over REST (`has_role`, `rep_shipping_line`, …) to learn who the admins are
+and which line each rep works for.
 
 ## 5. Terminal empty-return check (APM Terminals API)
 

@@ -4,7 +4,9 @@
 --    helper is a SECURITY DEFINER lookup on user_roles / profiles that Postgres
 --    can't inline, so scanning a few hundred containers ran a few hundred of
 --    them. Wrapping a call in (SELECT ...) makes it an InitPlan, evaluated once
---    per query. Done for auth.uid() everywhere (lint 0003, 43 policies) and for
+--    per query. Done for auth.uid() everywhere (lint 0003, 43 policies; three
+--    of them, containers_insert, containers_update and profiles_insert_self,
+--    are now rewritten by 20261109130000 instead) and for
 --    the helpers whose arguments don't depend on the row: is_super_admin,
 --    is_line_rep, has_role and current_yard_id. is_yard_admin(uid, yard_id),
 --    line_scope_ok(shipping_line) and has_approved_inspection_for_trip(...) take
@@ -74,11 +76,9 @@ ALTER POLICY container_visits_update ON public.container_visits
 
 ALTER POLICY containers_delete ON public.containers
   USING ((SELECT private.is_super_admin((SELECT auth.uid()))));
-ALTER POLICY containers_insert ON public.containers
-  WITH CHECK ((((SELECT auth.uid()) IS NOT NULL) AND (NOT (SELECT private.is_line_rep((SELECT auth.uid()))))));
-ALTER POLICY containers_update ON public.containers
-  USING ((((SELECT auth.uid()) IS NOT NULL) AND (NOT (SELECT private.is_line_rep((SELECT auth.uid()))))))
-  WITH CHECK ((((SELECT auth.uid()) IS NOT NULL) AND (NOT (SELECT private.is_line_rep((SELECT auth.uid()))))));
+-- containers_insert and containers_update are set by
+-- 20261109130000_scope_containers_to_caller_yard.sql, which production may
+-- apply before this file; rewriting them here would undo it.
 
 ALTER POLICY dp_insert ON public.demurrage_payments
   WITH CHECK ((((SELECT auth.uid()) = collected_by) AND (NOT (SELECT private.is_line_rep((SELECT auth.uid())))) AND ((SELECT private.is_super_admin((SELECT auth.uid()))) OR (yard_id = (SELECT private.current_yard_id())))));
@@ -106,8 +106,8 @@ ALTER POLICY inspector_checks_update ON public.inspector_checks
 
 ALTER POLICY profiles_delete_admin ON public.profiles
   USING (((SELECT private.is_super_admin((SELECT auth.uid()))) OR ((yard_id IS NOT NULL) AND private.is_yard_admin((SELECT auth.uid()), yard_id))));
-ALTER POLICY profiles_insert_self ON public.profiles
-  WITH CHECK (((SELECT auth.uid()) = user_id));
+-- profiles_insert_self: set by 20261109130000, for the same reason as
+-- containers_insert above.
 ALTER POLICY profiles_select ON public.profiles
   USING (((SELECT private.is_super_admin((SELECT auth.uid()))) OR (user_id = (SELECT auth.uid())) OR ((yard_id IS NOT NULL) AND (yard_id = (SELECT private.current_yard_id())) AND (NOT (SELECT private.is_line_rep((SELECT auth.uid())))))));
 
