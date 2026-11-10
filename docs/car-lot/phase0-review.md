@@ -190,18 +190,23 @@ Results, revision 2:
 
 **C. Pending repo migrations. DONE 2026-11-09:** all three are applied and verified (§3a).
 
-**Plan §7 (unchanged, still open):**
-1. Office role read-only? (current: read-only)
-2. Owner = `super_admin` (can edit), or a read-only owner role?
-3. Who creates manufacturer accounts, and how? (needs a `create-user` change, §4.4)
-4. Billing rule (per car per day, handling/damage, currency, rounding)
-5. Photo/visit retention
-6. Liability wording for tickets and portal
-7. Portal languages (Arabic is new work, §4.6)
+**Plan §7: answered 2026-11-10 (item 6 still open).**
+
+| # | Question | Answer | What it changes |
+|---|---|---|---|
+| 1 | Office role read-only? | **Allowed to register cars** (vehicles and visits) | Part 2 currently makes the office role `user` read-only (comment at "Office role 'user' is read-only"). Revise the lot write helpers and the matrix rows "office user: write denied" so the office user may create vehicles and open/close visits and inspections, own lot only. Decide in revision 3 whether office may also place a car on hold and release it, or only register. |
+| 2 | Owner: `super_admin` or read-only? | **Both**: the owner keeps `super_admin`, **and** a new read-only admin role is added | New enum value (e.g. `read_only_admin`) goes in its own migration like part 1 (an added enum value can't be used in the same transaction). It reads both yards, writes nothing. The app's role mapping, which treats unknown roles as `'user'`, must handle it explicitly; regenerate types. |
+| 3 | Who creates manufacturer accounts? | **Super admin only** | `create-user` needs a super-admin-only path that sets `profiles.manufacturer_id` with the service role, through `app_metadata` as #103 did for role and yard. Sign-up stays closed. |
+| 4 | Billing rule | **Varies per manufacturer; currency JOD** | Fits per-manufacturer price lists in Phase 3 (`default_free_days`, `default_daily_rate` are only defaults). JOD has 3 decimals (1 dinar = 1,000 fils): store amounts as numeric(12,3) or integer fils. **Still needed:** which charge types (storage per day, handling, damage), and the rounding rule. |
+| 5 | Retention | **4 months after the car leaves, then delete** | Needs a scheduled purge of visits, inspections, photo rows **and the R2 objects** (an R2 lifecycle rule can't see "months since release", so the purge job deletes by key list). Invoices and statements are a separate question: check with accounting whether they must outlive 4 months. Photos on a car on hold or in a dispute should be exempt. |
+| 6 | Liability wording | **No answer yet.** Needs text from your employer | Tickets and portal use a placeholder until it arrives. |
+| 7 | Portal languages | **English and Arabic** | New work: i18n library, string extraction, `lang`/`dir` switching and right-to-left layout for the manufacturer portal (staff screens stay English unless you say otherwise). |
+
+Still open from this section: **A** (where to test; Free plan has no branching), item 6, the two billing details in item 4, and the retention scope in item 5.
 
 ## 7. Next steps once approved
 
 1. You: turn off public sign-up (§0).
-2. Decide A, B, C and plan §7.
+2. Decide A, and the open points in §6 (item 6, billing details, retention scope). B and C are done.
 3. Phase 1 on staging: apply part 1, then part 2, seed, run the matrix, run the Supabase security and performance advisors, and regenerate types.
 4. Checkpoint with the results before anything touches production.
