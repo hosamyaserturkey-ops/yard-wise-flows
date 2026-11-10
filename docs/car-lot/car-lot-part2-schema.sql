@@ -140,12 +140,14 @@ returns uuid language sql stable security definer set search_path = private, pub
    limit 1;
 $$;
 
--- ... and only if they may write there: yard admin or inspector.
--- (Office role 'user' is read-only - open decision 1 in the plan.)
+-- ... and only if they may write there: yard admin, inspector or office user
+-- ('user'). Decision 1 (2026-11-10): office may register cars. Any other
+-- role in a car-lot yard (e.g. line_rep) stays read-only.
 create or replace function private.lot_writer_yard()
 returns uuid language sql stable security definer set search_path = private, public as $$
   select case when is_yard_admin(auth.uid(), private.lot_staff_yard())
                 or has_role(auth.uid(), 'inspector')
+                or has_role(auth.uid(), 'user')
               then private.lot_staff_yard() end;
 $$;
 
@@ -159,6 +161,14 @@ $$;
 create or replace function private.lot_is_owner()
 returns boolean language sql stable security definer set search_path = private, public as $$
   select coalesce(is_super_admin(auth.uid()), false);
+$$;
+
+-- Read access to every car lot: the owner, or the read-only admin role
+-- (decision 2). Used by SELECT policies only; writes stay lot_is_owner().
+create or replace function private.lot_can_read_all()
+returns boolean language sql stable security definer set search_path = private, public as $$
+  select coalesce(is_super_admin(auth.uid()), false)
+      or coalesce(has_role(auth.uid(), 'read_only_admin'), false);
 $$;
 
 -- "Car-lot side" = manufacturer users + staff whose yard is a car lot.
@@ -456,11 +466,11 @@ alter table public.vehicle_inspection_photos enable row level security;
 -- ---------------------------------------------------------------------
 -- 6. Car-lot table policies. No DELETE policy anywhere = nobody deletes
 --    through the API. (select ...) makes each helper run once per query.
---      read : owner, staff of that car lot, or the row's manufacturer
---      write: owner, or yard admin / inspector of that car lot
+--      read : owner / read-only admin, staff of that car lot, or the row's manufacturer
+--      write: owner, or yard admin / inspector / office user of that car lot
 -- ---------------------------------------------------------------------
 create policy manufacturers_select on public.manufacturers for select to authenticated
-  using ((select private.lot_is_owner())
+  using ((select private.lot_can_read_all())
          or yard_id = (select private.lot_staff_yard())
          or id = (select private.current_manufacturer_id()));
 create policy manufacturers_insert on public.manufacturers for insert to authenticated
@@ -470,7 +480,7 @@ create policy manufacturers_update on public.manufacturers for update to authent
   with check ((select private.lot_is_owner()) or yard_id = (select private.lot_admin_yard()));
 
 create policy vehicles_select on public.vehicles for select to authenticated
-  using ((select private.lot_is_owner())
+  using ((select private.lot_can_read_all())
          or yard_id = (select private.lot_staff_yard())
          or manufacturer_id = (select private.current_manufacturer_id()));
 create policy vehicles_insert on public.vehicles for insert to authenticated
@@ -480,7 +490,7 @@ create policy vehicles_update on public.vehicles for update to authenticated
   with check ((select private.lot_is_owner()) or yard_id = (select private.lot_writer_yard()));
 
 create policy vehicle_visits_select on public.vehicle_visits for select to authenticated
-  using ((select private.lot_is_owner())
+  using ((select private.lot_can_read_all())
          or yard_id = (select private.lot_staff_yard())
          or manufacturer_id = (select private.current_manufacturer_id()));
 create policy vehicle_visits_insert on public.vehicle_visits for insert to authenticated
@@ -491,7 +501,7 @@ create policy vehicle_visits_update on public.vehicle_visits for update to authe
   with check ((select private.lot_is_owner()) or yard_id = (select private.lot_writer_yard()));
 
 create policy vehicle_inspections_select on public.vehicle_inspections for select to authenticated
-  using ((select private.lot_is_owner())
+  using ((select private.lot_can_read_all())
          or yard_id = (select private.lot_staff_yard())
          or manufacturer_id = (select private.current_manufacturer_id()));
 create policy vehicle_inspections_insert on public.vehicle_inspections for insert to authenticated
@@ -501,7 +511,7 @@ create policy vehicle_inspections_update on public.vehicle_inspections for updat
   with check ((select private.lot_is_owner()) or yard_id = (select private.lot_writer_yard()));
 
 create policy vehicle_inspection_photos_select on public.vehicle_inspection_photos for select to authenticated
-  using ((select private.lot_is_owner())
+  using ((select private.lot_can_read_all())
          or yard_id = (select private.lot_staff_yard())
          or manufacturer_id = (select private.current_manufacturer_id()));
 create policy vehicle_inspection_photos_insert on public.vehicle_inspection_photos for insert to authenticated
@@ -584,7 +594,7 @@ create policy container_buckets_block_vehicle_side on storage.objects
 -- ---------------------------------------------------------------------
 revoke all on function
   private.yard_kind(uuid), private.is_manufacturer_rep(uuid), private.current_manufacturer_id(),
-  private.lot_staff_yard(), private.lot_writer_yard(), private.lot_admin_yard(), private.lot_is_owner(),
+  private.lot_staff_yard(), private.lot_writer_yard(), private.lot_admin_yard(), private.lot_is_owner(), private.lot_can_read_all(),
   private.is_vehicle_side_user(uuid), private.container_side_allowed(),
   public.vehicle_photo_upload_prefix(uuid),
   private.lot_touch_updated_at(), private.manufacturers_guard(), private.profiles_guard_manufacturer(),
@@ -594,7 +604,7 @@ from public, anon, authenticated;
 
 grant execute on function
   private.yard_kind(uuid), private.is_manufacturer_rep(uuid), private.current_manufacturer_id(),
-  private.lot_staff_yard(), private.lot_writer_yard(), private.lot_admin_yard(), private.lot_is_owner(),
+  private.lot_staff_yard(), private.lot_writer_yard(), private.lot_admin_yard(), private.lot_is_owner(), private.lot_can_read_all(),
   private.is_vehicle_side_user(uuid), private.container_side_allowed(),
   public.vehicle_photo_upload_prefix(uuid)
 to authenticated, service_role;

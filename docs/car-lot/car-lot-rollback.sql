@@ -54,7 +54,7 @@ drop table if exists public.manufacturers;
 drop function if exists public.vehicle_photo_upload_prefix(uuid);
 drop function if exists
   private.container_side_allowed(), private.is_vehicle_side_user(uuid),
-  private.lot_is_owner(), private.lot_admin_yard(), private.lot_writer_yard(),
+  private.lot_is_owner(), private.lot_can_read_all(), private.lot_admin_yard(), private.lot_writer_yard(),
   private.lot_staff_yard(), private.current_manufacturer_id(),
   private.is_manufacturer_rep(uuid), private.yard_kind(uuid),
   private.lot_touch_updated_at(), private.manufacturers_guard(),

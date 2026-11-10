@@ -12,7 +12,7 @@ insert into actors values
  ('cy_insp',    '11111111-0000-0000-0000-000000000003'), ('cy_user',  '11111111-0000-0000-0000-000000000004'),
  ('lot_admin',  '22222222-0000-0000-0000-000000000001'), ('lot_insp', '22222222-0000-0000-0000-000000000002'),
  ('lot_office', '22222222-0000-0000-0000-000000000003'), ('mfa_rep',  '22222222-0000-0000-0000-000000000004'),
- ('mfb_rep',    '22222222-0000-0000-0000-000000000005'), ('anon', null);
+ ('mfb_rep',    '22222222-0000-0000-0000-000000000005'), ('ro_admin', '22222222-0000-0000-0000-000000000006'), ('anon', null);
 
 create temp table tests (n serial, actor text, label text, kind text, stmt text, expected text, observed text, detail text);
 -- shorthand used in statements: {A} {B} = manufacturer ids, {VA1} {VB1} vehicles, {IA1} open / {IB1} closed inspection,
@@ -75,9 +75,25 @@ insert into tests (actor, label, kind, stmt, expected) values
 -- ── Car-lot office user ────────────────────────────────────────────────
  ('lot_office','read lot vehicles',                      'read',  $$select count(*) from public.vehicles$$, '3'),
  ('lot_office','read lot photo rows',                    'read',  $$select count(*) from public.{photos}$$, '2'),
- ('lot_office','create vehicle',                         'write', $$insert into public.vehicles (vin, manufacturer_id, yard_id) values ('JTDKB20U093000005','{A}','{LOT}')$$, 'error'),
- ('lot_office','edit a visit',                           'write', $$update public.vehicle_visits set lot_zone='Z'$$, 'blocked'),
- ('lot_office','get photo upload key',                    'read',  $$select public.vehicle_photo_upload_prefix('{IA1}')$$, 'error'),
+ ('lot_office','create vehicle',                         'write', $$insert into public.vehicles (vin, manufacturer_id, yard_id) values ('JTDKB20U093000005','{A}','{LOT}')$$, 'ok:1'),
+ ('lot_office','open a visit (register car in)',         'write', $$with v as (insert into public.vehicles (vin, manufacturer_id, yard_id) values ('JTDKB20U093000012','{A}','{LOT}') returning id) insert into public.vehicle_visits (vehicle_id, created_by) select id, auth.uid() from v$$, 'ok:1'),
+ ('lot_office','edit a visit',                           'write', $$update public.vehicle_visits set lot_zone='Z'$$, 'ok:3'),
+ ('lot_office','get photo upload key',                    'read',  $$select public.vehicle_photo_upload_prefix('{IA1}')$$, 'aaaaaaaa-0000-0000-0000-00000000000a/ee000000-0000-0000-0000-0000000000a1/f1000000-0000-0000-0000-0000000000a1/'),
+ ('lot_office','create manufacturer',                    'write', $$insert into public.manufacturers (yard_id, code, name) values ('{LOT}','MFD','D')$$, 'error'),
+ ('lot_office','vehicle in container yard',              'write', $$insert into public.vehicles (vin, manufacturer_id, yard_id) values ('JTDKB20U093000010','{A}','{EVL}')$$, 'error'),
+ ('lot_office','read containers',                        'read',  $$select count(*) from public.containers$$, '0'),
+-- ── Read-only admin (no yard) ──────────────────────────────────────────
+ ('ro_admin','read all vehicles',                        'read',  $$select count(*) from public.vehicles$$, '3'),
+ ('ro_admin','read all visits',                          'read',  $$select count(*) from public.vehicle_visits$$, '3'),
+ ('ro_admin','read all inspections',                     'read',  $$select count(*) from public.vehicle_inspections$$, '2'),
+ ('ro_admin','read all photo rows',                      'read',  $$select count(*) from public.{photos}$$, '2'),
+ ('ro_admin','read manufacturers',                       'read',  $$select count(*) from public.manufacturers$$, '2'),
+ ('ro_admin','create vehicle',                           'write', $$insert into public.vehicles (vin, manufacturer_id, yard_id) values ('JTDKB20U093000011','{A}','{LOT}')$$, 'error'),
+ ('ro_admin','edit a visit',                             'write', $$update public.vehicle_visits set lot_zone='Z'$$, 'blocked'),
+ ('ro_admin','edit a vehicle',                           'write', $$update public.vehicles set color='red'$$, 'blocked'),
+ ('ro_admin','create manufacturer',                      'write', $$insert into public.manufacturers (yard_id, code, name) values ('{LOT}','MFE','E')$$, 'error'),
+ ('ro_admin','get photo upload key',                      'read',  $$select public.vehicle_photo_upload_prefix('{IA1}')$$, 'error'),
+ ('ro_admin','change own role or manufacturer',          'write', $$update public.profiles set manufacturer_id='{A}' where user_id=auth.uid()$$, 'blocked'),
 -- ── Car-lot admin ──────────────────────────────────────────────────────
  ('lot_admin','create manufacturer in own lot',          'write', $$insert into public.manufacturers (yard_id, code, name) values ('{LOT}','MFC','Manufacturer C')$$, 'ok:1'),
  ('lot_admin','create manufacturer in container yard',   'write', $$insert into public.manufacturers (yard_id, code, name) values ('{EVL}','MFC','Manufacturer C')$$, 'error'),
