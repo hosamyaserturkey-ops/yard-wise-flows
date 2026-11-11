@@ -1,9 +1,10 @@
 -- =====================================================================
--- CAR LOT - PART 2 of 2  (schema, RLS, storage)            REVISION 2
+-- CAR LOT - PART 2 of 2  (schema, RLS, storage)            REVISION 3
 -- Project: Container Yard (qctvjwlaxnidprhcxodj)
--- STATUS: draft, NOT applied anywhere. Tested only on a local,
---         schema-only replica of production (docs/car-lot/phase0-review.md).
---         Test on a Supabase branch before production.
+-- STATUS: APPLIED to production on 2026-11-11 as migration
+--         car_lot_part2_schema (revision 3 below, comments stripped), after
+--         part 1 (car_lot_part1_enum). Tested on a local replica built from
+--         production's catalog (docs/car-lot/phase0-review.md, section 8-9).
 -- Run only AFTER part 1 has been committed.
 --
 -- Design in one paragraph (unchanged from revision 1)

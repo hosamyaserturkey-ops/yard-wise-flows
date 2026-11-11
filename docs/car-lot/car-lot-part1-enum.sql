@@ -1,7 +1,7 @@
 -- =====================================================================
 -- CAR LOT - PART 1 of 2  (run this ALONE, let it commit, then run part 2)
 -- Project: Container Yard (qctvjwlaxnidprhcxodj)
--- STATUS: draft, NOT applied anywhere.
+-- STATUS: APPLIED to production on 2026-11-11 (migration car_lot_part1_enum).
 --
 -- Postgres cannot use a newly added enum value in the same transaction
 -- that adds it, so this one line has to be its own migration.

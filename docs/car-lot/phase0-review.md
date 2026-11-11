@@ -223,3 +223,16 @@ Built a local replica from production's **catalog** (read-only queries through t
 - **Rollback tested** on a copy with no car data: functions, policies, columns, tables and yards are identical to before the car lot. The new enum values stay, as Postgres cannot drop them.
 
 **Limits of this replica:** it contains the 14 policy-relevant functions, the triggers and all tables, but **not** the large admin RPCs (`admin_edit_container`, `admin_edit_booking`, `admin_delete_container`, `close_accounting_month`, `record_*`, `void_*`, `rename_container`, `container_for_gate_in`). The checks that call them (for example "car-lot admin cannot call `admin_edit_container`") fail because the function is missing, not because of the policy, so they prove little. Those RPCs check roles inside the function and the car lot adds none of them. Before production, run the same matrix on a real copy if you can, or review those RPCs for yard checks. Production was not changed.
+
+## 9. Applied to production (2026-11-11)
+
+Applied with explicit approval, part 1 then part 2, as Supabase migrations `car_lot_part1_enum` and `car_lot_part2_schema`. Production matched the tested starting state beforehand (old role list, no car-lot tables, 622 containers, one yard).
+
+**Checks right after:**
+- Container yard unchanged: 622 containers, 622 visits, 624 inspections, 13 profiles. Real owner, admin, gate user and inspector each see 622 / 622 / 624 / 19 bookings; the line rep sees 530 / 530 / 522 / 8, as before. Read-only, rolled back.
+- Yards: `evl/container` and `evl-cars/vehicle`. Only the owner sees both.
+- 12 fence policies (11 container tables plus storage) and 5 car-lot tables, all with row security on; no table without it. Anonymous users can run none of the new functions and see no vehicles.
+- Security advisor: one new warning, `vehicle_photo_upload_prefix` is callable by signed-in users. That is intended (it only answers for the caller, same as the app's other RPCs). The other 13 SECURITY DEFINER warnings and "leaked password protection disabled" were there before. Performance advisor: only "unused index" notes, expected on new empty tables.
+- Rollback (`car-lot-rollback.sql`) stays available while no car data exists.
+
+Nothing can use the car lot yet: the app, the manufacturer portal, the Worker photo routes and the `create-user` change are Phase 2.
