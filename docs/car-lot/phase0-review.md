@@ -205,7 +205,7 @@ Results, revision 2:
 Decided later: **no staging project**. The car lot is applied straight to production, after review, with the tested rollback (see §8).
 Item 6 (liability wording): **dropped by the user**, no placeholder wording needed.
 Billing and invoices: **out of scope for now (2026-11-11)**. Phase 3 is postponed; the visit columns `daily_rate` and `fees` stay unused. Decisions 4 (JOD, varies per manufacturer) is kept for when it returns. Retention therefore covers visits, inspections and photos only.
-Still open: whether a car on hold or in a dispute is exempt from the 4-month delete.
+Retention exemption (2026-11-11): a car **on hold or in a dispute is exempt** from the 4-month delete; the clock starts when the hold is released.
 
 ## 7. Next steps once approved
 
