@@ -598,6 +598,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          manufacturer_id: string | null
           role: Database["public"]["Enums"]["app_role"]
           shipping_line: string | null
           updated_at: string
@@ -609,6 +610,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          manufacturer_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           shipping_line?: string | null
           updated_at?: string
@@ -620,6 +622,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          manufacturer_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           shipping_line?: string | null
           updated_at?: string
@@ -921,7 +924,14 @@ export type Database = {
         | "port_data_imported"
         | "port_list_overridden"
         | "container_deleted"
-      app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
+      app_role:
+        | "admin"
+        | "user"
+        | "super_admin"
+        | "inspector"
+        | "line_rep"
+        | "manufacturer_rep"
+        | "read_only_admin"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
     }
@@ -1073,7 +1083,15 @@ export const Constants = {
         "port_list_overridden",
         "container_deleted",
       ],
-      app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
+      app_role: [
+        "admin",
+        "user",
+        "super_admin",
+        "inspector",
+        "line_rep",
+        "manufacturer_rep",
+        "read_only_admin",
+      ],
       container_status: ["in-yard", "out", "reserved"],
       work_shift: ["day", "night"],
     },

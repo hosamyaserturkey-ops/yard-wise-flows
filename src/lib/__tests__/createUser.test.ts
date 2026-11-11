@@ -41,6 +41,15 @@ describe("validateNewUser", () => {
   });
 });
 
+describe("validateNewUser: manufacturer accounts", () => {
+  const rep = { fullName: "Toyota rep", username: "toyotarep", password: "a-long-enough-password", role: "manufacturer_rep" };
+
+  it("needs a manufacturer", () => {
+    expect(validateNewUser(rep)).toMatch(/manufacturer/i);
+    expect(validateNewUser({ ...rep, manufacturer_id: "m-1" })).toBeNull();
+  });
+});
+
 describe("createUser", () => {
   beforeEach(() => invoke.mockReset());
 
@@ -64,6 +73,23 @@ describe("createUser", () => {
     expect(await createUser({ ...validRep, yard_id: "yard-1" })).toBe("Failed to fetch");
   });
 
+  it("sends a manufacturer account with its manufacturer and no yard", async () => {
+    invoke.mockResolvedValue({ data: { ok: true }, error: null });
+    await createUser({ ...validRep, role: "manufacturer_rep", manufacturer_id: "m-1", yard_id: "yard-1" });
+    const body = invoke.mock.calls[0][1].body;
+    expect(body.manufacturer_id).toBe("m-1");
+    expect(body.yard_id).toBeUndefined();
+    expect(body.shipping_line).toBeUndefined();
+  });
+
+  it("sends a yard and no manufacturer for staff roles", async () => {
+    invoke.mockResolvedValue({ data: { ok: true }, error: null });
+    await createUser({ ...validRep, role: "read_only_admin", yard_id: "yard-1", manufacturer_id: "m-1" });
+    const body = invoke.mock.calls[0][1].body;
+    expect(body.yard_id).toBe("yard-1");
+    expect(body.manufacturer_id).toBeUndefined();
+  });
+
   it("omits shipping_line for non-rep roles", async () => {
     invoke.mockResolvedValue({ data: { ok: true }, error: null });
     await createUser({ ...validRep, role: "user", yard_id: "yard-1" });
@@ -82,6 +108,16 @@ describe("create-user Edge Function: metadata for auth.admin.createUser", () => 
       user_metadata: { full_name: "Yard Admin", username: "yardadmin" },
       app_metadata: { role: "admin", yard_id: "yard-1" },
     });
+  });
+
+  it("gives a manufacturer account no yard in app_metadata", () => {
+    expect(newUserMetadata({ fullName: "T", username: "trep", role: "manufacturer_rep", yard_id: "yard-1" }).app_metadata)
+      .toEqual({ role: "manufacturer_rep" });
+  });
+
+  it("gives a read-only admin its yard", () => {
+    expect(newUserMetadata({ ...base, role: "read_only_admin" }).app_metadata)
+      .toEqual({ role: "read_only_admin", yard_id: "yard-1" });
   });
 
   it("keeps a line rep's shipping line in app_metadata", () => {
