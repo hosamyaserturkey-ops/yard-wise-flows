@@ -203,8 +203,9 @@ Results, revision 2:
 | 7 | Portal languages | **English and Arabic** | New work: i18n library, string extraction, `lang`/`dir` switching and right-to-left layout for the manufacturer portal (staff screens stay English unless you say otherwise). |
 
 Decided later: **no staging project**. The car lot is applied straight to production, after review, with the tested rollback (see §8).
-Item 6 (liability wording): **dropped by the user**, no placeholder wording needed. Billing stays in scope (Phase 3).
-Still open: the two billing details in item 4 (charge types, rounding) and the retention scope in item 5.
+Item 6 (liability wording): **dropped by the user**, no placeholder wording needed.
+Billing and invoices: **out of scope for now (2026-11-11)**. Phase 3 is postponed; the visit columns `daily_rate` and `fees` stay unused. Decisions 4 (JOD, varies per manufacturer) is kept for when it returns. Retention therefore covers visits, inspections and photos only.
+Still open: whether a car on hold or in a dispute is exempt from the 4-month delete.
 
 ## 7. Next steps once approved
 
