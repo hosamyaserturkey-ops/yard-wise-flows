@@ -8,5 +8,6 @@
 -- =====================================================================
 
 alter type public.app_role add value if not exists 'manufacturer_rep';
--- Read-only owner/auditor: sees the car lot, writes nothing (plan decision 2).
+-- Read-only admin: belongs to ONE yard, sees only that yard, writes nothing
+-- (plan decision 2, clarified 2026-11-10).
 alter type public.app_role add value if not exists 'read_only_admin';

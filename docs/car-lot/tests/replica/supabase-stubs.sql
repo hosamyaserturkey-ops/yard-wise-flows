@@ -14,8 +14,16 @@ create table auth.users (
   id uuid primary key default gen_random_uuid(),
   email text unique,
   raw_user_meta_data jsonb default '{}'::jsonb,
+  raw_app_meta_data jsonb default '{}'::jsonb,
   created_at timestamptz default now()
 );
+
+-- Test harness only: production's handle_new_user reads role/yard_id/shipping_line
+-- from raw_app_meta_data (#103). The fixtures put them in raw_user_meta_data, so
+-- copy them across on insert, as the create-user Edge Function would set them.
+create function auth.copy_meta_to_app() returns trigger language plpgsql as $f$
+begin new.raw_app_meta_data := coalesce(new.raw_app_meta_data, '{}'::jsonb) || (new.raw_user_meta_data - 'username' - 'full_name'); return new; end $f$;
+create trigger a_copy_meta_to_app before insert on auth.users for each row execute function auth.copy_meta_to_app();
 
 CREATE OR REPLACE FUNCTION auth.jwt()
  RETURNS jsonb LANGUAGE sql STABLE

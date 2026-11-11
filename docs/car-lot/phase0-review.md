@@ -194,15 +194,17 @@ Results, revision 2:
 
 | # | Question | Answer | What it changes |
 |---|---|---|---|
-| 1 | Office role read-only? | **Allowed to register cars** (vehicles and visits) | Part 2 currently makes the office role `user` read-only (comment at "Office role 'user' is read-only"). Revise the lot write helpers and the matrix rows "office user: write denied" so the office user may create vehicles and open/close visits and inspections, own lot only. Decide in revision 3 whether office may also place a car on hold and release it, or only register. |
-| 2 | Owner: `super_admin` or read-only? | **Both**: the owner keeps `super_admin`, **and** a new read-only admin role is added | New enum value (e.g. `read_only_admin`) goes in its own migration like part 1 (an added enum value can't be used in the same transaction). It reads both yards, writes nothing. The app's role mapping, which treats unknown roles as `'user'`, must handle it explicitly; regenerate types. |
+| 1 | Office role read-only? | **Allowed to register cars, and to gate them out ("and whatever")** | Done in revision 3: the office role `user` is a lot writer, like admin and inspector, in the car-lot yard only. It still cannot create manufacturers, and a car on hold still can't be gated out until the hold is released. |
+| 2 | Owner: `super_admin` or read-only? | **Both**: the owner keeps `super_admin`, **and** a new read-only admin role, which **sees only its own yard** | Done in revision 3: enum value `read_only_admin` (part 1). It belongs to one yard like other staff, reads that yard, writes nothing. For a **car-lot** yard no further SQL is needed. For a **container** yard the role would see nothing, because container tables only let `admin`/`user`/`inspector`/`line_rep` read; say so if you want a read-only admin there, as it needs additive read policies on the container tables. The app must map the new role explicitly (today unknown roles become `'user'`). |
 | 3 | Who creates manufacturer accounts? | **Super admin only** | `create-user` needs a super-admin-only path that sets `profiles.manufacturer_id` with the service role, through `app_metadata` as #103 did for role and yard. Sign-up stays closed. |
 | 4 | Billing rule | **Varies per manufacturer; currency JOD** | Fits per-manufacturer price lists in Phase 3 (`default_free_days`, `default_daily_rate` are only defaults). JOD has 3 decimals (1 dinar = 1,000 fils): store amounts as numeric(12,3) or integer fils. **Still needed:** which charge types (storage per day, handling, damage), and the rounding rule. |
 | 5 | Retention | **4 months after the car leaves, then delete** | Needs a scheduled purge of visits, inspections, photo rows **and the R2 objects** (an R2 lifecycle rule can't see "months since release", so the purge job deletes by key list). Invoices and statements are a separate question: check with accounting whether they must outlive 4 months. Photos on a car on hold or in a dispute should be exempt. |
 | 6 | Liability wording | **No answer yet.** Needs text from your employer | Tickets and portal use a placeholder until it arrives. |
 | 7 | Portal languages | **English and Arabic** | New work: i18n library, string extraction, `lang`/`dir` switching and right-to-left layout for the manufacturer portal (staff screens stay English unless you say otherwise). |
 
-Still open from this section: **A** (where to test; Free plan has no branching), item 6, the two billing details in item 4, and the retention scope in item 5.
+Decided later: **no staging project**. The car lot is applied straight to production, after review, with the tested rollback (see §8).
+Item 6 (liability wording): **dropped by the user**, no placeholder wording needed. Billing stays in scope (Phase 3).
+Still open: the two billing details in item 4 (charge types, rounding) and the retention scope in item 5.
 
 ## 7. Next steps once approved
 
@@ -210,3 +212,13 @@ Still open from this section: **A** (where to test; Free plan has no branching),
 2. Decide A, and the open points in §6 (item 6, billing details, retention scope). B and C are done.
 3. Phase 1 on staging: apply part 1, then part 2, seed, run the matrix, run the Supabase security and performance advisors, and regenerate types.
 4. Checkpoint with the results before anything touches production.
+
+## 8. Revision 3 test results (2026-11-10)
+
+Built a local replica from production's **catalog** (read-only queries through the Supabase connection; no row data), then ran `tests/run-local.sh`:
+
+- **Container yard unchanged:** every pre-existing table identical before and after, except the new `yards` row (owner sees 2 yards). Admin, inspector, office user, line rep and anon: identical.
+- **Car-lot matrix: 107 of 107 pass** (88 before, plus office registering and gating out cars, and the read-only admin).
+- **Rollback tested** on a copy with no car data: functions, policies, columns, tables and yards are identical to before the car lot. The new enum values stay, as Postgres cannot drop them.
+
+**Limits of this replica:** it contains the 14 policy-relevant functions, the triggers and all tables, but **not** the large admin RPCs (`admin_edit_container`, `admin_edit_booking`, `admin_delete_container`, `close_accounting_month`, `record_*`, `void_*`, `rename_container`, `container_for_gate_in`). The checks that call them (for example "car-lot admin cannot call `admin_edit_container`") fail because the function is missing, not because of the policy, so they prove little. Those RPCs check roles inside the function and the car lot adds none of them. Before production, run the same matrix on a real copy if you can, or review those RPCs for yard checks. Production was not changed.
