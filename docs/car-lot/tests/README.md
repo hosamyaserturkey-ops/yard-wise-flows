@@ -3,7 +3,7 @@
 Two checks, run as real signed-in users (role `authenticated` + a JWT `sub`), never as the service role:
 
 1. **Container yard unchanged.** On one database, before and after the migration: every pre-existing table's rows (hashed on their original columns), what each container-yard user and anon can see, and the outcome of 15 everyday actions (gate-in, gate-out, inspection, demurrage, booking, port data, uploads, admin RPCs). Writes are rolled back. Script: `container-probe.sql`.
-2. **Car-lot RLS matrix.** Plan section 6, 88 checks, each in its own rolled-back subtransaction. Scripts: `carlot-seed.sql` (fixtures), `rls-matrix.sql`.
+2. **Car-lot RLS matrix.** Plan section 6, 107 checks, each in its own rolled-back subtransaction. Scripts: `carlot-seed.sql` (fixtures), `rls-matrix.sql`.
 
 ## Run locally (no Supabase, no cost)
 

@@ -1,9 +1,10 @@
 -- =====================================================================
--- CAR LOT - PART 2 of 2  (schema, RLS, storage)            REVISION 2
+-- CAR LOT - PART 2 of 2  (schema, RLS, storage)            REVISION 3
 -- Project: Container Yard (qctvjwlaxnidprhcxodj)
--- STATUS: draft, NOT applied anywhere. Tested only on a local,
---         schema-only replica of production (docs/car-lot/phase0-review.md).
---         Test on a Supabase branch before production.
+-- STATUS: APPLIED to production on 2026-11-11 as migration
+--         car_lot_part2_schema (revision 3 below, comments stripped), after
+--         part 1 (car_lot_part1_enum). Tested on a local replica built from
+--         production's catalog (docs/car-lot/phase0-review.md, section 8-9).
 -- Run only AFTER part 1 has been committed.
 --
 -- Design in one paragraph (unchanged from revision 1)
@@ -140,12 +141,14 @@ returns uuid language sql stable security definer set search_path = private, pub
    limit 1;
 $$;
 
--- ... and only if they may write there: yard admin or inspector.
--- (Office role 'user' is read-only - open decision 1 in the plan.)
+-- ... and only if they may write there: yard admin, inspector or office user
+-- ('user'). Decision 1 (2026-11-10): office may register cars. Any other
+-- role in a car-lot yard (e.g. line_rep) stays read-only.
 create or replace function private.lot_writer_yard()
 returns uuid language sql stable security definer set search_path = private, public as $$
   select case when is_yard_admin(auth.uid(), private.lot_staff_yard())
                 or has_role(auth.uid(), 'inspector')
+                or has_role(auth.uid(), 'user')
               then private.lot_staff_yard() end;
 $$;
 
@@ -160,6 +163,7 @@ create or replace function private.lot_is_owner()
 returns boolean language sql stable security definer set search_path = private, public as $$
   select coalesce(is_super_admin(auth.uid()), false);
 $$;
+
 
 -- "Car-lot side" = manufacturer users + staff whose yard is a car lot.
 create or replace function private.is_vehicle_side_user(_uid uuid)
@@ -456,8 +460,8 @@ alter table public.vehicle_inspection_photos enable row level security;
 -- ---------------------------------------------------------------------
 -- 6. Car-lot table policies. No DELETE policy anywhere = nobody deletes
 --    through the API. (select ...) makes each helper run once per query.
---      read : owner, staff of that car lot, or the row's manufacturer
---      write: owner, or yard admin / inspector of that car lot
+--      read : owner, staff of that car lot (includes the read-only admin of that lot), or the row's manufacturer
+--      write: owner, or yard admin / inspector / office user of that car lot
 -- ---------------------------------------------------------------------
 create policy manufacturers_select on public.manufacturers for select to authenticated
   using ((select private.lot_is_owner())

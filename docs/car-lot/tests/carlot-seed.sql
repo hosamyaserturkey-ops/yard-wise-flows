@@ -2,6 +2,7 @@
 -- psql -v photos=<photo table name>
 --   lot admin / inspector / office ........ 22222222-0000-0000-0000-00000000000{1,2,3}
 --   manufacturer A rep / B rep ............ 22222222-0000-0000-0000-00000000000{4,5}
+--   read-only admin (car-lot yard) ............. 22222222-0000-0000-0000-000000000006
 --   manufacturer A / B .................... aaaaaaaa-...-00000000000a / bbbbbbbb-...-00000000000b
 --   vehicle A1 / B1 ....................... ee000000-...-0000000000a1 / ...b1
 --   visit A1 / B1 ......................... ef000000-...-0000000000a1 / ...b1
@@ -18,7 +19,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
  ('22222222-0000-0000-0000-000000000002', 'lot_insp@containeryard.app',   jsonb_build_object('username','lot_insp','role','inspector','yard_id', :'lot')),
  ('22222222-0000-0000-0000-000000000003', 'lot_office@containeryard.app', jsonb_build_object('username','lot_office','role','user','yard_id', :'lot')),
  ('22222222-0000-0000-0000-000000000004', 'mfa_rep@containeryard.app',    '{"username":"mfa_rep","role":"manufacturer_rep"}'),
- ('22222222-0000-0000-0000-000000000005', 'mfb_rep@containeryard.app',    '{"username":"mfb_rep","role":"manufacturer_rep"}');
+ ('22222222-0000-0000-0000-000000000005', 'mfb_rep@containeryard.app',    '{"username":"mfb_rep","role":"manufacturer_rep"}'),
+ ('22222222-0000-0000-0000-000000000006', 'ro_admin@containeryard.app',   jsonb_build_object('username','ro_admin','role','read_only_admin','yard_id', :'lot'));
 -- what the create-user Edge Function would do with the service role afterwards
 update public.profiles set manufacturer_id = 'aaaaaaaa-0000-0000-0000-00000000000a' where user_id = '22222222-0000-0000-0000-000000000004';
 update public.profiles set manufacturer_id = 'bbbbbbbb-0000-0000-0000-00000000000b' where user_id = '22222222-0000-0000-0000-000000000005';
