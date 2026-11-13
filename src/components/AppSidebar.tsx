@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3, Container, Ship, FileText, Calendar, Anchor,
   Calculator, Users, Building2, ClipboardCheck, LogOut, ShieldCheck, Crown,
-  MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark,
+  MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark, Factory,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -44,6 +44,7 @@ const SUPER_NAV = [
   { href: "/accounting", label: "Accounting", icon: Calculator   },
   { href: "/activity",   label: "Activity",   icon: Activity     },
   { href: "/admin/yards",label: "Yards",      icon: Building2    },
+  { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory },
   { href: "/inspector",  label: "Inspect",    icon: ClipboardCheck },
   { href: "/terminal-check", label: "Terminal Check", icon: Search  },
 ];

@@ -593,6 +593,50 @@ export type Database = {
           },
         ]
       }
+      manufacturers: {
+        Row: {
+          active: boolean
+          code: string
+          contact_email: string | null
+          created_at: string
+          default_daily_rate: number | null
+          default_free_days: number
+          id: string
+          name: string
+          yard_id: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          contact_email?: string | null
+          created_at?: string
+          default_daily_rate?: number | null
+          default_free_days?: number
+          id?: string
+          name: string
+          yard_id: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          contact_email?: string | null
+          created_at?: string
+          default_daily_rate?: number | null
+          default_free_days?: number
+          id?: string
+          name?: string
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manufacturers_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -756,6 +800,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          kind: string
           name: string
           updated_at: string
         }
@@ -764,6 +809,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          kind?: string
           name: string
           updated_at?: string
         }
@@ -772,6 +818,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          kind?: string
           name?: string
           updated_at?: string
         }

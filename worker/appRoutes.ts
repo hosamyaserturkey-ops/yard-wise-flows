@@ -20,6 +20,7 @@ export const APP_ROUTES: readonly (string | RegExp)[] = [
   "/account",
   "/admin/users",
   "/admin/yards",
+  "/admin/manufacturers",
   "/inspector",
   "/activity",
   "/yard-map",
