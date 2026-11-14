@@ -27,6 +27,7 @@ const UserManagement = lazy(() => import("./pages/UserManagement"));
 const Yards = lazy(() => import("./pages/Yards"));
 const Manufacturers = lazy(() => import("./pages/Manufacturers"));
 const Cars = lazy(() => import("./pages/Cars"));
+const Inspection = lazy(() => import("./pages/Inspection"));
 const Inspector = lazy(() => import("./pages/Inspector"));
 const ActivityLog = lazy(() => import("./pages/ActivityLog"));
 const YardMap = lazy(() => import("./pages/YardMap"));
@@ -122,6 +123,11 @@ const App = () => (
                 <Route path="cars" element={
                   <ProtectedRoute>
                     <Cars />
+                  </ProtectedRoute>
+                } />
+                <Route path="cars/:visitId/inspect/:phase" element={
+                  <ProtectedRoute>
+                    <Inspection />
                   </ProtectedRoute>
                 } />
                 <Route path="admin/manufacturers" element={

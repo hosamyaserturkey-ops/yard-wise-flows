@@ -845,6 +845,118 @@ export type Database = {
           },
         ]
       }
+      vehicle_inspections: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          fuel_level: string | null
+          id: string
+          inspector_id: string
+          keys_present: boolean | null
+          manufacturer_id: string
+          notes: string | null
+          odometer: number | null
+          phase: string
+          status: string
+          vehicle_id: string
+          visit_id: string
+          yard_id: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          fuel_level?: string | null
+          id?: string
+          inspector_id?: string
+          keys_present?: boolean | null
+          manufacturer_id?: string
+          notes?: string | null
+          odometer?: number | null
+          phase: string
+          status?: string
+          vehicle_id?: string
+          visit_id: string
+          yard_id?: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          fuel_level?: string | null
+          id?: string
+          inspector_id?: string
+          keys_present?: boolean | null
+          manufacturer_id?: string
+          notes?: string | null
+          odometer?: number | null
+          phase?: string
+          status?: string
+          vehicle_id?: string
+          visit_id?: string
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_inspections_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_inspection_photos: {
+        Row: {
+          angle: string
+          created_at: string
+          file_sha256: string | null
+          id: string
+          inspection_id: string
+          manufacturer_id: string
+          note: string | null
+          phase: string
+          storage_path: string
+          taken_by: string
+          vehicle_id: string
+          yard_id: string
+        }
+        Insert: {
+          angle: string
+          created_at?: string
+          file_sha256?: string | null
+          id?: string
+          inspection_id: string
+          manufacturer_id?: string
+          note?: string | null
+          phase?: string
+          storage_path: string
+          taken_by?: string
+          vehicle_id?: string
+          yard_id?: string
+        }
+        Update: {
+          angle?: string
+          created_at?: string
+          file_sha256?: string | null
+          id?: string
+          inspection_id?: string
+          manufacturer_id?: string
+          note?: string | null
+          phase?: string
+          storage_path?: string
+          taken_by?: string
+          vehicle_id?: string
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_inspection_photos_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_inspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_visits: {
         Row: {
           created_at: string

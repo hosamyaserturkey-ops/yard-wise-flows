@@ -11,7 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useYardKind } from "@/hooks/useYardKind";
 import { useToast } from "@/hooks/use-toast";
-import { Car, LogOut, PauseCircle, PlayCircle, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Car, ClipboardCheck, LogOut, PauseCircle, PlayCircle, Plus } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { formatDate } from "@/lib/format";
 import { normalizeVin, validateVin } from "@/lib/vin";
@@ -97,6 +98,43 @@ const Cars = () => {
   }, [rows, search]);
 
   const now = new Date();
+
+  /** Inspect links for everyone; hold / release / gate-out for those who may write. */
+  const renderActions = (r: VisitRow) => {
+    const can = allowedActions(r.status);
+    return (
+      <>
+        <Button size="sm" variant="outline" asChild>
+          <Link to={`/cars/${r.id}/inspect/gate_in`}><ClipboardCheck className="h-3.5 w-3.5 mr-1" /> In</Link>
+        </Button>
+        {(tab === "open" || r.status === "out") && (
+          <Button size="sm" variant="outline" asChild>
+            <Link to={`/cars/${r.id}/inspect/gate_out`}><ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Out</Link>
+          </Button>
+        )}
+        {canWrite && tab === "open" && (
+          <>
+            {can.hold && (
+              <Button size="sm" variant="outline" onClick={() => setStatus(r, "on-hold")}>
+                <PauseCircle className="h-3.5 w-3.5 mr-1" /> Hold
+              </Button>
+            )}
+            {can.release && (
+              <Button size="sm" variant="outline" onClick={() => setStatus(r, "in-lot")}>
+                <PlayCircle className="h-3.5 w-3.5 mr-1" /> Release hold
+              </Button>
+            )}
+            <Button size="sm" variant="outline" disabled={!can.gateOut}
+              title={can.gateOut ? undefined : "Release the hold before gate-out"}
+              onClick={() => { setOutFor(r); setOutForm(EMPTY_OUT); }}>
+              <LogOut className="h-3.5 w-3.5 mr-1" /> Gate out
+            </Button>
+          </>
+        )}
+      </>
+    );
+  };
+
 
   /** Gate a car in: find or create the vehicle by VIN, then open its visit. */
   const register = async () => {
@@ -217,7 +255,35 @@ const Cars = () => {
           {loading ? (
             <p className="text-muted-foreground">Loading…</p>
           ) : (
-            <Table>
+            <>
+            {/* Phones: one card per car, so Status and the buttons are never off-screen. */}
+            <div className="space-y-3 2xl:hidden">
+              {shown.map((r) => {
+                const days = daysInLot(r.gate_in_time, now, r.gate_out_time);
+                const over = daysOverFree(days, r.free_days);
+                return (
+                  <div key={r.id} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-mono text-sm break-all">{r.vehicles?.vin}</p>
+                      <Badge variant={r.status === "on-hold" ? "outline" : "secondary"}>{VISIT_STATUS_LABEL[r.status]}</Badge>
+                    </div>
+                    <p className="text-sm">{[r.manufacturers?.name, r.vehicles?.model, r.vehicles?.model_year, r.vehicles?.color].filter(Boolean).join(" · ") || "—"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ticket {r.ticket_number} · in {formatDate(r.gate_in_time)} · day {days}
+                      {over > 0 && r.status !== "out" && <span className="text-warning"> (+{over} over free)</span>}
+                      {(r.lot_zone || r.lot_slot) && <> · spot {[r.lot_zone, r.lot_slot].filter(Boolean).join(" / ")}</>}
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1 [&_button]:min-h-10 [&_a]:min-h-10">{renderActions(r)}</div>
+                  </div>
+                );
+              })}
+              {shown.length === 0 && (
+                <p className="text-center text-muted-foreground py-4">
+                  {search ? "No car matches your search" : tab === "open" ? "No cars in the lot" : "No released cars yet"}
+                </p>
+              )}
+            </div>
+            <Table className="hidden 2xl:table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Ticket</TableHead>
@@ -228,7 +294,7 @@ const Cars = () => {
                   <TableHead>In</TableHead>
                   <TableHead>Days</TableHead>
                   <TableHead>Status</TableHead>
-                  {canWrite && tab === "open" && <TableHead className="text-right">Actions</TableHead>}
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -251,37 +317,22 @@ const Cars = () => {
                       <TableCell>
                         <Badge variant={r.status === "on-hold" ? "outline" : "secondary"}>{VISIT_STATUS_LABEL[r.status]}</Badge>
                       </TableCell>
-                      {canWrite && tab === "open" && (
-                        <TableCell className="text-right space-x-2 whitespace-nowrap">
-                          {can.hold && (
-                            <Button size="sm" variant="outline" onClick={() => setStatus(r, "on-hold")}>
-                              <PauseCircle className="h-3.5 w-3.5 mr-1" /> Hold
-                            </Button>
-                          )}
-                          {can.release && (
-                            <Button size="sm" variant="outline" onClick={() => setStatus(r, "in-lot")}>
-                              <PlayCircle className="h-3.5 w-3.5 mr-1" /> Release hold
-                            </Button>
-                          )}
-                          <Button size="sm" variant="outline" disabled={!can.gateOut}
-                            title={can.gateOut ? undefined : "Release the hold before gate-out"}
-                            onClick={() => { setOutFor(r); setOutForm(EMPTY_OUT); }}>
-                            <LogOut className="h-3.5 w-3.5 mr-1" /> Gate out
-                          </Button>
-                        </TableCell>
-                      )}
+                      <TableCell className="text-right space-x-2 whitespace-nowrap">
+                        {renderActions(r)}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {shown.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={canWrite && tab === "open" ? 9 : 8} className="text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
                       {search ? "No car matches your search" : tab === "open" ? "No cars in the lot" : "No released cars yet"}
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>
