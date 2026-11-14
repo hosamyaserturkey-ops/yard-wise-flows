@@ -5,10 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
  * worker/index.ts's R2 upload route). Non-image files are returned untouched;
  * if the re-encoded file isn't actually smaller, the original is kept.
  */
-export const compressImage = async (file: File): Promise<File> => {
+export const compressImage = async (
+  file: File,
+  options: { maxDimension?: number; quality?: number } = {},
+): Promise<File> => {
   if (!file.type.startsWith("image/")) return file;
-  const MAX_DIMENSION = 1024;
-  const QUALITY = 0.55;
+  const MAX_DIMENSION = options.maxDimension ?? 1024;
+  const QUALITY = options.quality ?? 0.55;
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
     const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));

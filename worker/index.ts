@@ -10,6 +10,10 @@
 import { ApmError, fetchEmptyReturns } from "./apmTerminals";
 import { MAX_CONTAINERS_PER_LOOKUP } from "../src/lib/emptyReturns";
 import { isAppRoute, isPageRequest } from "./appRoutes";
+import {
+  ANGLE_PATTERN, MAX_NOTE_LENGTH, MAX_VEHICLE_PHOTO_BYTES, UUID_PATTERN,
+  checkVehiclePhoto, isVehicleSideProfile, photoExtension, photoKey, sha256Hex,
+} from "./vehiclePhotos";
 
 // Minimal local shapes for the Workers runtime bindings actually used here —
 // not pulling in @cloudflare/workers-types as a real npm dependency keeps
@@ -34,6 +38,8 @@ interface Fetcher {
 
 export interface Env {
   PHOTOS_BUCKET: R2Bucket;
+  /** Car-lot inspection photos: a separate, private bucket. */
+  VEHICLE_PHOTOS_BUCKET: R2Bucket;
   ASSETS: Fetcher;
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
@@ -66,6 +72,7 @@ async function authorize(
   req: Request,
   env: Env,
   allowedRoles: readonly string[],
+  opts: { blockVehicleSide?: boolean } = {},
 ): Promise<{ userId: string } | Response> {
   const auth = req.headers.get("Authorization");
   if (!auth) return json({ error: "Missing auth" }, 401);
@@ -93,11 +100,26 @@ async function authorize(
   if (!roles.some((role) => allowedRoles.includes(role))) {
     return json({ error: "Not authorized" }, 403);
   }
+
+  // Car-lot staff and manufacturer logins share the container roles' names,
+  // so keep them out of the container photos explicitly. The owner is exempt.
+  if (opts.blockVehicleSide && !roles.includes("super_admin")) {
+    const profileRes = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/profiles?select=manufacturer_id,yards(kind)&user_id=eq.${encodeURIComponent(userId)}`,
+      { headers },
+    );
+    if (!profileRes.ok) return json({ error: "Not authorized" }, 403);
+    const [profile] = (await profileRes.json()) as {
+      manufacturer_id: string | null;
+      yards: { kind: string } | null;
+    }[];
+    if (isVehicleSideProfile(profile ?? null)) return json({ error: "Not authorized" }, 403);
+  }
   return { userId };
 }
 
 async function handleUpload(req: Request, env: Env): Promise<Response> {
-  const authResult = await authorize(req, env, ALLOWED_UPLOAD_ROLES);
+  const authResult = await authorize(req, env, ALLOWED_UPLOAD_ROLES, { blockVehicleSide: true });
   if (authResult instanceof Response) return authResult;
 
   const contentType = req.headers.get("Content-Type") || "application/octet-stream";
@@ -112,7 +134,7 @@ async function handleUpload(req: Request, env: Env): Promise<Response> {
 }
 
 async function handleView(req: Request, env: Env, url: URL): Promise<Response> {
-  const authResult = await authorize(req, env, ALLOWED_VIEW_ROLES);
+  const authResult = await authorize(req, env, ALLOWED_VIEW_ROLES, { blockVehicleSide: true });
   if (authResult instanceof Response) return authResult;
 
   const key = url.searchParams.get("key");
@@ -130,7 +152,7 @@ async function handleView(req: Request, env: Env, url: URL): Promise<Response> {
 }
 
 async function handleDelete(req: Request, env: Env): Promise<Response> {
-  const authResult = await authorize(req, env, ALLOWED_DELETE_ROLES);
+  const authResult = await authorize(req, env, ALLOWED_DELETE_ROLES, { blockVehicleSide: true });
   if (authResult instanceof Response) return authResult;
 
   let keys: unknown;
@@ -146,6 +168,94 @@ async function handleDelete(req: Request, env: Env): Promise<Response> {
 
   await env.PHOTOS_BUCKET.delete(keys);
   return json({ deleted: keys.length });
+}
+
+
+// ── Car-lot inspection photos ────────────────────────────────────────────
+// Postgres decides who may add or see a photo, because every call below is
+// made with the CALLER'S OWN login (RLS and the guard triggers apply). The
+// browser never sends an object key: an upload gets its folder from
+// vehicle_photo_upload_prefix(), and a view names a photo ROW, which only
+// exists for the caller if row-level security lets them read it. There is no
+// delete route: photos are evidence.
+function userHeaders(req: Request, env: Env): Record<string, string> {
+  return { apikey: env.SUPABASE_ANON_KEY, Authorization: req.headers.get("Authorization") ?? "" };
+}
+
+async function handleVehiclePhotoUpload(req: Request, env: Env, url: URL): Promise<Response> {
+  if (!req.headers.get("Authorization")) return json({ error: "Missing auth" }, 401);
+  const inspectionId = url.searchParams.get("inspection") ?? "";
+  const angle = url.searchParams.get("angle") ?? "";
+  const note = (url.searchParams.get("note") ?? "").trim();
+  if (!UUID_PATTERN.test(inspectionId)) return json({ error: "Missing or invalid inspection" }, 400);
+  if (!ANGLE_PATTERN.test(angle)) return json({ error: "Missing or invalid angle" }, 400);
+  if (note.length > MAX_NOTE_LENGTH) return json({ error: "The note is too long" }, 400);
+
+  const contentType = req.headers.get("Content-Type") || "";
+  const declared = Number(req.headers.get("Content-Length") ?? "0");
+  if (declared > MAX_VEHICLE_PHOTO_BYTES) return json({ error: "The photo is larger than 5 MB." }, 413);
+  const bytes = await req.arrayBuffer();
+  const problem = checkVehiclePhoto(contentType, bytes.byteLength);
+  if (problem) return json({ error: problem }, bytes.byteLength > MAX_VEHICLE_PHOTO_BYTES ? 413 : 415);
+
+  // 1. Ask Postgres, as the user, whether they may add to this inspection.
+  const headers = userHeaders(req, env);
+  const prefixRes = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/vehicle_photo_upload_prefix`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ _inspection_id: inspectionId }),
+  });
+  if (prefixRes.status === 401) return json({ error: "Not authenticated" }, 401);
+  if (!prefixRes.ok) {
+    const detail = (await prefixRes.json().catch(() => ({}))) as { message?: string };
+    const closed = /closed/i.test(detail.message ?? "");
+    return json({ error: closed ? "This inspection is closed." : "Not allowed to add photos here." }, closed ? 409 : 403);
+  }
+  const prefix = (await prefixRes.json()) as string;
+
+  // 2. Store the file, then 3. record it as the user. If recording fails
+  // (for example the inspection was closed meanwhile), remove the file again.
+  const key = photoKey(prefix, crypto.randomUUID(), photoExtension(contentType));
+  await env.VEHICLE_PHOTOS_BUCKET.put(key, bytes, { httpMetadata: { contentType: contentType.split(";")[0].trim() } });
+  const sha = await sha256Hex(bytes);
+  const insertRes = await fetch(`${env.SUPABASE_URL}/rest/v1/vehicle_inspection_photos`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify({ inspection_id: inspectionId, angle, storage_path: key, file_sha256: sha, note: note || null }),
+  });
+  if (!insertRes.ok) {
+    await env.VEHICLE_PHOTOS_BUCKET.delete(key);
+    const detail = (await insertRes.json().catch(() => ({}))) as { message?: string };
+    const closed = /closed/i.test(detail.message ?? "");
+    return json({ error: closed ? "This inspection is closed." : "The photo could not be saved." }, closed ? 409 : 400);
+  }
+  const [row] = (await insertRes.json()) as { id: string }[];
+  return json({ id: row?.id, sha256: sha });
+}
+
+async function handleVehiclePhotoView(req: Request, env: Env, url: URL): Promise<Response> {
+  if (!req.headers.get("Authorization")) return json({ error: "Missing auth" }, 401);
+  const id = url.searchParams.get("id") ?? "";
+  if (!UUID_PATTERN.test(id)) return json({ error: "Missing or invalid id" }, 400);
+
+  // The row is only returned if row-level security lets this user read it.
+  const rowRes = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/vehicle_inspection_photos?select=storage_path&id=eq.${encodeURIComponent(id)}`,
+    { headers: userHeaders(req, env) },
+  );
+  if (rowRes.status === 401) return json({ error: "Not authenticated" }, 401);
+  if (!rowRes.ok) return json({ error: "Not found" }, 404);
+  const [row] = (await rowRes.json()) as { storage_path: string }[];
+  if (!row) return json({ error: "Not found" }, 404);
+
+  const object = await env.VEHICLE_PHOTOS_BUCKET.get(row.storage_path);
+  if (!object) return json({ error: "Not found" }, 404);
+  return new Response(object.body, {
+    headers: {
+      "Content-Type": object.httpMetadata?.contentType || "application/octet-stream",
+      "Cache-Control": "private, max-age=3600",
+    },
+  });
 }
 
 // Asking APM Terminals whether a container's empty return is still open at a
@@ -235,6 +345,12 @@ export default {
     }
     if (url.pathname === "/api/photos/delete" && req.method === "POST") {
       return handleDelete(req, env);
+    }
+    if (url.pathname === "/api/vehicle-photos/upload" && req.method === "POST") {
+      return handleVehiclePhotoUpload(req, env, url);
+    }
+    if (url.pathname === "/api/vehicle-photos/view" && req.method === "GET") {
+      return handleVehiclePhotoView(req, env, url);
     }
     if (url.pathname === "/api/terminal/empty-returns" && req.method === "GET") {
       return handleEmptyReturns(req, env, url);

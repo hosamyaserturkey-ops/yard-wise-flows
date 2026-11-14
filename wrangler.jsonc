@@ -26,6 +26,12 @@
     {
       "binding": "PHOTOS_BUCKET",
       "bucket_name": "inspection-photos"
+    },
+    {
+      // Car-lot inspection photos. Private: no public URL; every read goes
+      // through /api/vehicle-photos/view after Postgres says yes.
+      "binding": "VEHICLE_PHOTOS_BUCKET",
+      "bucket_name": "vehicle-inspections"
     }
   ],
   "vars": {
