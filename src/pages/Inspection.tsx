@@ -14,7 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Camera, CheckCircle2, ClipboardCheck, Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatTime } from "@/lib/format";
-import { uploadVehiclePhoto, vehiclePhotoUrl } from "@/lib/vehiclePhotos";
+import { uploadVehiclePhoto } from "@/lib/vehiclePhotos";
+import { VehiclePhoto as Thumb } from "@/components/VehiclePhoto";
 import {
   DAMAGE_ANGLE, FUEL_LEVELS, PHASE_LABEL, REQUIRED_SHOTS, SHOTS, closeBlocker, damagePhotos, isPhase,
   latestByAngle, missingShots, parseKm,
@@ -36,22 +37,6 @@ interface Inspection {
   closed_at: string | null;
 }
 interface Photo { id: string; angle: string; note: string | null; created_at: string; }
-
-/** A photo, fetched with the user's login and shown from memory. */
-function Thumb({ photoId, alt, className }: { photoId: string; alt: string; className?: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let live = true;
-    setSrc(null);
-    setFailed(false);
-    vehiclePhotoUrl(photoId).then((u) => live && setSrc(u), () => live && setFailed(true));
-    return () => { live = false; };
-  }, [photoId]);
-  if (failed) return <div className={cn("flex items-center justify-center text-xs text-destructive", className)}>Could not load</div>;
-  if (!src) return <div className={cn("flex items-center justify-center", className)}><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
-  return <img src={src} alt={alt} className={cn("object-cover", className)} />;
-}
 
 /** Phones and tablets open the camera; a PC opens a file picker. */
 const usesCamera = () => typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;

@@ -9,6 +9,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PortalRoute from "./components/PortalRoute";
 import { AppLoading } from "./components/AppLoading";
 
 // Route-level code splitting: each page ships in its own chunk and loads on
@@ -28,6 +29,9 @@ const Yards = lazy(() => import("./pages/Yards"));
 const Manufacturers = lazy(() => import("./pages/Manufacturers"));
 const Cars = lazy(() => import("./pages/Cars"));
 const Inspection = lazy(() => import("./pages/Inspection"));
+const PortalLayout = lazy(() => import("./pages/portal/PortalLayout"));
+const PortalStock = lazy(() => import("./pages/portal/PortalStock"));
+const PortalCar = lazy(() => import("./pages/portal/PortalCar"));
 const Inspector = lazy(() => import("./pages/Inspector"));
 const ActivityLog = lazy(() => import("./pages/ActivityLog"));
 const YardMap = lazy(() => import("./pages/YardMap"));
@@ -57,6 +61,11 @@ const App = () => (
             <Suspense fallback={<AppLoading fullScreen />}>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              {/* The manufacturer portal: no staff menu, English and Arabic. */}
+              <Route path="/portal" element={<PortalRoute><PortalLayout /></PortalRoute>}>
+                <Route index element={<PortalStock />} />
+                <Route path="/portal/cars/:vehicleId" element={<PortalCar />} />
+              </Route>
               <Route path="/" element={<Layout />}>
                 <Route index element={
                   <ProtectedRoute>
