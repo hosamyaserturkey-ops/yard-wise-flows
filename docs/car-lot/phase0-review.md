@@ -198,7 +198,7 @@ Results, revision 2:
 | 2 | Owner: `super_admin` or read-only? | **Both**: the owner keeps `super_admin`, **and** a new read-only admin role, which **sees only its own yard** | Done in revision 3: enum value `read_only_admin` (part 1). It belongs to one yard like other staff, reads that yard, writes nothing. For a **car-lot** yard no further SQL is needed. For a **container** yard the role would see nothing, because container tables only let `admin`/`user`/`inspector`/`line_rep` read; say so if you want a read-only admin there, as it needs additive read policies on the container tables. The app must map the new role explicitly (today unknown roles become `'user'`). |
 | 3 | Who creates manufacturer accounts? | **Super admin only** | `create-user` needs a super-admin-only path that sets `profiles.manufacturer_id` with the service role, through `app_metadata` as #103 did for role and yard. Sign-up stays closed. |
 | 4 | Billing rule | **Varies per manufacturer; currency JOD** | Fits per-manufacturer price lists in Phase 3 (`default_free_days`, `default_daily_rate` are only defaults). JOD has 3 decimals (1 dinar = 1,000 fils): store amounts as numeric(12,3) or integer fils. **Still needed:** which charge types (storage per day, handling, damage), and the rounding rule. |
-| 5 | Retention | **4 months after the car leaves, then delete** | Needs a scheduled purge of visits, inspections, photo rows **and the R2 objects** (an R2 lifecycle rule can't see "months since release", so the purge job deletes by key list). Invoices and statements are a separate question: check with accounting whether they must outlive 4 months. Photos on a car on hold or in a dispute should be exempt. |
+| 5 | Retention | **~~4 months~~ 12 months after the car leaves (changed 2026-11-14), then delete** | Needs a scheduled purge of visits, inspections, photo rows **and the R2 objects** (an R2 lifecycle rule can't see "months since release", so the purge job deletes by key list). Invoices and statements are a separate question: check with accounting whether they must outlive 4 months. Photos on a car on hold or in a dispute should be exempt. |
 | 6 | Liability wording | **No answer yet.** Needs text from your employer | Tickets and portal use a placeholder until it arrives. |
 | 7 | Portal languages | **English and Arabic** | New work: i18n library, string extraction, `lang`/`dir` switching and right-to-left layout for the manufacturer portal (staff screens stay English unless you say otherwise). |
 
@@ -236,3 +236,21 @@ Applied with explicit approval, part 1 then part 2, as Supabase migrations `car_
 - Rollback (`car-lot-rollback.sql`) stays available while no car data exists.
 
 Nothing can use the car lot yet: the app, the manufacturer portal, the Worker photo routes and the `create-user` change are Phase 2.
+
+## 10. Retention job (written 2026-11-14, NOT applied)
+
+**Rule (decision 5, changed from 4 to 12 months):** a car's visit, its inspections and photo rows are deleted 12 months after it was released; the photo files in R2 are deleted by the Worker's daily job. A car with a visit **on hold** is never touched (hold is the only "dispute" state the system has); the 12 months of an older visit only count once the car has no hold.
+
+**Where:** `supabase/migrations/20261115000000_car_lot_retention.sql` (not applied to production) and `worker/retention.ts` (daily cron 03:17 UTC, in wrangler.jsonc).
+
+**Safeguards, enforced in Postgres so a Worker change cannot weaken them:**
+- Nothing is deleted during the **first 7 days** after install; every run only reports into `retention_log`.
+- The Worker is in **report mode** until `RETENTION_MODE` is changed to `"delete"` in a reviewed commit. Anything but exactly `"delete"` only reports.
+- At most **50 visits per run**; the period cannot be set below 12 months.
+- Files are queued in the **same transaction** as the row deletes and removed from the queue only when the Worker confirms the delete, so a failed file delete is retried.
+- Only a caller with the **retention token** can run it (the Worker secret `RETENTION_TOKEN`; only its SHA-256 is stored). The inspection and photo guards that make evidence undeletable are lifted only inside the purge's own transaction and are back on afterwards (tested).
+- `retention_log` keeps what was removed (VIN, ticket number, dates, counts; no photos) and only a super admin can read it.
+
+**Tested on the local replica:** 36 checks (`tests/retention.sql`) plus 10 Worker tests; rollback in `car-lot-retention-rollback.sql`.
+
+**To switch on:** apply the migration, set the Worker secret, wait for the daily report to look right, then change `RETENTION_MODE` to `"delete"`.

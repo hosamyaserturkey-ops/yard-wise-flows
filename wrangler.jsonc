@@ -34,6 +34,9 @@
       "bucket_name": "vehicle-inspections"
     }
   ],
+  // Daily at 03:17 UTC: car-lot retention (worker/retention.ts). It reports what it would
+  // delete, and only deletes when RETENTION_MODE below is "delete".
+  "triggers": { "crons": ["17 3 * * *"] },
   "vars": {
     // Both values are already public (embedded in the built frontend) --
     // no secret needed. Used only to verify the caller's Supabase JWT and
@@ -51,6 +54,12 @@
     // needs no credentials and knows only its four test containers.
     "APM_BASE_URL": "https://api.apmterminals.com",
     // Used when Terminal Check leaves the facility field blank: ACT Aqaba.
-    "APM_DEFAULT_FACILITY": "JOAQJ"
+    "APM_DEFAULT_FACILITY": "JOAQJ",
+    // Car-lot retention. "report" (the default) only lists what would be deleted into the
+    // database table retention_log. Change to "delete" in a reviewed commit once that list
+    // has been checked. The database also refuses to delete during its first 7 days, and
+    // never deletes anything under 12 months old or any car on hold. Needs the Worker
+    // secret RETENTION_TOKEN (npx wrangler secret put RETENTION_TOKEN).
+    "RETENTION_MODE": "report"
   }
 }
