@@ -14,7 +14,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false, lineRepAllowed = false }: ProtectedRouteProps) => {
-  const { user, isAdmin, isSuperAdmin, isLineRep, isManufacturerRep, signOut, loading } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isLineRep, isManufacturerRep, loading } = useAuth();
   const notified = useRef(false);
 
   const lineRep = !loading && !!user && isLineRep();
@@ -43,17 +43,9 @@ const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false, l
   }
 
   // A manufacturer's login belongs in the manufacturer portal, never in the
-  // yard screens. Until that portal exists, say so instead of showing staff pages.
+  // yard screens.
   if (isManufacturerRep()) {
-    return (
-      <div className="mx-auto max-w-md p-8 text-center space-y-4">
-        <h1 className="text-xl font-semibold">Manufacturer portal</h1>
-        <p className="text-muted-foreground">
-          Your account is set up, but the manufacturer portal is not open yet.
-        </p>
-        <button className="underline" onClick={() => void signOut()}>Sign out</button>
-      </div>
-    );
+    return <Navigate to="/portal" replace />;
   }
 
   if (denied) {
