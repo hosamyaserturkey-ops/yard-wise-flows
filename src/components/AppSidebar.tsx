@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3, Container, Ship, FileText, Calendar, Anchor,
   Calculator, Users, Building2, ClipboardCheck, LogOut, ShieldCheck, Crown,
-  MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark, Factory,
+  MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark, Factory, Car,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ModeToggle } from "@/components/ModeToggle";
 import { useAuth } from "@/hooks/useAuth";
+import { useYardKind } from "@/hooks/useYardKind";
 import { cn } from "@/lib/utils";
 
 const OPS_NAV = [
@@ -54,6 +55,19 @@ const INSPECTOR_ONLY = [
   { href: "/photos",     label: "Photos",     icon: Camera       },
 ];
 
+// The car lot has its own, shorter menu: the container screens do not apply there.
+const CAR_LOT_NAV = [
+  { href: "/cars", label: "Cars", icon: Car },
+];
+const CAR_LOT_ADMIN_NAV = [
+  { href: "/admin/users", label: "Users", icon: Users },
+];
+const CAR_LOT_SUPER_NAV = [
+  { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory },
+  { href: "/admin/yards", label: "Yards", icon: Building2 },
+  { href: "/admin/users", label: "Users", icon: Users },
+];
+
 const LINE_REP_NAV = [
   { href: "/reports",    label: "My Containers", icon: FileText },
   { href: "/statement",  label: "Statement",     icon: Landmark },
@@ -70,6 +84,7 @@ export function AppSidebar() {
   const superAdmin = isSuperAdmin();
   const inspector  = isInspector();
   const lineRep    = isLineRep();
+  const { isCarLot } = useYardKind();
 
   const isActive = (href: string) =>
     href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
@@ -113,7 +128,20 @@ export function AppSidebar() {
       <SidebarContent>
 
         {/* Line representative — only their line's data + port data entry */}
-        {lineRep && (
+        {isCarLot && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Car lot</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {[...CAR_LOT_NAV, ...(superAdmin ? CAR_LOT_SUPER_NAV : admin ? CAR_LOT_ADMIN_NAV : [])].map((item) => (
+                  <NavItem key={item.href} {...item} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {!isCarLot && lineRep && (
           <SidebarGroup>
             <SidebarGroupLabel>
               <Ship className="h-3 w-3 mr-1 inline" />
@@ -130,7 +158,7 @@ export function AppSidebar() {
         )}
 
         {/* Operations — visible to non-super, non-inspector users */}
-        {!superAdmin && !inspector && !lineRep && (
+        {!isCarLot && !superAdmin && !inspector && !lineRep && (
           <SidebarGroup>
             <SidebarGroupLabel>Operations</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -144,7 +172,7 @@ export function AppSidebar() {
         )}
 
         {/* Admin section */}
-        {admin && !superAdmin && (
+        {!isCarLot && admin && !superAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel>
               <Crown className="h-3 w-3 mr-1 text-warning inline" />
@@ -161,7 +189,7 @@ export function AppSidebar() {
         )}
 
         {/* Super Admin section */}
-        {superAdmin && (
+        {!isCarLot && superAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel>
               <ShieldCheck className="h-3 w-3 mr-1 text-warning inline" />
@@ -178,7 +206,7 @@ export function AppSidebar() {
         )}
 
         {/* Inspector only */}
-        {inspector && !admin && !superAdmin && (
+        {!isCarLot && inspector && !admin && !superAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel>
               <ClipboardCheck className="h-3 w-3 mr-1 inline" />

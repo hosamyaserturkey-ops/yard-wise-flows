@@ -794,6 +794,163 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicles: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          manufacturer_id: string
+          model: string | null
+          model_year: number | null
+          updated_at: string
+          vin: string
+          yard_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          manufacturer_id: string
+          model?: string | null
+          model_year?: number | null
+          updated_at?: string
+          vin: string
+          yard_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          manufacturer_id?: string
+          model?: string | null
+          model_year?: number | null
+          updated_at?: string
+          vin?: string
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_manufacturer_id_yard_id_fkey"
+            columns: ["manufacturer_id", "yard_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturers"
+            referencedColumns: ["id", "yard_id"]
+          },
+          {
+            foreignKeyName: "vehicles_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_visits: {
+        Row: {
+          created_at: string
+          created_by: string
+          daily_rate: number | null
+          driver_name: string | null
+          fees: number | null
+          free_days: number
+          gate_in_time: string
+          gate_out_driver_name: string | null
+          gate_out_time: string | null
+          gate_out_truck_number: string | null
+          gated_out_by: string | null
+          id: string
+          is_running: boolean | null
+          key_count: number | null
+          lot_slot: string | null
+          lot_zone: string | null
+          manufacturer_id: string
+          odometer_in: number | null
+          odometer_out: number | null
+          status: string
+          ticket_number: number
+          truck_number: string | null
+          updated_at: string
+          vehicle_id: string
+          yard_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          daily_rate?: number | null
+          driver_name?: string | null
+          fees?: number | null
+          free_days?: number
+          gate_in_time?: string
+          gate_out_driver_name?: string | null
+          gate_out_time?: string | null
+          gate_out_truck_number?: string | null
+          gated_out_by?: string | null
+          id?: string
+          is_running?: boolean | null
+          key_count?: number | null
+          lot_slot?: string | null
+          lot_zone?: string | null
+          manufacturer_id?: string
+          odometer_in?: number | null
+          odometer_out?: number | null
+          status?: string
+          ticket_number?: number
+          truck_number?: string | null
+          updated_at?: string
+          vehicle_id: string
+          yard_id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          daily_rate?: number | null
+          driver_name?: string | null
+          fees?: number | null
+          free_days?: number
+          gate_in_time?: string
+          gate_out_driver_name?: string | null
+          gate_out_time?: string | null
+          gate_out_truck_number?: string | null
+          gated_out_by?: string | null
+          id?: string
+          is_running?: boolean | null
+          key_count?: number | null
+          lot_slot?: string | null
+          lot_zone?: string | null
+          manufacturer_id?: string
+          odometer_in?: number | null
+          odometer_out?: number | null
+          status?: string
+          ticket_number?: number
+          truck_number?: string | null
+          updated_at?: string
+          vehicle_id?: string
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_visits_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_visits_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_visits_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       yards: {
         Row: {
           code: string
