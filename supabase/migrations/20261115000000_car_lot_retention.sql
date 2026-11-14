@@ -146,3 +146,7 @@ revoke all on function private.retention_check_token(text) from public, anon, au
 revoke all on function public.car_lot_retention_run(text, boolean), public.car_lot_retention_ack(text, text[]) from public, anon, authenticated;
 -- Reachable with the public key, but useless without the token.
 grant execute on function public.car_lot_retention_run(text, boolean), public.car_lot_retention_ack(text, text[]) to anon, authenticated, service_role;
+
+-- The token hash and the file queue are for these functions only: closed to everyone else,
+-- whatever the project's default privileges grant on new tables.
+revoke all on private.retention_settings, private.retention_pending_files from public, anon, authenticated;
