@@ -12,8 +12,11 @@ interface Payload {
   username: string;
   password: string;
   fullName: string;
-  role: "admin" | "user" | "inspector" | "line_rep";
-  yard_id: string;
+  role: "admin" | "user" | "inspector" | "line_rep" | "read_only_admin" | "manufacturer_rep";
+  /** Required for every role except manufacturer_rep. */
+  yard_id?: string;
+  /** Required for manufacturer_rep: the manufacturer the account belongs to. */
+  manufacturer_id?: string;
   /** Required when role is "line_rep": the shipping line code the rep is scoped to. */
   shipping_line?: string;
 }
@@ -43,16 +46,25 @@ Deno.serve(async (req) => {
     const fullName = (body.fullName || "").trim();
     const role = body.role;
     const yard_id = body.yard_id;
+    const manufacturer_id = body.manufacturer_id;
     const shipping_line = (body.shipping_line || "").trim();
 
-    if (!username || !password || !fullName || !role || !yard_id) {
+    const isRep = role === "manufacturer_rep";
+    if (!username || !password || !fullName || !role) {
       return json({ error: "Missing fields" }, 400);
+    }
+    // A manufacturer's login has a manufacturer and no yard; everyone else has a yard.
+    if (isRep ? !manufacturer_id || yard_id : !yard_id || manufacturer_id) {
+      return json(
+        { error: isRep ? "A manufacturer account needs a manufacturer and no yard" : "A yard is required (and no manufacturer)" },
+        400,
+      );
     }
     if (!/^[a-z0-9_]+$/.test(username) || username.length < 3) {
       return json({ error: "Invalid username" }, 400);
     }
     if (password.length < 10) return json({ error: "Password must be at least 10 characters" }, 400);
-    if (role !== "admin" && role !== "user" && role !== "inspector" && role !== "line_rep") {
+    if (!["admin", "user", "inspector", "line_rep", "read_only_admin", "manufacturer_rep"].includes(role)) {
       return json({ error: "Invalid role" }, 400);
     }
     if (role === "line_rep") {
@@ -64,7 +76,8 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     // Authorization: super_admin can create any role; yard admins can create
-    // 'user' or 'inspector' in their own yard.
+    // 'user' or 'inspector' in their own yard. Admins, read-only admins and
+    // manufacturer accounts are super-admin only.
     const access = await callerAccess(admin, caller.id);
     if ("error" in access) {
       console.error("Caller role lookup failed:", access.error);
@@ -74,12 +87,34 @@ Deno.serve(async (req) => {
       );
     }
     if (!access.roles.includes("super_admin")) {
-      if (role === "admin") {
+      if (role === "admin" || role === "read_only_admin") {
         return json({ error: "Only super-admins can create admins" }, 403);
+      }
+      if (role === "manufacturer_rep") {
+        return json({ error: "Only super-admins can create manufacturer accounts" }, 403);
       }
       if (!access.roles.includes("admin") || access.yardId !== yard_id) {
         return json({ error: "Not a yard admin for this yard" }, 403);
       }
+    }
+
+    // A read-only admin only makes sense in a car-lot yard: container tables
+    // give that role nothing to read, so the account would see an empty app.
+    if (role === "read_only_admin") {
+      const { data: yardRow, error: yardErr } = await admin
+        .from("yards").select("kind").eq("id", yard_id!).maybeSingle();
+      if (yardErr) return json({ error: `Yard check failed: ${yardErr.message}` }, 500);
+      if (!yardRow) return json({ error: "Unknown yard" }, 400);
+      if (yardRow.kind !== "vehicle") {
+        return json({ error: "A read-only admin can only be created for a car-lot yard" }, 400);
+      }
+    }
+    if (isRep) {
+      const { data: mfr, error: mfrErr } = await admin
+        .from("manufacturers").select("id, active").eq("id", manufacturer_id!).maybeSingle();
+      if (mfrErr) return json({ error: `Manufacturer check failed: ${mfrErr.message}` }, 500);
+      if (!mfr) return json({ error: "Unknown manufacturer" }, 400);
+      if (!mfr.active) return json({ error: "That manufacturer is not active" }, 400);
     }
 
     // profiles.username has a UNIQUE constraint, and so does auth.users.email
@@ -133,6 +168,22 @@ Deno.serve(async (req) => {
     if (createErr) {
       console.error("createUser failed:", createErr);
       return json({ error: createErr.message }, 400);
+    }
+
+    // handle_new_user cannot know the manufacturer, so link it now with the
+    // service role (the profiles guard only lets a super admin or the service
+    // role change manufacturer_id). If that fails, remove the half-made
+    // account so the username is not left taken by an account with no access.
+    if (isRep && created.user) {
+      const { error: linkErr } = await admin
+        .from("profiles")
+        .update({ manufacturer_id })
+        .eq("user_id", created.user.id);
+      if (linkErr) {
+        console.error("Linking manufacturer failed:", linkErr);
+        await admin.auth.admin.deleteUser(created.user.id);
+        return json({ error: `Could not link the manufacturer: ${linkErr.message}` }, 500);
+      }
     }
 
     return json({ ok: true, user_id: created.user?.id });

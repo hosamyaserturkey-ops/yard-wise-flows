@@ -7,13 +7,20 @@
 // publishable key can put anything there. The handle_new_user trigger reads
 // access from app_metadata alone and ignores those keys in user_metadata.
 
-export type NewUserRole = "admin" | "user" | "inspector" | "line_rep";
+export type NewUserRole =
+  | "admin"
+  | "user"
+  | "inspector"
+  | "line_rep"
+  | "read_only_admin"
+  | "manufacturer_rep";
 
 export interface NewUserMetadataInput {
   fullName: string;
   username: string;
   role: NewUserRole;
-  yard_id: string;
+  /** Every role except manufacturer_rep, who has no yard. */
+  yard_id?: string;
   /** The canonical shipping line code; only kept for a line rep. */
   shipping_line?: string;
 }
@@ -26,7 +33,7 @@ export function newUserMetadata(input: NewUserMetadataInput) {
     },
     app_metadata: {
       role: input.role,
-      yard_id: input.yard_id,
+      ...(input.role === "manufacturer_rep" ? {} : { yard_id: input.yard_id }),
       ...(input.role === "line_rep" ? { shipping_line: input.shipping_line } : {}),
     },
   };

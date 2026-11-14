@@ -13,16 +13,20 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Users, Shield, ShieldCheck, ClipboardCheck, UserPlus, Ship, KeyRound } from "lucide-react";
+import { Crown, Users, Shield, ShieldCheck, ClipboardCheck, UserPlus, Ship, KeyRound, Eye, Factory } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { SHIPPING_LINES } from "@/lib/shippingLines";
 import { createUser as createUserRequest, validateNewUser } from "@/lib/createUser";
 import { resetUserPassword, MIN_PASSWORD_LENGTH } from "@/lib/password";
+import { pickRole } from "@/lib/roles";
+import type { AppRole } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/PageHeader";
 import { formatDate } from "@/lib/format";
 
-type AppRole = "super_admin" | "admin" | "inspector" | "line_rep" | "user";
-type CreatableRole = "admin" | "inspector" | "line_rep" | "user";
+type CreatableRole = "admin" | "inspector" | "line_rep" | "user" | "read_only_admin";
+
+/** Roles whose account type is fixed: the Promote/Demote button must never touch them. */
+const PROTECTED_ROLES: AppRole[] = ["super_admin", "inspector", "line_rep", "read_only_admin", "manufacturer_rep"];
 
 interface UserRow {
   user_id: string;
@@ -32,16 +36,7 @@ interface UserRow {
   created_at: string;
 }
 
-const ROLE_PRIORITY: AppRole[] = ["super_admin", "admin", "inspector", "line_rep", "user"];
-
-const pickHighestRole = (roles: string[]): AppRole => {
-  for (const r of ROLE_PRIORITY) {
-    if (roles.includes(r)) return r;
-  }
-  return "user";
-};
-
-interface YardOption { id: string; name: string; }
+interface YardOption { id: string; name: string; kind: string; }
 
 const UserManagement = () => {
   const { toast } = useToast();
@@ -87,7 +82,7 @@ const UserManagement = () => {
           full_name: p.full_name,
           username: p.username,
           created_at: p.created_at,
-          role: pickHighestRole(rolesByUser.get(p.user_id) ?? []),
+          role: pickRole(rolesByUser.get(p.user_id) ?? []),
         }))
       );
     } catch (e: unknown) {
@@ -108,7 +103,7 @@ const UserManagement = () => {
 
   useEffect(() => {
     if (isSuperAdmin()) {
-      supabase.from("yards").select("id, name").order("name").then(({ data }) => {
+      supabase.from("yards").select("id, name, kind").order("name").then(({ data }) => {
         setYards(data || []);
       });
     }
@@ -256,6 +251,14 @@ const UserManagement = () => {
                         <Badge variant="secondary" className="bg-teal-500/20 text-teal-600 border-teal-400/30">
                           <Ship className="h-3 w-3 mr-1" /> Line Rep
                         </Badge>
+                      ) : r.role === "read_only_admin" ? (
+                        <Badge variant="secondary" className="bg-sky-500/20 text-sky-600 border-sky-400/30">
+                          <Eye className="h-3 w-3 mr-1" /> Read-only Admin
+                        </Badge>
+                      ) : r.role === "manufacturer_rep" ? (
+                        <Badge variant="secondary" className="bg-violet-500/20 text-violet-600 border-violet-400/30">
+                          <Factory className="h-3 w-3 mr-1" /> Manufacturer
+                        </Badge>
                       ) : (
                         <Badge variant="secondary">User</Badge>
                       )}
@@ -283,15 +286,13 @@ const UserManagement = () => {
                         disabled={
                           updatingId === r.user_id ||
                           r.user_id === user?.id ||
-                          r.role === "super_admin" ||
-                          r.role === "inspector" ||
-                          r.role === "line_rep"
+                          PROTECTED_ROLES.includes(r.role)
                         }
                         onClick={() => toggleRole(r)}
                       >
                         {updatingId === r.user_id
                           ? "Updating…"
-                          : r.role === "super_admin" || r.role === "inspector" || r.role === "line_rep"
+                          : PROTECTED_ROLES.includes(r.role)
                           ? "Protected"
                           : r.role === "admin"
                           ? "Demote to User"
@@ -334,10 +335,11 @@ const UserManagement = () => {
             </div>
             <div className="space-y-1">
               <Label>Role</Label>
-              <Select value={newUser.role} onValueChange={v => setNewUser({ ...newUser, role: v as CreatableRole })}>
+              <Select value={newUser.role} onValueChange={v => setNewUser({ ...newUser, role: v as CreatableRole, yard_id: v === "read_only_admin" ? "" : newUser.yard_id })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {isSuperAdmin() && <SelectItem value="admin">Yard Admin</SelectItem>}
+                  {isSuperAdmin() && <SelectItem value="read_only_admin">Read-only Admin (car lot)</SelectItem>}
                   <SelectItem value="inspector">Inspector</SelectItem>
                   <SelectItem value="line_rep">Shipping Line Representative</SelectItem>
                   <SelectItem value="user">User</SelectItem>
@@ -362,9 +364,14 @@ const UserManagement = () => {
                 <Select value={newUser.yard_id} onValueChange={v => setNewUser({ ...newUser, yard_id: v })}>
                   <SelectTrigger><SelectValue placeholder="Select yard" /></SelectTrigger>
                   <SelectContent>
-                    {yards.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}
+                    {yards
+                      .filter(y => newUser.role !== "read_only_admin" || y.kind === "vehicle")
+                      .map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {newUser.role === "read_only_admin" && (
+                  <p className="text-xs text-muted-foreground">Sees this car lot only and cannot change anything.</p>
+                )}
               </div>
             )}
           </div>

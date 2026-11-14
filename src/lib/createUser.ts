@@ -8,8 +8,11 @@ export interface CreateUserInput {
   username: string;
   password: string;
   fullName: string;
-  role: "admin" | "inspector" | "line_rep" | "user";
-  yard_id: string;
+  role: "admin" | "inspector" | "line_rep" | "user" | "read_only_admin" | "manufacturer_rep";
+  /** Every role except manufacturer_rep. */
+  yard_id?: string;
+  /** manufacturer_rep only. */
+  manufacturer_id?: string;
   shipping_line?: string;
 }
 
@@ -23,6 +26,7 @@ export function validateNewUser(input: {
   fullName: string;
   role: string;
   shipping_line?: string;
+  manufacturer_id?: string;
 }): string | null {
   const username = input.username.trim().toLowerCase();
   if (!input.fullName.trim() || !username || !input.password) {
@@ -35,6 +39,9 @@ export function validateNewUser(input: {
   if (weakPassword) return weakPassword;
   if (input.role === "line_rep" && !input.shipping_line) {
     return "Select which shipping line this representative belongs to.";
+  }
+  if (input.role === "manufacturer_rep" && !input.manufacturer_id) {
+    return "Select which manufacturer this account belongs to.";
   }
   return null;
 }
@@ -50,7 +57,9 @@ export async function createUser(input: CreateUserInput): Promise<string | null>
       password: input.password,
       fullName: input.fullName.trim(),
       role: input.role,
-      yard_id: input.yard_id,
+      // A manufacturer's login has a manufacturer and no yard; everyone else the reverse.
+      yard_id: input.role === "manufacturer_rep" ? undefined : input.yard_id,
+      manufacturer_id: input.role === "manufacturer_rep" ? input.manufacturer_id : undefined,
       shipping_line: input.role === "line_rep" ? input.shipping_line : undefined,
     },
   });

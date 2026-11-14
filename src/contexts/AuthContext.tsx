@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthContext, type AppRole, type Profile } from "@/hooks/useAuth";
 import { usernameToEmail } from "@/lib/auth-utils";
+import { pickRole } from "@/lib/roles";
 import type { User, Session } from "@supabase/supabase-js";
 
 const SELECTED_YARD_KEY = "cy.selectedYardId";
@@ -32,7 +33,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const [{ data: row, error }, { data: allRoles }] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, user_id, full_name, username, yard_id, shipping_line, created_at, updated_at, yards(name)')
+          .select('id, user_id, full_name, username, yard_id, shipping_line, manufacturer_id, created_at, updated_at, yards(name)')
           .eq('user_id', userId)
           .single(),
         supabase
@@ -44,11 +45,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { yards, ...data } = row;
 
       const roles = (allRoles || []).map((r) => r.role as AppRole);
-      let role: AppRole = 'user';
-      if (roles.includes('super_admin')) role = 'super_admin';
-      else if (roles.includes('admin')) role = 'admin';
-      else if (roles.includes('inspector')) role = 'inspector';
-      else if (roles.includes('line_rep')) role = 'line_rep';
+      const role = pickRole(roles);
 
       const yard_name = yards?.name ?? null;
 
@@ -105,6 +102,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const isAdmin = () => profile?.role === 'admin' || profile?.role === 'super_admin';
   const isInspector = () => profile?.role === 'inspector';
   const isLineRep = () => profile?.role === 'line_rep';
+  const isReadOnlyAdmin = () => profile?.role === 'read_only_admin';
+  const isManufacturerRep = () => profile?.role === 'manufacturer_rep';
   const currentYardId = () => {
     if (profile?.role === 'super_admin') return selectedYardId; // null = all yards
     return profile?.yard_id ?? null;
@@ -115,7 +114,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       value={{
         user, session, profile, loading,
         signIn, signOut,
-        isAdmin, isSuperAdmin, isInspector, isLineRep,
+        isAdmin, isSuperAdmin, isInspector, isLineRep, isReadOnlyAdmin, isManufacturerRep,
         currentYardId,
         selectedYardId, setSelectedYardId,
       }}

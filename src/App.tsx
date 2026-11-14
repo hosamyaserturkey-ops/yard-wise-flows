@@ -24,6 +24,7 @@ const PortDemurrageData = lazy(() => import("./pages/PortDemurrageData"));
 const Accounting = lazy(() => import("./pages/Accounting"));
 const UserManagement = lazy(() => import("./pages/UserManagement"));
 const Yards = lazy(() => import("./pages/Yards"));
+const Manufacturers = lazy(() => import("./pages/Manufacturers"));
 const Inspector = lazy(() => import("./pages/Inspector"));
 const ActivityLog = lazy(() => import("./pages/ActivityLog"));
 const YardMap = lazy(() => import("./pages/YardMap"));
@@ -108,6 +109,11 @@ const App = () => (
                 <Route path="admin/yards" element={
                   <ProtectedRoute superAdminOnly>
                     <Yards />
+                  </ProtectedRoute>
+                } />
+                <Route path="admin/manufacturers" element={
+                  <ProtectedRoute superAdminOnly>
+                    <Manufacturers />
                   </ProtectedRoute>
                 } />
                 <Route path="bookings/:bookingId" element={

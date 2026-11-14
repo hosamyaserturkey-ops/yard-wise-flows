@@ -593,11 +593,56 @@ export type Database = {
           },
         ]
       }
+      manufacturers: {
+        Row: {
+          active: boolean
+          code: string
+          contact_email: string | null
+          created_at: string
+          default_daily_rate: number | null
+          default_free_days: number
+          id: string
+          name: string
+          yard_id: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          contact_email?: string | null
+          created_at?: string
+          default_daily_rate?: number | null
+          default_free_days?: number
+          id?: string
+          name: string
+          yard_id: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          contact_email?: string | null
+          created_at?: string
+          default_daily_rate?: number | null
+          default_free_days?: number
+          id?: string
+          name?: string
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manufacturers_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
           full_name: string | null
           id: string
+          manufacturer_id: string | null
           role: Database["public"]["Enums"]["app_role"]
           shipping_line: string | null
           updated_at: string
@@ -609,6 +654,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          manufacturer_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           shipping_line?: string | null
           updated_at?: string
@@ -620,6 +666,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          manufacturer_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           shipping_line?: string | null
           updated_at?: string
@@ -753,6 +800,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          kind: string
           name: string
           updated_at: string
         }
@@ -761,6 +809,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          kind?: string
           name: string
           updated_at?: string
         }
@@ -769,6 +818,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          kind?: string
           name?: string
           updated_at?: string
         }
@@ -921,7 +971,14 @@ export type Database = {
         | "port_data_imported"
         | "port_list_overridden"
         | "container_deleted"
-      app_role: "admin" | "user" | "super_admin" | "inspector" | "line_rep"
+      app_role:
+        | "admin"
+        | "user"
+        | "super_admin"
+        | "inspector"
+        | "line_rep"
+        | "manufacturer_rep"
+        | "read_only_admin"
       container_status: "in-yard" | "out" | "reserved"
       work_shift: "day" | "night"
     }
@@ -1073,7 +1130,15 @@ export const Constants = {
         "port_list_overridden",
         "container_deleted",
       ],
-      app_role: ["admin", "user", "super_admin", "inspector", "line_rep"],
+      app_role: [
+        "admin",
+        "user",
+        "super_admin",
+        "inspector",
+        "line_rep",
+        "manufacturer_rep",
+        "read_only_admin",
+      ],
       container_status: ["in-yard", "out", "reserved"],
       work_shift: ["day", "night"],
     },
