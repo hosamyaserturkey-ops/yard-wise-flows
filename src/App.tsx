@@ -3,7 +3,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useYardKind } from "./hooks/useYardKind";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import Layout from "./components/Layout";
@@ -25,6 +26,7 @@ const Accounting = lazy(() => import("./pages/Accounting"));
 const UserManagement = lazy(() => import("./pages/UserManagement"));
 const Yards = lazy(() => import("./pages/Yards"));
 const Manufacturers = lazy(() => import("./pages/Manufacturers"));
+const Cars = lazy(() => import("./pages/Cars"));
 const Inspector = lazy(() => import("./pages/Inspector"));
 const ActivityLog = lazy(() => import("./pages/ActivityLog"));
 const YardMap = lazy(() => import("./pages/YardMap"));
@@ -34,6 +36,12 @@ const Account = lazy(() => import("./pages/Account"));
 const CashCount = lazy(() => import("./pages/CashCount"));
 const LineStatement = lazy(() => import("./pages/LineStatement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+
+/** The car lot's staff start on the cars list; everyone else keeps the dashboard. */
+const Home = () => {
+  const { isCarLot } = useYardKind();
+  return isCarLot ? <Navigate to="/cars" replace /> : <Dashboard />;
+};
 
 const queryClient = new QueryClient();
 
@@ -51,7 +59,7 @@ const App = () => (
               <Route path="/" element={<Layout />}>
                 <Route index element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    <Home />
                   </ProtectedRoute>
                 } />
                 <Route path="gate-in" element={
@@ -109,6 +117,11 @@ const App = () => (
                 <Route path="admin/yards" element={
                   <ProtectedRoute superAdminOnly>
                     <Yards />
+                  </ProtectedRoute>
+                } />
+                <Route path="cars" element={
+                  <ProtectedRoute>
+                    <Cars />
                   </ProtectedRoute>
                 } />
                 <Route path="admin/manufacturers" element={
