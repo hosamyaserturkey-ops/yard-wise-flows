@@ -10,6 +10,7 @@
 import { ApmError, fetchEmptyReturns } from "./apmTerminals";
 import { MAX_CONTAINERS_PER_LOOKUP } from "../src/lib/emptyReturns";
 import { isAppRoute, isPageRequest } from "./appRoutes";
+import { runRetention } from "./retention";
 import {
   ANGLE_PATTERN, MAX_NOTE_LENGTH, MAX_VEHICLE_PHOTO_BYTES, UUID_PATTERN,
   checkVehiclePhoto, isVehicleSideProfile, photoExtension, photoKey, sha256Hex,
@@ -51,6 +52,9 @@ export interface Env {
   APM_DEFAULT_FACILITY?: string;
   APM_CLIENT_ID?: string;
   APM_CLIENT_SECRET?: string;
+  // Car-lot retention job (worker/retention.ts). The token is a Worker secret; the mode is a plain var.
+  RETENTION_TOKEN?: string;
+  RETENTION_MODE?: string;
 }
 
 const ALLOWED_UPLOAD_ROLES = ["inspector", "admin", "super_admin"] as const;
@@ -334,6 +338,16 @@ function json(body: unknown, status = 200): Response {
 }
 
 export default {
+  // The daily cron trigger (wrangler.jsonc): car-lot retention. A failure is logged and
+  // simply tried again the next day; it never affects the website.
+  async scheduled(_event: unknown, env: Env): Promise<void> {
+    try {
+      await runRetention(env);
+    } catch (e) {
+      console.error("retention job failed:", e instanceof Error ? e.message : e);
+    }
+  },
+
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
 

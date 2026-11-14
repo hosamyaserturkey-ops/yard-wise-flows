@@ -12,13 +12,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { useYardKind } from "@/hooks/useYardKind";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
-import { Car, ClipboardCheck, LogOut, PauseCircle, PlayCircle, Plus } from "lucide-react";
+import { Car, ClipboardCheck, LogOut, PauseCircle, PlayCircle, Plus, Printer } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { formatDate } from "@/lib/format";
 import { normalizeVin, validateVin } from "@/lib/vin";
 import {
   VISIT_STATUS_LABEL, allowedActions, daysInLot, daysOverFree, gateInErrorMessage, type VisitStatus,
 } from "@/lib/carLot";
+import { openTicketWindow, printCarTicket, type CarTicketKind } from "@/lib/carTicket";
+import { loadCarTicket } from "@/lib/carTicketData";
 
 interface VisitRow {
   id: string;
@@ -52,7 +54,7 @@ const textOrNull = (v: string): string | null => v.trim() || null;
 /** The car lot's main screen: cars in the lot, register a car, hold/release, gate out. */
 const Cars = () => {
   const { toast } = useToast();
-  const { isReadOnlyAdmin } = useAuth();
+  const { isReadOnlyAdmin, profile } = useAuth();
   const { yardId, isCarLot } = useYardKind();
   const canWrite = !isReadOnlyAdmin();
 
@@ -196,8 +198,21 @@ const Cars = () => {
     load();
   };
 
+  /** Prints a ticket. The window opens at the click (pop-up rules), the data loads after. */
+  const printTicket = async (visitId: string, kind: CarTicketKind, win: Window | null, isReprint: boolean) => {
+    if (!win) { toast({ title: "Allow pop-ups to print", description: "Your browser blocked the ticket window.", variant: "destructive" }); return; }
+    try {
+      const data = await loadCarTicket(visitId, kind);
+      printCarTicket(data, profile, { isReprint }, win);
+    } catch (e) {
+      win.close();
+      toast({ title: "Ticket not printed", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
+  };
+
   const gateOut = async () => {
     if (!outFor) return;
+    const ticketWindow = openTicketWindow(); // must open straight from the click
     setBusy(true);
     // The database sets the gate-out time and who released the car.
     const { error } = await supabase.from("vehicle_visits").update({
@@ -207,11 +222,13 @@ const Cars = () => {
       odometer_out: intOrNull(outForm.odometer),
     }).eq("id", outFor.id);
     setBusy(false);
-    if (error) { toast({ title: "Not released", description: error.message, variant: "destructive" }); return; }
+    if (error) { ticketWindow?.close(); toast({ title: "Not released", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Car released", description: outFor.vehicles?.vin });
+    const releasedId = outFor.id;
     setOutFor(null);
     setOutForm(EMPTY_OUT);
     load();
+    void printTicket(releasedId, "gate_out", ticketWindow, false);
   };
 
   const set = (k: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });

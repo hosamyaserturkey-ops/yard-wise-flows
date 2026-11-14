@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Camera, CheckCircle2, ClipboardCheck, Loader2, Plus } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, ClipboardCheck, Loader2, Plus, Printer } from "lucide-react";
+import { openTicketWindow, printCarTicket } from "@/lib/carTicket";
+import { loadCarTicket } from "@/lib/carTicketData";
 import { cn } from "@/lib/utils";
 import { formatDate, formatTime } from "@/lib/format";
 import { uploadVehiclePhoto } from "@/lib/vehiclePhotos";
@@ -49,7 +51,7 @@ const usesCamera = () => typeof window !== "undefined" && window.matchMedia?.("(
 const InspectionPage = () => {
   const { visitId = "", phase: phaseParam } = useParams();
   const { toast } = useToast();
-  const { isReadOnlyAdmin } = useAuth();
+  const { isReadOnlyAdmin, profile } = useAuth();
   const phase = isPhase(phaseParam) ? phaseParam : null;
 
   const [visit, setVisit] = useState<Visit | null>(null);
@@ -150,6 +152,18 @@ const InspectionPage = () => {
     return true;
   };
 
+  /** The reception ticket carries the condition found here, so it prints once this inspection is closed. */
+  const printReception = async () => {
+    const win = openTicketWindow(); // must open straight from the tap
+    if (!win) { toast({ title: "Allow pop-ups to print", description: "Your browser blocked the ticket window.", variant: "destructive" }); return; }
+    try {
+      printCarTicket(await loadCarTicket(visitId, "gate_in"), profile, { isReprint: true }, win);
+    } catch (e) {
+      win.close();
+      toast({ title: "Ticket not printed", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    }
+  };
+
   const close = async () => {
     if (!inspection) return;
     if (!(await saveDetails())) return;
@@ -185,6 +199,11 @@ const InspectionPage = () => {
             <p className="font-mono text-sm mt-1 break-all">{visit.vehicles?.vin}</p>
             <p className="text-sm text-muted-foreground">{[visit.manufacturers?.name, car].filter(Boolean).join(" · ")}</p>
           </div>
+          {inspection && closed && phase === "gate_in" && !isReadOnlyAdmin() && (
+            <Button variant="outline" className="min-h-11" onClick={() => void printReception()}>
+              <Printer className="h-4 w-4 mr-1" /> Print reception ticket
+            </Button>
+          )}
           {inspection && (
             <Badge variant={closed ? "secondary" : "outline"}>
               {closed ? `Closed ${inspection.closed_at ? `${formatDate(inspection.closed_at)} ${formatTime(inspection.closed_at)}` : ""}` : "Open"}
