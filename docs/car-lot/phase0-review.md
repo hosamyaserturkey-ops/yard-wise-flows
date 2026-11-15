@@ -237,11 +237,11 @@ Applied with explicit approval, part 1 then part 2, as Supabase migrations `car_
 
 Nothing can use the car lot yet: the app, the manufacturer portal, the Worker photo routes and the `create-user` change are Phase 2.
 
-## 10. Retention job (written 2026-11-14, NOT applied)
+## 10. Retention job (applied to production 2026-11-15)
 
 **Rule (decision 5, changed from 4 to 12 months):** a car's visit, its inspections and photo rows are deleted 12 months after it was released; the photo files in R2 are deleted by the Worker's daily job. A car with a visit **on hold** is never touched (hold is the only "dispute" state the system has); the 12 months of an older visit only count once the car has no hold.
 
-**Where:** `supabase/migrations/20261115000000_car_lot_retention.sql` (not applied to production) and `worker/retention.ts` (daily cron 03:17 UTC, in wrangler.jsonc).
+**Where:** `supabase/migrations/20261115000000_car_lot_retention.sql` (applied to production as migration `car_lot_retention` on 2026-11-15; the 7-day wait ends 2026-11-22 00:02 UTC) and `worker/retention.ts` (daily cron 03:17 UTC, in wrangler.jsonc).
 
 **Safeguards, enforced in Postgres so a Worker change cannot weaken them:**
 - Nothing is deleted during the **first 7 days** after install; every run only reports into `retention_log`.
@@ -254,3 +254,7 @@ Nothing can use the car lot yet: the app, the manufacturer portal, the Worker ph
 **Tested on the local replica:** 36 checks (`tests/retention.sql`) plus 10 Worker tests; rollback in `car-lot-retention-rollback.sql`.
 
 **To switch on:** apply the migration, set the Worker secret, wait for the daily report to look right, then change `RETENTION_MODE` to `"delete"`.
+
+**Applied 2026-11-15 and checked in production:** 3 functions and 3 tables exist; the token hash matches; the private tables and the token helper are closed to `anon` and `authenticated`; `retention_log` has row security with one policy (super admin only); the two evidence guards are enabled; containers and car data untouched (631 containers, 0 visits). Through the public API, `car_lot_retention_run` and `car_lot_retention_ack` answer **401 "invalid retention token"** to a wrong token and the private tables are not reachable. Security advisor: two new warnings (the two token-gated functions are callable with the public key, **by design**: the Worker calls them with it); everything else as before.
+
+**Still to do before anything can run:** set the Worker secret `RETENTION_TOKEN` (until then the daily job logs that it has no token and stops). **Then** read the report; **only then** change `RETENTION_MODE` to `"delete"`.
