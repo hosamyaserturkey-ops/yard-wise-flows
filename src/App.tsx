@@ -140,7 +140,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="admin/manufacturers" element={
-                  <ProtectedRoute superAdminOnly>
+                  <ProtectedRoute adminOnly>
                     <Manufacturers />
                   </ProtectedRoute>
                 } />

@@ -60,6 +60,7 @@ const CAR_LOT_NAV = [
   { href: "/cars", label: "Cars", icon: Car },
 ];
 const CAR_LOT_ADMIN_NAV = [
+  { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory },
   { href: "/admin/users", label: "Users", icon: Users },
 ];
 const CAR_LOT_SUPER_NAV = [
