@@ -7,7 +7,7 @@ The car lot is already live in the app; nothing here needs a developer.
 
 1. [ ] Sign in as the owner. At the top right, open the yard switcher and choose **Everest Logistics - Car Lot**.
    The menu changes to **Cars**, **Manufacturers**, **Yards** and **Users**. (Choose "All yards" to go back to the container yard.)
-2. [ ] **Manufacturers > Add manufacturer** for each brand: a short code (2 to 10 letters or numbers, e.g. TOY, cannot be changed later), the name, and the free days (7 is the usual).
+2. [ ] **Manufacturers > Add manufacturer** for each brand: a short code (2 to 10 letters or numbers, e.g. TOY, cannot be changed later), the name, and the free days (7 is the usual). The owner **or the car lot's own Yard Admin** can do this; only the owner creates a manufacturer's portal login (step 4).
 3. [ ] **Users > Create user** for the two staff. Pick the car-lot yard, and a role:
    - **User** (office): can register cars, gate them out, hold and release, take inspections, print tickets.
    - **Inspector**: the same for cars and inspections.

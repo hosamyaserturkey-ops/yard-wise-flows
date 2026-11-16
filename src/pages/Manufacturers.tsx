@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Factory, Plus, UserPlus } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { useAuth } from "@/hooks/useAuth";
 import { createUser, validateNewUser, MIN_PASSWORD_LENGTH } from "@/lib/createUser";
 import { normalizeManufacturerCode, validateManufacturer, type ManufacturerForm } from "@/lib/manufacturers";
 
@@ -29,9 +30,15 @@ interface LotYard { id: string; name: string; }
 const EMPTY_FORM: ManufacturerForm = { code: "", name: "", contact_email: "", default_free_days: "7" };
 const EMPTY_LOGIN = { fullName: "", username: "", password: "" };
 
-/** Super admin only: the manufacturers whose cars the car lot stores, and their logins. */
+/**
+ * The manufacturers whose cars the car lot stores. The owner and the car lot's own
+ * admin can add and edit them (the database allows exactly that and nothing wider);
+ * only the owner creates their portal logins.
+ */
 const Manufacturers = () => {
   const { toast } = useToast();
+  const { isSuperAdmin } = useAuth();
+  const canManageLogins = isSuperAdmin();
   const [lots, setLots] = useState<LotYard[]>([]);
   const [lotId, setLotId] = useState("");
   const [rows, setRows] = useState<Manufacturer[]>([]);
@@ -48,7 +55,9 @@ const Manufacturers = () => {
     const [yardsRes, mfrRes, loginRes] = await Promise.all([
       supabase.from("yards").select("id, name").eq("kind", "vehicle").order("name"),
       supabase.from("manufacturers").select("*").order("name"),
-      supabase.from("profiles").select("user_id, manufacturer_id, username, full_name").not("manufacturer_id", "is", null),
+      canManageLogins
+        ? supabase.from("profiles").select("user_id, manufacturer_id, username, full_name").not("manufacturer_id", "is", null)
+        : Promise.resolve({ data: [], error: null }),
     ]);
     const error = yardsRes.error ?? mfrRes.error ?? loginRes.error;
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -58,7 +67,7 @@ const Manufacturers = () => {
     setRows(mfrRes.data ?? []);
     setLogins((loginRes.data ?? []) as Login[]);
     setLoading(false);
-  }, [toast]);
+  }, [toast, canManageLogins]);
   useEffect(() => { load(); }, [load]);
 
   const shown = rows.filter((m) => m.yard_id === lotId);
@@ -124,7 +133,7 @@ const Manufacturers = () => {
       <PageHeader
         icon={Factory}
         title="Manufacturers"
-        subtitle="The brands whose cars the car lot stores, and their portal logins"
+        subtitle={canManageLogins ? "The brands whose cars the car lot stores, and their portal logins" : "The brands whose cars the car lot stores"}
         action={
           <Button onClick={() => openForm("new")} disabled={!lotId}>
             <Plus className="h-4 w-4 mr-1" /> Add manufacturer
@@ -157,7 +166,7 @@ const Manufacturers = () => {
                   <TableHead>Name</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Free days</TableHead>
-                  <TableHead>Logins</TableHead>
+                  {canManageLogins && <TableHead>Logins</TableHead>}
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -171,15 +180,17 @@ const Manufacturers = () => {
                       <TableCell>{m.name}</TableCell>
                       <TableCell>{m.contact_email || "—"}</TableCell>
                       <TableCell>{m.default_free_days}</TableCell>
-                      <TableCell>{mine.length ? mine.map((l) => l.username || l.full_name).join(", ") : "—"}</TableCell>
+                      {canManageLogins && <TableCell>{mine.length ? mine.map((l) => l.username || l.full_name).join(", ") : "—"}</TableCell>}
                       <TableCell>
                         {m.active ? <Badge variant="secondary">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
                       </TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button size="sm" variant="outline" onClick={() => openForm(m)}>Edit</Button>
-                        <Button size="sm" variant="outline" disabled={!m.active} onClick={() => { setLoginFor(m); setLoginForm(EMPTY_LOGIN); }}>
-                          <UserPlus className="h-3.5 w-3.5 mr-1" /> Add login
-                        </Button>
+                        {canManageLogins && (
+                          <Button size="sm" variant="outline" disabled={!m.active} onClick={() => { setLoginFor(m); setLoginForm(EMPTY_LOGIN); }}>
+                            <UserPlus className="h-3.5 w-3.5 mr-1" /> Add login
+                          </Button>
+                        )}
                         <Button size="sm" variant="outline" onClick={() => setActive(m, !m.active)}>
                           {m.active ? "Deactivate" : "Activate"}
                         </Button>
@@ -189,7 +200,7 @@ const Manufacturers = () => {
                 })}
                 {shown.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">No manufacturers yet</TableCell>
+                    <TableCell colSpan={canManageLogins ? 7 : 6} className="text-center text-muted-foreground">No manufacturers yet</TableCell>
                   </TableRow>
                 )}
               </TableBody>
