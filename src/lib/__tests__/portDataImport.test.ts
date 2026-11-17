@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 // shippingLines.ts pulls in the Supabase client, which needs a browser.
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 import {
+  excelDatesLookMonthFirst,
   parseExcelDate,
   parsePortRows,
   resolveContainerType,
@@ -197,8 +198,18 @@ describe("parseExcelDate", () => {
     expect(parseExcelDate("5.9.26")).toBe("2026-09-05");
   });
 
-  it("switches to month-first only when the day can't be a month", () => {
-    expect(parseExcelDate("9/20/2026")).toBe("2026-09-20");
+  it("never guesses month-first: 9/11 is 9 Nov and 9/20 is unreadable", () => {
+    expect(parseExcelDate("9/11/2026")).toBe("2026-11-09");
+    expect(parseExcelDate("9/20/2026")).toBeNull();
+  });
+
+  it("swaps day and month back on Excel dates when told Excel read them month-first", () => {
+    const opts = { excelDatesMonthFirst: true };
+    expect(parseExcelDate(serial("2026-09-11"), opts)).toBe("2026-11-09");
+    // A day after the 12th can't be a typed month, so Excel's date stands.
+    expect(parseExcelDate(serial("2026-09-25"), opts)).toBe("2026-09-25");
+    // Text is DD/MM/YYYY either way.
+    expect(parseExcelDate("14/11/2026", opts)).toBe("2026-11-14");
   });
 
   it("reads ISO and month-name dates without shifting the day", () => {
@@ -219,5 +230,59 @@ describe("parseExcelDate", () => {
     expect(parseExcelDate("next week")).toBeNull();
     expect(parseExcelDate("")).toBeNull();
     expect(parseExcelDate(null)).toBeNull();
+  });
+});
+
+// A day-first list saved by an Excel set to month-first dates: "14/11/2026"
+// stays text (14 can't be a month), "9/11/2026" becomes the date 11 Sep.
+describe("day-first file from a month-first Excel", () => {
+  const usExcelDate = (iso: string) => ({ t: "n", v: serial(iso), z: "m/d/yyyy" });
+  const eelSheet = () => {
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["B/L", "Container", "Line", "Port Arrival Date"],
+      ["CPISOKAQJ198427", "YMLU3388300", "EEL", "14/11/2026"],
+      ["CPISOKAQJ192727", "TGHU9822567", "EEL", "14/11/2026"],
+      ["CPISOKAQJ193627", "FSCU9765704", "EEL", usExcelDate("2026-09-11")],
+      ["CPISOKAQJ193827", "GLDU7644860", "EEL", usExcelDate("2026-09-11")],
+    ]);
+    // Round-trip through a real .xlsx, as the upload does.
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Sheet1");
+    const read = XLSX.read(XLSX.write(book, { type: "array", bookType: "xlsx" }));
+    return read.Sheets[read.SheetNames[0]];
+  };
+
+  it("reads 9/11/2026 as 9 Nov, not the 11 Sep Excel stored", () => {
+    const parsed = parsePortRows(rowsFromSheet(eelSheet()), { defaultLine: "EEL" });
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.records.map((r) => [r.container_number, r.port_arrival_date, r.excelArrivalDate])).toEqual([
+      ["YMLU3388300", "2026-11-14", undefined],
+      ["TGHU9822567", "2026-11-14", undefined],
+      ["FSCU9765704", "2026-11-09", "2026-09-11"],
+      ["GLDU7644860", "2026-11-09", "2026-09-11"],
+    ]);
+  });
+
+  it("trusts Excel's dates when nothing in the column says otherwise", () => {
+    // A day-first Excel stores 9/11/2026 as 9 Nov; no text dates beside it.
+    const parsed = parsePortRows([row(2, { Container: "FSCU9765704", Line: "EEL", "Port Arrival Date": serial("2026-11-09") })], {
+      defaultLine: "EEL",
+    });
+    expect(parsed.records[0].port_arrival_date).toBe("2026-11-09");
+    expect(parsed.records[0].excelArrivalDate).toBeUndefined();
+  });
+
+  it("only flags the mix of Excel dates and text that has to be day-first", () => {
+    expect(excelDatesLookMonthFirst(["14/11/2026", serial("2026-09-11")])).toBe(true);
+    expect(excelDatesLookMonthFirst(["09/11/2026", serial("2026-09-11")])).toBe(false);
+    expect(excelDatesLookMonthFirst(["14/11/2026", "9/11/2026"])).toBe(false);
+    expect(excelDatesLookMonthFirst([serial("2026-09-11")])).toBe(false);
+  });
+
+  it("explains that unreadable numeric dates are read DD/MM/YYYY", () => {
+    const parsed = parsePortRows([row(2, { Container: "FSCU9765704", Line: "EEL", "Port Arrival Date": "11/14/2026" })], {
+      defaultLine: "EEL",
+    });
+    expect(parsed.errors[0].message).toBe('unreadable port arrival date "11/14/2026" — dates are read as DD/MM/YYYY');
   });
 });
