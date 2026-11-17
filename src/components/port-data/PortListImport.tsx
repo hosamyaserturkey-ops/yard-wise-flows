@@ -74,6 +74,7 @@ export const PortListImport = ({
       (r) => hasDemurrageRules(r.shipping_line) && r.free_days !== DEMURRAGE_RULES[r.shipping_line].freeDays,
     );
     const defaultedFree = parsed.records.filter((r) => r.freeDaysDefaulted);
+    const dayMonthFixed = parsed.records.filter((r) => r.excelArrivalDate);
     const noSize = parsed.records.filter((r) => !r.container_type);
     const today = todayLocalISO();
     const future = parsed.records.filter((r) => r.port_arrival_date > today);
@@ -98,7 +99,7 @@ export const PortListImport = ({
     const sizes = new Map<string, number>();
     for (const r of parsed.records) sizes.set(r.container_type ?? "No size", (sizes.get(r.container_type ?? "No size") ?? 0) + 1);
 
-    return { returned, mismatched, overdue, nonStandard, defaultedFree, noSize, future, changed, onFile, groups, sizes };
+    return { returned, mismatched, overdue, nonStandard, defaultedFree, dayMonthFixed, noSize, future, changed, onFile, groups, sizes };
   }, [loaded, parsed, statusRows]);
 
   const reset = () => {
@@ -211,7 +212,7 @@ export const PortListImport = ({
         <ul className="list-disc list-inside space-y-1">
           <li><strong>Container Id</strong>, <strong>Container #</strong> or <strong>Container Number</strong></li>
           <li><strong>Size</strong> (20 / 40 / 45) and/or <strong>Container Type</strong> (40HC, HC…) — a plain 40 is read as 40HC; only 40GP is a standard box</li>
-          <li><strong>Vessel Arrival Date</strong> or <strong>Port Arrival Date</strong> — Excel dates, or DD/MM/YYYY</li>
+          <li><strong>Vessel Arrival Date</strong> or <strong>Port Arrival Date</strong> — Excel dates, or DD/MM/YYYY (9/11/2026 is 9 Nov). Dates formatted yyyy-mm-dd always read right.</li>
           <li><strong>Free Days</strong> — charged as given; the line&rsquo;s standard is used when missing</li>
           <li><strong>Line</strong> — optional; rows without it use the line picked below</li>
         </ul>
@@ -294,6 +295,21 @@ export const PortListImport = ({
           )}
 
           <div className="space-y-2 text-sm">
+            {checks.dayMonthFixed.length > 0 && (
+              <Notice tone="warning">
+                <div>
+                  This file is written day-first (it has dates like 14/11/2026), but Excel read some of its dates month-first.{" "}
+                  {plural(checks.dayMonthFixed.length, "date")} {checks.dayMonthFixed.length === 1 ? "was" : "were"} switched back to day-first. Check them before importing:
+                </div>
+                <ul className="mt-1 max-h-32 overflow-y-auto font-mono text-xs space-y-0.5">
+                  {checks.dayMonthFixed.map((r) => (
+                    <li key={r.container_number}>
+                      {r.container_number}: Excel had {fmtDay(r.excelArrivalDate)}, read as {fmtDay(r.port_arrival_date)}
+                    </li>
+                  ))}
+                </ul>
+              </Notice>
+            )}
             {checks.overdue.length > 0 && (
               <Notice tone="warning">
                 {plural(checks.overdue.length, "container")} not yet returned {checks.overdue.length === 1 ? "is" : "are"} already past free time —{" "}

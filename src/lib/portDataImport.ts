@@ -29,6 +29,11 @@ export interface ParsedPortRecord {
   free_days: number;
   /** True when the file had no usable free days and the line's standard was used. */
   freeDaysDefaulted: boolean;
+  /**
+   * The date Excel had stored, when the import swapped its day and month back
+   * (see excelDatesLookMonthFirst). Absent when the date was read as-is.
+   */
+  excelArrivalDate?: string;
 }
 
 export interface RowIssue {
@@ -166,32 +171,64 @@ const toIsoDate = (y: number, m: number, d: number): string | null => {
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 };
 
+// 9/11/2026, 09-11-2026, 9.11.26: always DD/MM/YYYY.
+const NUMERIC_DATE = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})(?:$|\s)/;
+
+export interface DateReadOptions {
+  /**
+   * The file was typed day-first in an Excel set to month-first dates, so the
+   * dates Excel stored have day and month the wrong way round.
+   */
+  excelDatesMonthFirst?: boolean;
+}
+
+/**
+ * Spots a file typed day-first in an Excel set to month-first (US) dates.
+ * Such an Excel turns "9/11/2026" into 11 Sep, but leaves "14/11/2026" as text
+ * because 14 can't be a month. So day-first text next to Excel's own dates in
+ * the same column means those Excel dates were misread.
+ */
+export function excelDatesLookMonthFirst(values: unknown[]): boolean {
+  let dayFirstText = false;
+  let excelDate = false;
+  for (const value of values) {
+    if (typeof value === "number" || value instanceof Date) excelDate = true;
+    else if (value != null) {
+      const m = NUMERIC_DATE.exec(String(value).trim());
+      if (m && +m[1] > 12 && +m[2] <= 12) dayFirstText = true;
+    }
+  }
+  return dayFirstText && excelDate;
+}
+
 /**
  * Reads an arrival date as YYYY-MM-DD. Handles Excel date cells and the text
- * forms lines type by hand. Numeric text dates are day-first (DD/MM/YYYY), the
- * way Jordan writes them, unless the second number can't be a month. Never
- * goes through `new Date(text)`, which can shift the day by the time zone.
+ * forms lines type by hand. Numeric text is always DD/MM/YYYY, the way Jordan
+ * writes dates: it's split into its parts, never guessed, so "9/20/2026" is
+ * unreadable rather than quietly read month-first. Never goes through
+ * `new Date(text)`, which can shift the day by the time zone.
  */
-export function parseExcelDate(value: unknown): string | null {
+export function parseExcelDate(value: unknown, options: DateReadOptions = {}): string | null {
   if (value == null || value === "") return null;
+  // A date Excel stored. If Excel misread a day-first entry month-first, the
+  // day it stored is the typed month, so it's 12 or less; a later day is real.
+  const fromExcel = (y: number, m: number, d: number) =>
+    options.excelDatesMonthFirst && d <= 12 ? toIsoDate(y, d, m) : toIsoDate(y, m, d);
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null;
-    return toIsoDate(value.getFullYear(), value.getMonth() + 1, value.getDate());
+    return fromExcel(value.getFullYear(), value.getMonth() + 1, value.getDate());
   }
   if (typeof value === "number") {
     const date = XLSX.SSF.parse_date_code(value);
-    return date ? toIsoDate(date.y, date.m, date.d) : null;
+    return date ? fromExcel(date.y, date.m, date.d) : null;
   }
   const raw = String(value).trim();
 
   const iso = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:$|[ T])/);
   if (iso) return toIsoDate(+iso[1], +iso[2], +iso[3]);
 
-  const numeric = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})(?:$|\s)/);
-  if (numeric) {
-    const [a, b, y] = [+numeric[1], +numeric[2], +numeric[3]];
-    return b > 12 ? toIsoDate(y, a, b) : toIsoDate(y, b, a);
-  }
+  const numeric = raw.match(NUMERIC_DATE);
+  if (numeric) return toIsoDate(+numeric[3], +numeric[2], +numeric[1]);
 
   // 20-Sep-2026, 20 Sep 2026, 20 September 2026
   const dayMonth = raw.match(/^(\d{1,2})[-\s/]([A-Za-z]{3,})[-\s/,]+(\d{2}|\d{4})$/);
@@ -236,6 +273,9 @@ export function parsePortRows(rows: SheetRow[], options: ParseOptions): PortList
   const seen = new Set<string>();
   const duplicates = new Set<string>();
   let skippedBlankRows = 0;
+  const excelDatesMonthFirst = excelDatesLookMonthFirst(
+    rows.map((r) => getCellByAliases(r.values, HEADER_ALIASES.portArrivalDate)),
+  );
 
   for (const { rowNumber, values } of rows) {
     const rawNumber = getCellByAliases(values, HEADER_ALIASES.containerNumber);
@@ -272,11 +312,18 @@ export function parsePortRows(rows: SheetRow[], options: ParseOptions): PortList
     }
 
     const arrivalRaw = getCellByAliases(values, HEADER_ALIASES.portArrivalDate);
-    const portArrivalDate = parseExcelDate(arrivalRaw);
+    const portArrivalDate = parseExcelDate(arrivalRaw, { excelDatesMonthFirst });
     if (!portArrivalDate) {
-      issue(isBlank(arrivalRaw) ? "missing port arrival date" : `unreadable port arrival date "${String(arrivalRaw)}"`);
+      issue(
+        isBlank(arrivalRaw)
+          ? "missing port arrival date"
+          : NUMERIC_DATE.test(String(arrivalRaw).trim())
+            ? `unreadable port arrival date "${String(arrivalRaw)}" — dates are read as DD/MM/YYYY`
+            : `unreadable port arrival date "${String(arrivalRaw)}"`,
+      );
       continue;
     }
+    const excelArrivalDate = excelDatesMonthFirst ? parseExcelDate(arrivalRaw) : portArrivalDate;
 
     const freeRaw = getCellByAliases(values, HEADER_ALIASES.freeDays);
     // "21", 21, "21 days"
@@ -298,6 +345,7 @@ export function parsePortRows(rows: SheetRow[], options: ParseOptions): PortList
       port_arrival_date: portArrivalDate,
       free_days: freeValid ? freeParsed : DEMURRAGE_RULES[shippingLine].freeDays,
       freeDaysDefaulted: !freeValid,
+      ...(excelArrivalDate && excelArrivalDate !== portArrivalDate ? { excelArrivalDate } : {}),
     });
   }
 
