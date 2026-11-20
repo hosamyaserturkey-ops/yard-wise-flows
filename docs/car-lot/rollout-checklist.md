@@ -46,6 +46,8 @@ Use a made-up manufacturer, for example code **TEST**, name "Test Manufacturer".
 1. Press **Out** and do the departure inspection if you want a record (not required by the app).
 2. Press **Gate out**, enter the driver and truck, **Release car**. The release ticket opens: print it, get the driver's signature.
 
+**Correcting a mistake (Yard Admin or owner only):** press **Edit** on a car that is still in the lot to fix the VIN, model, year, colour, spot, driver, truck, keys, odometer or free days. The manufacturer and arrival time cannot be changed. Cars already released cannot be edited. The app does not keep a history of edits.
+
 **Reprints:** **Ticket** and **Release ticket** buttons on the Cars list. A reprint still shows the person who handled the car, and who printed it.
 
 ## Part 4. Good to know

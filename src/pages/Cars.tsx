@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useYardKind } from "@/hooks/useYardKind";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
-import { Car, ClipboardCheck, LogOut, PauseCircle, PlayCircle, Plus, Printer } from "lucide-react";
+import { Car, ClipboardCheck, LogOut, Pencil, PauseCircle, PlayCircle, Plus, Printer } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { formatDate } from "@/lib/format";
 import { normalizeVin, validateVin } from "@/lib/vin";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/carLot";
 import { openTicketWindow, printCarTicket, type CarTicketKind } from "@/lib/carTicket";
 import { loadCarTicket } from "@/lib/carTicketData";
+import { carEditChanges, formFromCar, hasChanges, validateCarEdit, type CarEditForm } from "@/lib/carEdit";
 
 interface VisitRow {
   id: string;
@@ -31,6 +32,10 @@ interface VisitRow {
   lot_slot: string | null;
   free_days: number;
   ticket_number: number;
+  driver_name: string | null;
+  truck_number: string | null;
+  odometer_in: number | null;
+  key_count: number | null;
   vehicles: { id: string; vin: string; model: string | null; model_year: number | null; color: string | null } | null;
   manufacturers: { code: string; name: string } | null;
 }
@@ -54,9 +59,11 @@ const textOrNull = (v: string): string | null => v.trim() || null;
 /** The car lot's main screen: cars in the lot, register a car, hold/release, gate out. */
 const Cars = () => {
   const { toast } = useToast();
-  const { isReadOnlyAdmin, profile } = useAuth();
+  const { isReadOnlyAdmin, isAdmin, profile } = useAuth();
   const { yardId, isCarLot } = useYardKind();
   const canWrite = !isReadOnlyAdmin();
+  // Correcting a car is for the car lot's admin and the owner (the database allows more; the screen offers less).
+  const canEdit = isAdmin();
 
   const [tab, setTab] = useState<Tab>("open");
   const [rows, setRows] = useState<VisitRow[]>([]);
@@ -68,13 +75,15 @@ const Cars = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [outFor, setOutFor] = useState<VisitRow | null>(null);
   const [outForm, setOutForm] = useState(EMPTY_OUT);
+  const [editFor, setEditFor] = useState<VisitRow | null>(null);
+  const [editForm, setEditForm] = useState<CarEditForm | null>(null);
 
   const load = useCallback(async () => {
     if (!yardId) { setRows([]); setLoading(false); return; }
     setLoading(true);
     let query = supabase
       .from("vehicle_visits")
-      .select("id, status, gate_in_time, gate_out_time, lot_zone, lot_slot, free_days, ticket_number, vehicles(id, vin, model, model_year, color), manufacturers(code, name)")
+      .select("id, status, gate_in_time, gate_out_time, lot_zone, lot_slot, free_days, ticket_number, driver_name, truck_number, odometer_in, key_count, vehicles(id, vin, model, model_year, color), manufacturers(code, name)")
       .eq("yard_id", yardId)
       .order("gate_in_time", { ascending: false })
       .limit(500);
@@ -112,6 +121,11 @@ const Cars = () => {
         {(tab === "open" || r.status === "out") && (
           <Button size="sm" variant="outline" asChild>
             <Link to={`/cars/${r.id}/inspect/gate_out`}><ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Out</Link>
+          </Button>
+        )}
+        {canEdit && tab === "open" && (
+          <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
+            <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
           </Button>
         )}
         {canWrite && tab === "open" && (
@@ -196,6 +210,42 @@ const Cars = () => {
     if (error) { toast({ title: "Not saved", description: error.message, variant: "destructive" }); return; }
     toast({ title: status === "on-hold" ? "Car put on hold" : "Hold released" });
     load();
+  };
+
+  const openEdit = (r: VisitRow) => {
+    if (!r.vehicles) return;
+    setEditFor(r);
+    setEditForm(formFromCar({ ...r.vehicles, lot_zone: r.lot_zone, lot_slot: r.lot_slot, odometer_in: r.odometer_in, key_count: r.key_count, driver_name: r.driver_name, truck_number: r.truck_number, free_days: r.free_days }));
+  };
+
+  const saveEdit = async () => {
+    if (!editFor?.vehicles || !editForm) return;
+    const invalid = validateCarEdit(editForm);
+    if (invalid) { toast({ title: "Check the form", description: invalid, variant: "destructive" }); return; }
+    const original = formFromCar({ ...editFor.vehicles, lot_zone: editFor.lot_zone, lot_slot: editFor.lot_slot, odometer_in: editFor.odometer_in, key_count: editFor.key_count, driver_name: editFor.driver_name, truck_number: editFor.truck_number, free_days: editFor.free_days });
+    const changes = carEditChanges(original, editForm);
+    if (!hasChanges(changes)) { setEditFor(null); return; }
+    setBusy(true);
+    try {
+      if (Object.keys(changes.vehicle).length) {
+        const { error } = await supabase.from("vehicles").update(changes.vehicle).eq("id", editFor.vehicles.id);
+        if (error) throw error;
+      }
+      if (Object.keys(changes.visit).length) {
+        const { error } = await supabase.from("vehicle_visits").update(changes.visit).eq("id", editFor.id);
+        if (error) throw error;
+      }
+      toast({ title: "Car updated", description: normalizeVin(editForm.vin) });
+      setEditFor(null);
+      setEditForm(null);
+      load();
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      toast({ title: "Not saved", description: gateInErrorMessage({ code: err.code, message: err.message ?? "Unknown error" }).replace("not allowed to register cars here", "not allowed to edit this car"), variant: "destructive" });
+      load(); // part of an edit may have been saved: show what is really stored
+    } finally {
+      setBusy(false);
+    }
   };
 
   /** Prints a ticket. The window opens at the click (pop-up rules), the data loads after. */
@@ -383,6 +433,39 @@ const Cars = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRegisterOpen(false)}>Cancel</Button>
             <Button onClick={register} disabled={busy}>{busy ? "Registering…" : "Register car"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editFor} onOpenChange={(open) => { if (!open) { setEditFor(null); setEditForm(null); } }}>
+        {/* Do not jump into the VIN box: its text would be selected, and one keystroke would replace it. */}
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader><DialogTitle>Edit car</DialogTitle></DialogHeader>
+          {editForm && editFor && (
+            <div className="grid grid-cols-2 gap-3 py-2">
+              <div className="col-span-2 text-sm text-muted-foreground">
+                {editFor.manufacturers?.name} · ticket {editFor.ticket_number}. The manufacturer and the arrival time cannot be changed.
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label>VIN</Label>
+                <Input className="font-mono" value={editForm.vin} maxLength={20} onChange={(e) => setEditForm({ ...editForm, vin: e.target.value.toUpperCase() })} />
+                <p className="text-xs text-muted-foreground">Correct a typing mistake only. Tickets already printed keep showing the old VIN.</p>
+              </div>
+              <div className="space-y-1"><Label>Model</Label><Input value={editForm.model} onChange={(e) => setEditForm({ ...editForm, model: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Year</Label><Input inputMode="numeric" value={editForm.model_year} onChange={(e) => setEditForm({ ...editForm, model_year: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Colour</Label><Input value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Free days</Label><Input inputMode="numeric" value={editForm.free_days} onChange={(e) => setEditForm({ ...editForm, free_days: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Zone</Label><Input value={editForm.lot_zone} onChange={(e) => setEditForm({ ...editForm, lot_zone: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Slot</Label><Input value={editForm.lot_slot} onChange={(e) => setEditForm({ ...editForm, lot_slot: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Odometer at arrival (km)</Label><Input inputMode="numeric" value={editForm.odometer_in} onChange={(e) => setEditForm({ ...editForm, odometer_in: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Keys</Label><Input inputMode="numeric" value={editForm.key_count} onChange={(e) => setEditForm({ ...editForm, key_count: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Driver</Label><Input value={editForm.driver_name} onChange={(e) => setEditForm({ ...editForm, driver_name: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Truck number</Label><Input value={editForm.truck_number} onChange={(e) => setEditForm({ ...editForm, truck_number: e.target.value })} /></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditFor(null); setEditForm(null); }}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={busy}>{busy ? "Saving…" : "Save changes"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
