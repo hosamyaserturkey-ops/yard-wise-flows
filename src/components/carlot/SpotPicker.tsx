@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScanBox } from "@/components/carlot/ScanBox";
-import { freePlaces, readScan, SLOT_KIND_LABEL, spotKey, type LotSlot, type SpotChoice } from "@/lib/lotSlots";
+import { freePlaces, groupByZone, readScan, SLOT_KIND_LABEL, spotKey, type LotSlot, type SpotChoice } from "@/lib/lotSlots";
 
 const TYPED = "__typed";
 const NONE = "__none";
@@ -23,14 +23,8 @@ export function SpotPicker({ slots, occupancy, value, onChange }: {
 }) {
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
-  const active = useMemo(
-    () => slots.filter((s) => s.active).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })),
-    [slots]);
-  const zones = useMemo(() => {
-    const m = new Map<string, LotSlot[]>();
-    for (const s of active) m.set(s.zone, [...(m.get(s.zone) ?? []), s]);
-    return [...m];
-  }, [active]);
+  const active = useMemo(() => slots.filter((s) => s.active), [slots]);
+  const zones = useMemo(() => groupByZone(active), [active]);
 
   const typedFields = value.kind === "typed" && (
     <div className="grid grid-cols-2 gap-3">

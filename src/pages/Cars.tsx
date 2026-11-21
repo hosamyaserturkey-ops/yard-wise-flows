@@ -30,7 +30,7 @@ import { eventChangeLines, eventHow, eventLabel, type CarEvent } from "@/lib/car
 import { carsPerSlot, loadLotSlots, loadOpenCars } from "@/lib/carLotData";
 import { openPrintWindow, type CarTagData } from "@/lib/lotPrint";
 import { printCarTag } from "@/lib/lotPrintJobs";
-import { defaultSpot, slotErrorMessage, type LotSlot, type SpotChoice } from "@/lib/lotSlots";
+import { defaultSpot, placeLabel, slotErrorMessage, type LotSlot, type SpotChoice } from "@/lib/lotSlots";
 import { SpotPicker } from "@/components/carlot/SpotPicker";
 
 interface VisitRow {
@@ -72,7 +72,9 @@ const EMPTY_FORM = {
 };
 const NO_SPOT: SpotChoice = { kind: "typed", zone: "", slot: "" };
 
-const spotOf = (r: Pick<VisitRow, "lot_zone" | "lot_slot">) => [r.lot_zone, r.lot_slot].filter(Boolean).join(" / ");
+/** A listed slot by its code ("A-01-01"), a typed spot as "zone / slot". */
+const spotOf = (r: Pick<VisitRow, "location_id" | "lot_zone" | "lot_slot">) =>
+  placeLabel({ inSlot: !!r.location_id, zone: r.lot_zone, slot: r.lot_slot });
 const EMPTY_OUT = { driver: "", truck: "", odometer: "" };
 
 /** Whole number from a text box, or null when it is empty or not a whole number. */
@@ -301,7 +303,7 @@ const Cars = () => {
         ...place,
         odometer_in: intOrNull(form.odometer_in), key_count: intOrNull(form.key_count),
         driver_name: textOrNull(form.driver_name), truck_number: textOrNull(form.truck_number),
-      }).select("ticket_number, gate_in_time, lot_zone, lot_slot").single();
+      }).select("ticket_number, gate_in_time, location_id, lot_zone, lot_slot").single();
       if (visitErr) throw visitErr;
       registered = true;
 
@@ -565,7 +567,8 @@ const Cars = () => {
       </Card>
 
       <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
-        <DialogContent className="sm:max-w-lg">
+        {/* scrolls on a phone, e.g. while the slot scanner is open */}
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Register a car</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
             <div className="col-span-2 space-y-1">

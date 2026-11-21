@@ -106,7 +106,7 @@ select pg_temp.check('nobody deletes a slot', :'r' = '0', :'r');
 
 -- ── moving into a slot ──────────────────────────────────────────────
 select pg_temp.as_user_val(:'insp', format('select public.car_lot_move(%L, %L, null, null, %L, %L)', :'A1', :'s1', 'scan', 'phone-7f3a')) as r \gset
-select pg_temp.check('an inspector moves a car into a slot by scanning', :'r' = 'A / 01-01', :'r');
+select pg_temp.check('an inspector moves a car into a slot by scanning; the answer is the slot''s code', :'r' = 'A-01-01', :'r');
 select pg_temp.check('the car has the slot, and its zone and slot text follow it',
   (select location_id = :'s1' and lot_zone = 'A' and lot_slot = '01-01' from public.vehicle_visits where id = :'A1'));
 select pg_temp.check('the move is in the history: who, how, on which phone',
@@ -117,7 +117,7 @@ select pg_temp.check('a full slot is refused, naming the car in it', :'r' like '
 select pg_temp.as_user_val(:'office', format('select public.car_lot_move(%L, %L, null, null, %L, null, %L)', :'B1', :'s1', 'list', 'Two small cars fit')) as r \gset
 select pg_temp.check('the office cannot override a full slot', :'r' like '%only the car lot''s admin or the owner%', :'r');
 select pg_temp.as_user_val(:'admin', format('select public.car_lot_move(%L, %L, null, null, %L, null, %L)', :'B1', :'s1', 'list', 'Two small cars fit')) as r \gset
-select pg_temp.check('the lot admin can, with a reason', :'r' = 'A / 01-01', :'r');
+select pg_temp.check('the lot admin can, with a reason', :'r' = 'A-01-01', :'r');
 select pg_temp.check('the override reason is in the history',
   exists (select 1 from public.vehicle_events where visit_id = :'B1' and action = 'move' and reason = 'Two small cars fit' and via = 'list'));
 select pg_temp.as_user(:'insp', format('update public.vehicle_visits set location_id = %L where id = %L', :'s1', :'A2')) as r \gset
@@ -128,7 +128,7 @@ select pg_temp.check('setting the override flag by hand does not let an inspecto
 -- ── typed spots ─────────────────────────────────────────────────────
 select pg_temp.as_user_val(:'office', format('select public.car_lot_move(%L, null, %L, %L, %L)', :'A2', 'a', '1 2', 'typed')) as r \gset
 select pg_temp.check('a typed spot that is a listed slot counts as that slot ("a" "1 2" is A-01-02)',
-  :'r' = 'A / 01-02' and (select location_id = :'s2' from public.vehicle_visits where id = :'A2'), :'r');
+  :'r' = 'A-01-02' and (select location_id = :'s2' from public.vehicle_visits where id = :'A2'), :'r');
 select pg_temp.check('a car on hold may be moved', (select status = 'on-hold' from public.vehicle_visits where id = :'A2'));
 select pg_temp.as_user_val(:'office', format('select public.car_lot_move(%L, null, %L, %L, %L)', :'C1', 'A', '01-01', 'typed')) as r \gset
 select pg_temp.check('typing a full slot''s code is refused like choosing it', :'r' like '%is full%', :'r');
@@ -175,7 +175,7 @@ select pg_temp.check('a slot keeps room for the cars in it', :'r' like '%room ca
 select pg_temp.as_user(:'admin', format('update public.lot_locations set capacity = 3 where id = %L', :'s1')) as r \gset
 select pg_temp.check('a slot can get more room', :'r' = 'ok', :'r');
 select pg_temp.as_user_val(:'office', format('select public.car_lot_move(%L, %L)', :'C1', :'s1')) as r \gset
-select pg_temp.check('with room, the next car fits', :'r' = 'A / 01-01', :'r');
+select pg_temp.check('with room, the next car fits', :'r' = 'A-01-01', :'r');
 
 -- ── released cars ───────────────────────────────────────────────────
 select pg_temp.as_user(:'office', format($q$update public.vehicle_visits set status = 'out', gate_out_driver_name = 'SAMI' where id = %L$q$, :'A1')) as r \gset

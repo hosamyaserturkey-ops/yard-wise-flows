@@ -321,7 +321,8 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- 6. Moving a car: a listed slot or a typed spot
+-- 6. Moving a car: a listed slot or a typed spot. Returns where the car is now:
+--    the slot's code ("A-01-01"), or a typed spot as "zone / slot".
 -- ---------------------------------------------------------------------
 create or replace function public.car_lot_move(
   _visit_id uuid,
@@ -376,8 +377,10 @@ begin
   perform set_config('car_lot.reason', '', true);
   perform set_config('car_lot.override', '', true);
 
-  select lot_zone, lot_slot into spot from public.vehicle_visits where id = _visit_id;
-  return concat_ws(' / ', spot.lot_zone, spot.lot_slot);
+  select vv.lot_zone, vv.lot_slot, l.code into spot
+    from public.vehicle_visits vv left join public.lot_locations l on l.id = vv.location_id
+   where vv.id = _visit_id;
+  return coalesce(spot.code, concat_ws(' / ', spot.lot_zone, spot.lot_slot));
 end $$;
 
 -- ---------------------------------------------------------------------

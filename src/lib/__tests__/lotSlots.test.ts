@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import QRCode from "qrcode";
 import {
-  buildLotMap, carTagText, defaultSpot, deviceLabel, freePlaces, placesByZone, readScan, slotCode, slotErrorMessage, slotNameProblem,
+  buildLotMap, carTagText, defaultSpot, deviceLabel, freePlaces, groupByZone, placeLabel, placesByZone, readScan, slotCode, slotErrorMessage, slotNameProblem,
   slotPart, slotQrText, slotsInRange, spotKey, tileState, type LotSlot, type MapCar,
 } from "../lotSlots";
 import { readQrPixels } from "../qr";
@@ -142,6 +142,16 @@ describe("the lot map", () => {
     expect(unplaced.map((c) => c.vin)).toEqual(["V3", "V4"]); // a slot not on the list counts as no slot; longest stay first
   });
 
+  it("orders zones as cars pass through: receiving first, exit last, the rest by name", () => {
+    const slots = [slot("EXIT", "EXIT", null, null, { kind: "exit" }), slot("B-1", "B", null, "1"), slot("A-10", "A", null, "10"),
+      slot("A-2", "A", null, "2"), slot("RECEIVING", "RECEIVING", null, null, { kind: "receiving" }),
+      slot("C-1", "C", null, "1", { kind: "exit" }), slot("C-2", "C", null, "2")]; // C has storage too: not last
+    expect(groupByZone(slots).map(([zone, list]) => [zone, list.map((s) => s.code)])).toEqual([
+      ["RECEIVING", ["RECEIVING"]], ["A", ["A-2", "A-10"]], ["B", ["B-1"]], ["C", ["C-1", "C-2"]], ["EXIT", ["EXIT"]],
+    ]);
+    expect(buildLotMap(slots, []).zones.map((z) => z.zone)).toEqual(["RECEIVING", "A", "B", "C", "EXIT"]);
+  });
+
   it("leaves empty slots out of use off the map, but not ones still holding a car", () => {
     const slots = [slot("A-1", "A", null, "1", { active: false }), slot("A-2", "A", null, "2", { active: false })];
     const { zones } = buildLotMap(slots, [car("V1", "A-2")]);
@@ -151,6 +161,13 @@ describe("the lot map", () => {
   it("names each state", () => {
     expect([tileState(0, 1), tileState(1, 2), tileState(2, 2), tileState(3, 2)]).toEqual(["empty", "partly", "full", "over"]);
     expect(freePlaces({ capacity: 2 }, 3)).toBe(0);
+  });
+
+  it("names a car's place: a slot by its code, a typed spot as zone / slot", () => {
+    expect(placeLabel({ inSlot: true, zone: "A", slot: "01-01" })).toBe("A-01-01");
+    expect(placeLabel({ inSlot: true, zone: "RECEIVING", slot: null })).toBe("RECEIVING");
+    expect(placeLabel({ inSlot: false, zone: "OVERFLOW", slot: "3" })).toBe("OVERFLOW / 3");
+    expect(placeLabel({ inSlot: false, zone: null, slot: null })).toBe("");
   });
 
   it("adds up the places of each zone's slots in use", () => {

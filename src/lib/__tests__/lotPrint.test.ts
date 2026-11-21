@@ -31,12 +31,12 @@ describe("car tag", () => {
   it("carries the VIN, ticket and spot, escaped, and prints itself", () => {
     const html = buildCarTagHtml({
       vin: "JTDKB20U093000001", ticketNumber: 1042, manufacturerName: "Toyota & Sons", model: "Corolla · White",
-      arrived: "2026-11-21T09:15:00Z", spot: "A / 01-01", yardName: "Everest Logistics - Car Lot", qrSvg: "<svg id=q></svg>",
+      arrived: "2026-11-21T09:15:00Z", spot: "A-01-01", yardName: "Everest Logistics - Car Lot", qrSvg: "<svg id=q></svg>",
     }, "Lot Admin", new Date(2026, 10, 21, 12, 0));
     expect(html).toContain("JTDKB20U093000001");
     expect(html).toContain("Ticket 1042");
     expect(html).toContain("Toyota &amp; Sons");
-    expect(html).toContain("Spot: A / 01-01");
+    expect(html).toContain("Spot: A-01-01");
     expect(html).toContain("<svg id=q></svg>");
     expect(html).toContain(`<script>${RECEIPT_PRINT_SCRIPT}</script>`);
   });

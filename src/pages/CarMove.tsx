@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useYardKind } from "@/hooks/useYardKind";
 import { carsPerSlot, loadLotSlots, loadOpenCars, type OpenCar } from "@/lib/carLotData";
 import { normalizeVin } from "@/lib/vin";
-import { deviceLabel, freePlaces, readScan, slotErrorMessage, spotKey, type LotSlot } from "@/lib/lotSlots";
+import { deviceLabel, freePlaces, groupByZone, placeLabel, readScan, slotErrorMessage, spotKey, type LotSlot } from "@/lib/lotSlots";
 import { cn } from "@/lib/utils";
 
 type Step = "car" | "place" | "confirm" | "done";
@@ -21,7 +21,8 @@ type Target =
   | { kind: "slot"; slot: LotSlot; via: "scan" | "list" }
   | { kind: "typed"; zone: string; slot: string };
 
-const spotText = (c: Pick<OpenCar, "zone" | "slot">) => [c.zone, c.slot].filter(Boolean).join(" / ") || "no spot";
+const spotText = (c: Pick<OpenCar, "locationId" | "zone" | "slot">) =>
+  placeLabel({ inSlot: !!c.locationId, zone: c.zone, slot: c.slot }) || "no spot";
 
 /**
  * Moving a car, built for one hand on a phone: scan the car (its tag or VIN
@@ -64,13 +65,7 @@ const CarMove = () => {
   useEffect(() => { void load(); }, [load]);
 
   const occupancy = useMemo(() => carsPerSlot(cars ?? []), [cars]);
-  const slotsByZone = useMemo(() => {
-    const zones = new Map<string, LotSlot[]>();
-    for (const s of [...slots].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))) {
-      zones.set(s.zone, [...(zones.get(s.zone) ?? []), s]);
-    }
-    return [...zones];
-  }, [slots]);
+  const slotsByZone = useMemo(() => groupByZone(slots), [slots]);
 
   const restart = () => {
     setStep("car"); setCar(null); setTarget(null); setNotice(null); setReason(""); setVinSearch("");
@@ -301,7 +296,7 @@ const CarMove = () => {
           <Card>
             <CardContent className="p-4 space-y-1 text-base">
               <p>From <span className="font-medium">{spotText(car)}</span></p>
-              <p>To <span className="text-xl font-bold">{target.kind === "slot" ? target.slot.code : [target.zone, target.slot].filter(Boolean).join(" / ")}</span>
+              <p>To <span className="text-xl font-bold">{target.kind === "slot" ? target.slot.code : placeLabel({ inSlot: false, zone: target.zone, slot: target.slot })}</span>
                 {target.kind === "typed" && <span className="text-sm text-muted-foreground"> (typed spot)</span>}</p>
             </CardContent>
           </Card>

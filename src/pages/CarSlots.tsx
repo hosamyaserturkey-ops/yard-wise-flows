@@ -22,7 +22,7 @@ import type { LabelSize } from "@/lib/lotPrint";
 import { openPrintWindow } from "@/lib/lotPrint";
 import { printSlotLabels } from "@/lib/lotPrintJobs";
 import {
-  MAX_BULK_SLOTS, SLOT_KIND_LABEL, slotCode, slotErrorMessage, slotNameProblem, slotsInRange, spotKey,
+  MAX_BULK_SLOTS, SLOT_KIND_LABEL, groupByZone, slotCode, slotErrorMessage, slotNameProblem, slotsInRange, spotKey,
   type LotSlot, type SlotKind,
 } from "@/lib/lotSlots";
 
@@ -36,8 +36,6 @@ function roomOf(text: string): number | null {
   return Number.isInteger(n) && n >= 1 && n <= 500 ? n : null;
 }
 const numOrNull = (t: string) => (t.trim() === "" ? null : Number(t));
-
-const byCode = (a: LotSlot, b: LotSlot) => a.code.localeCompare(b.code, undefined, { numeric: true });
 
 function KindPicker({ id, value, onChange }: { id: string; value: SlotKind; onChange: (k: SlotKind) => void }) {
   return (
@@ -85,12 +83,8 @@ const CarSlots = () => {
   }, [yardId, toast]);
   useEffect(() => { void load(); }, [load]);
 
-  const shown = useMemo(() => (slots ?? []).filter((s) => showUnused || s.active).sort(byCode), [slots, showUnused]);
-  const zones = useMemo(() => {
-    const m = new Map<string, LotSlot[]>();
-    for (const s of shown) m.set(s.zone, [...(m.get(s.zone) ?? []), s]);
-    return [...m];
-  }, [shown]);
+  const shown = useMemo(() => (slots ?? []).filter((s) => showUnused || s.active), [slots, showUnused]);
+  const zones = useMemo(() => groupByZone(shown), [shown]);
   const active = (slots ?? []).filter((s) => s.active);
   const places = active.reduce((n, s) => n + s.capacity, 0);
   const parked = active.reduce((n, s) => n + (occupancy.get(s.id) ?? 0), 0);
@@ -190,30 +184,34 @@ const CarSlots = () => {
         icon={Grid3x3}
         title="Slots"
         subtitle={slots ? `${active.length} slots in use · ${places} places · ${parked} cars parked in slots` : "Loading…"}
-        action={canManage ? (
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => { setOne(EMPTY_ONE); setAdding("one"); }}><Plus className="h-4 w-4 mr-1" /> Add a slot</Button>
-            <Button onClick={() => { setMany(EMPTY_MANY); setAdding("many"); }}><Plus className="h-4 w-4 mr-1" /> Add many</Button>
-          </div>
-        ) : undefined}
       />
+
+      {/* below the title, not beside it: two buttons there squeeze the title on a phone */}
+      <div className="flex flex-wrap gap-2">
+        {canManage && (
+          <>
+            <Button onClick={() => { setMany(EMPTY_MANY); setAdding("many"); }}><Plus className="h-4 w-4 mr-1" /> Add many</Button>
+            <Button variant="outline" onClick={() => { setOne(EMPTY_ONE); setAdding("one"); }}><Plus className="h-4 w-4 mr-1" /> Add a slot</Button>
+          </>
+        )}
+        <Button variant="ghost" asChild><Link to="/cars/map"><MapIcon className="h-4 w-4 mr-1" /> Lot map</Link></Button>
+      </div>
 
       <Card>
         <CardContent className="p-3 sm:p-4 flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <Label htmlFor="label-size">Labels</Label>
             <Select value={labelSize} onValueChange={(v) => setLabelSize(v as LabelSize)}>
-              <SelectTrigger id="label-size" className="w-56"><SelectValue /></SelectTrigger>
+              <SelectTrigger id="label-size" className="w-48"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="large">Large: 1 per A4 (posts, walls)</SelectItem>
-                <SelectItem value="small">Stickers: 8 per A4</SelectItem>
+                <SelectItem value="large">Large, 1 per A4</SelectItem>
+                <SelectItem value="small">Stickers, 8 per A4</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <Button variant="outline" onClick={() => print([...active].sort(byCode))} disabled={active.length === 0}>
+          <Button variant="outline" onClick={() => print(groupByZone(active).flatMap(([, list]) => list))} disabled={active.length === 0}>
             <Printer className="h-4 w-4 mr-1" /> Print all labels ({active.length})
           </Button>
-          <Button variant="ghost" asChild><Link to="/cars/map"><MapIcon className="h-4 w-4 mr-1" /> Lot map</Link></Button>
           {unusedCount > 0 && (
             <div className="flex items-center gap-2 sm:ml-auto">
               <Switch id="show-unused" checked={showUnused} onCheckedChange={setShowUnused} />
@@ -240,7 +238,7 @@ const CarSlots = () => {
         zones.map(([zone, list]) => (
           <Card key={zone}>
             <CardHeader className="p-3 sm:p-4 pb-0 sm:pb-0 flex flex-row items-center justify-between gap-2 space-y-0">
-              <CardTitle className="text-base">Zone {zone} <span className="text-muted-foreground font-normal text-sm">· {list.length} slots</span></CardTitle>
+              <CardTitle className="text-base">Zone {zone} <span className="text-muted-foreground font-normal text-sm">· {list.length} {list.length === 1 ? "slot" : "slots"}</span></CardTitle>
               <Button size="sm" variant="outline" onClick={() => print(list.filter((s) => s.active))} disabled={!list.some((s) => s.active)}>
                 <Printer className="h-4 w-4 mr-1" /> Labels
               </Button>

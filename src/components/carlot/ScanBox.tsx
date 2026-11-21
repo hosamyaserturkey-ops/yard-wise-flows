@@ -71,7 +71,8 @@ export function ScanBox({ active, onResult, typePlaceholder, hint }: {
             // the same code stays in view for a while: report it once
             if (text && !(lastSeen.current?.text === text && now - lastSeen.current.at < 2500)) {
               lastSeen.current = { text, at: now };
-              navigator.vibrate?.(60);
+              // a short buzz, once the person has tapped the page (browsers refuse it before)
+              if ((navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive) navigator.vibrate?.(60);
               onResultRef.current(text, "scan");
             }
           } catch {

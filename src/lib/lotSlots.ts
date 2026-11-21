@@ -169,6 +169,26 @@ export interface MapZone {
 
 const byNatural = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
+const KIND_RANK: Record<SlotKind, number> = { receiving: 0, storage: 1, exit: 2 };
+
+/**
+ * Zones in the order cars pass through the lot: a zone with a receiving slot
+ * first, a zone of exit slots last, the rest by name ("A" before "B", "2" before "10").
+ */
+export function zoneOrder(slots: Pick<LotSlot, "zone" | "kind">[]): (a: string, b: string) => number {
+  const rank = new Map<string, number>();
+  for (const s of slots) rank.set(s.zone, Math.min(rank.get(s.zone) ?? KIND_RANK.exit, KIND_RANK[s.kind] ?? KIND_RANK.storage));
+  return (a, b) => (rank.get(a) ?? KIND_RANK.storage) - (rank.get(b) ?? KIND_RANK.storage) || byNatural(a, b);
+}
+
+/** The slots by zone (zones in zoneOrder), each zone's slots by code. */
+export function groupByZone(slots: LotSlot[]): [string, LotSlot[]][] {
+  const groups = new Map<string, LotSlot[]>();
+  for (const s of [...slots].sort((a, b) => byNatural(a.code, b.code))) groups.set(s.zone, [...(groups.get(s.zone) ?? []), s]);
+  const order = zoneOrder(slots);
+  return [...groups].sort(([a], [b]) => order(a, b));
+}
+
 export function tileState(cars: number, capacity: number): TileState {
   if (cars === 0) return "empty";
   if (cars > capacity) return "over";
@@ -197,7 +217,8 @@ export function buildLotMap(slots: LotSlot[], cars: MapCar[]): { zones: MapZone[
     rows.set(rowKey, [...(rows.get(rowKey) ?? []), { slot, cars: here, state: tileState(here.length, slot.capacity) }]);
     zones.set(slot.zone, rows);
   }
-  const mapZones = [...zones].sort(([a], [b]) => byNatural(a, b)).map(([zone, rows]) => {
+  const order = zoneOrder(slots);
+  const mapZones = [...zones].sort(([a], [b]) => order(a, b)).map(([zone, rows]) => {
     const sortedRows = [...rows].sort(([a], [b]) => byNatural(a, b)).map(([row, tiles]) => ({
       row: row || null,
       tiles: tiles.sort((a, b) => byNatural(a.slot.slot ?? "", b.slot.slot ?? "") || byNatural(a.slot.code, b.slot.code)),
@@ -237,6 +258,15 @@ export function placesByZone(slots: Pick<LotSlot, "zone" | "capacity" | "active"
   const places = new Map<string, number>();
   for (const s of slots) if (s.active) places.set(s.zone, (places.get(s.zone) ?? 0) + s.capacity);
   return places;
+}
+
+/**
+ * Where a car is, as people read it: a listed slot by its code ("A-01-01", the
+ * name on its label), a typed spot as "zone / slot", or "" for none. A slotted
+ * car's zone and slot text are its slot's parts, so they join to the code.
+ */
+export function placeLabel(p: { inSlot: boolean; zone: string | null; slot: string | null }): string {
+  return [p.zone, p.slot].filter(Boolean).join(p.inSlot ? "-" : " / ");
 }
 
 /** Free places left in a slot (never negative). */

@@ -15,7 +15,7 @@ import { useYardKind } from "@/hooks/useYardKind";
 import { daysInLot } from "@/lib/carLot";
 import { loadLotSlots, loadOpenCars, type OpenCar } from "@/lib/carLotData";
 import { formatTime } from "@/lib/format";
-import { buildLotMap, type MapCar, type MapTile, type TileState, type LotSlot } from "@/lib/lotSlots";
+import { buildLotMap, placeLabel, type MapCar, type MapTile, type TileState, type LotSlot } from "@/lib/lotSlots";
 import { cn } from "@/lib/utils";
 
 const ALL = "all";
@@ -127,7 +127,7 @@ const CarLotMap = () => {
         icon={MapIcon}
         title="Lot map"
         subtitle={slots
-          ? `${cars.length} cars in the lot · ${used} of ${capacity} slot places taken · updated ${formatTime(now)}`
+          ? `${cars.length} cars in the lot · ${used} of ${capacity} places taken · updated ${formatTime(now)}`
           : "Loading…"}
         action={
           <div className="flex flex-wrap gap-2">
@@ -243,7 +243,7 @@ const CarLotMap = () => {
                   <li key={c.visitId} className="py-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                     <Link to={`/cars?q=${encodeURIComponent(c.vin)}`} className="font-mono underline-offset-2 hover:underline">{c.vin}</Link>
                     <span className="text-muted-foreground">{c.manufacturerCode} · day {c.days}</span>
-                    <span>{[c.zone, c.slot].filter(Boolean).join(" / ") || <span className="text-muted-foreground">no spot</span>}</span>
+                    <span>{placeLabel({ inSlot: false, zone: c.zone, slot: c.slot }) || <span className="text-muted-foreground">no spot</span>}</span>
                     {c.status === "on-hold" && <Badge variant="outline">On hold</Badge>}
                   </li>
                 ))}

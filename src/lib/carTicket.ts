@@ -227,6 +227,9 @@ export function printCarTicket(
   const html = buildCarTicketHtml(data, profile, context);
   const win = target ?? window.open("", "_blank");
   if (!win) return false;
+  // Start a fresh page: without this, the "Preparing the ticket…" line that
+  // openTicketWindow wrote stays above the ticket and is printed with it.
+  win.document.open();
   win.document.write(html);
   win.document.close();
   return true;
