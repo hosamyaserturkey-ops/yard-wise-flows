@@ -26,9 +26,11 @@ Use a made-up manufacturer, for example code **TEST**, name "Test Manufacturer".
 3. [ ] Fill odometer, fuel, keys. Press **Close inspection**. It cannot be changed afterwards.
 4. [ ] Press **Print reception ticket**. Check it: VIN, spot, the damage note, and the signature lines.
 5. [ ] Sign in as the **manufacturer login** (on a phone). Check the car and its photos show, and switch **English / العربية**. Check the Arabic reads well (tell the developer any word that sounds wrong).
-6. [ ] **Hold**, then **Release hold**. While on hold, **Gate out** must be greyed out.
-7. [ ] **Gate out**: enter the driver and truck, press **Release car**. The release ticket opens by itself. Check it.
-8. [ ] Print one ticket on the real printer: check the paper size (A4), margins and colour.
+6. [ ] **Hold**: write a reason (for example "practice"), then **Release hold**. While on hold, **Gate out** must be greyed out.
+7. [ ] Press **Out** and do the departure inspection: the same 10 photos, then **Close inspection**. Until it is closed, **Gate out** stays greyed out.
+8. [ ] **Gate out**: enter the driver and truck, press **Release car**. The release ticket opens by itself. Check it.
+9. [ ] Press **History** on the car: the arrival, the hold (with its reason), the release of the hold and the gate-out are listed, each with who did it and when.
+10. [ ] Print one ticket on the real printer: check the paper size (A4), margins and colour.
 
 **Note:** test cars, their photos and visits **cannot be deleted from the app** (photos are evidence). They stay in the records and are removed automatically 12 months after release. To keep the real list clean, deactivate the TEST manufacturer afterwards (Manufacturers > Deactivate), or ask the developer to remove the test data.
 
@@ -40,15 +42,17 @@ Use a made-up manufacturer, for example code **TEST**, name "Test Manufacturer".
 3. Note every scratch or dent as a damage photo with a note. This is what protects the lot later.
 4. Close the inspection, **Print reception ticket**, get the driver's signature.
 
-**A car must not leave yet:** press **Hold**. A held car cannot be gated out until you **Release hold**. A held car is also never deleted by the 12-month cleanup.
+**A car must not leave yet:** press **Hold** and write why (for example "damage dispute" or "customs"). The app records who put it on hold and when. A held car cannot be gated out until you **Release hold**. A held car is also never deleted by the 12-month cleanup.
 
 **A car leaves**
-1. Press **Out** and do the departure inspection if you want a record (not required by the app).
+1. Press **Out** and do the departure inspection: the walk-round photos again, and a damage photo with a note for anything new. **Close inspection**. The app does not let a car leave before this is closed.
 2. Press **Gate out**, enter the driver and truck, **Release car**. The release ticket opens: print it, get the driver's signature.
 
-**Correcting a mistake (Yard Admin or owner only):** press **Edit** on a car that is still in the lot to fix the VIN, model, year, colour, spot, driver, truck, keys, odometer or free days. The manufacturer and arrival time cannot be changed. Cars already released cannot be edited. The app does not keep a history of edits.
+**Correcting a mistake (Yard Admin or owner only):** press **Edit** on a car that is still in the lot to fix the VIN, model, year, colour, spot, driver, truck, keys, odometer or free days. The manufacturer and arrival time cannot be changed. Cars already released cannot be edited. Changing a VIN needs a reason.
 
-**Reprints:** **Ticket** and **Release ticket** buttons on the Cars list. A reprint still shows the person who handled the car, and who printed it.
+**History:** press **History** on any car to see every arrival, edit, hold, release of a hold and gate-out: who, when, what changed (old and new value) and why. Nobody can change or delete it.
+
+**Reprints:** **Ticket** (once the arrival inspection is closed) and **Release ticket** (for released cars, under **Released**) buttons on the Cars list. A reprint still shows the person who handled the car, and who printed it.
 
 ## Part 4. Good to know
 
