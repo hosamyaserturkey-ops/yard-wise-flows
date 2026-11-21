@@ -171,6 +171,7 @@ declare
   occ record;
   typed boolean;
   matched uuid;
+  may_override boolean;
 begin
   if tg_op = 'INSERT' then
     select yard_id, manufacturer_id into v from public.vehicles where id = new.vehicle_id;
@@ -264,9 +265,12 @@ begin
       -- One at a time per slot, so two phones can't both take its last place.
       perform pg_advisory_xact_lock(hashtextextended('car_lot.slot:' || loc.id::text, 0));
       select * into occ from private.lot_slot_occupants(loc.id, new.id);
-      if new.status in ('in-lot', 'on-hold') and occ.n >= loc.capacity and auth.uid() is not null
-         and not (private.car_lot_setting('override') = 'on'
-                  and (coalesce(is_super_admin(auth.uid()), false) or new.yard_id = private.lot_admin_yard())) then
+      -- coalesce everywhere: a NULL here would quietly skip the rule.
+      may_override := coalesce(private.car_lot_setting('override') = 'on', false)
+                      and (coalesce(is_super_admin(auth.uid()), false)
+                           or coalesce(new.yard_id = private.lot_admin_yard(), false));
+      if new.status in ('in-lot', 'on-hold') and occ.n >= loc.capacity
+         and auth.uid() is not null and not may_override then
         raise exception 'slot % is full: it holds %', loc.code, occ.vins;
       end if;
       new.lot_zone := loc.zone;
@@ -277,7 +281,8 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- 5. History trigger: 'move' when only the place changed; how and where from
+-- 5. History trigger: 'move' for a move made with car_lot_move() (it says how the
+--    place was chosen); a place corrected through an edit stays an 'edit', as before
 -- ---------------------------------------------------------------------
 create or replace function private.vehicle_visits_history()
 returns trigger language plpgsql security definer set search_path = private, public as $$
@@ -297,7 +302,8 @@ begin
     when new.status = 'out' and old.status <> 'out' then 'gate_out'
     when new.status = 'on-hold' and old.status <> 'on-hold' then 'hold'
     when old.status = 'on-hold' and new.status <> 'on-hold' then 'release_hold'
-    when ch - array['lot_zone', 'lot_slot', 'location_id'] = '{}'::jsonb then 'move'
+    when private.car_lot_setting('via') is not null
+         and ch - array['lot_zone', 'lot_slot', 'location_id'] = '{}'::jsonb then 'move'
     else 'edit' end;
   why := case when act = 'hold' then new.hold_reason else private.car_lot_reason() end;
   insert into public.vehicle_events (actor, actor_name, visit_id, vehicle_id, yard_id, manufacturer_id, action, changes, reason, via, device)
