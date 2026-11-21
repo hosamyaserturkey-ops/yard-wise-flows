@@ -27,13 +27,21 @@
 -- ---------------------------------------------------------------------
 -- 1. Normalising slot names
 -- ---------------------------------------------------------------------
+-- A number without leading zeros, at least two digits: "7" -> "07", "007" -> "07",
+-- "112" -> "112", "0" -> "00". (lpad alone would CUT "112" to "11".)
+create or replace function private.lot_two_digits(_digits text)
+returns text language sql immutable set search_path = private, public as $$
+  select case when length(n) >= 2 then n else lpad(n, 2, '0') end
+    from (select ltrim(_digits, '0') as n) x;
+$$;
+
 -- One part of a slot name: trimmed, upper case; a number gets at least two
--- digits when asked ("7" -> "07", "007" -> "07", "112" -> "112").
+-- digits when asked.
 create or replace function private.lot_slot_part(_part text, _pad boolean)
 returns text language sql immutable set search_path = private, public as $$
   select case
     when nullif(btrim(_part), '') is null then null
-    when _pad and btrim(_part) ~ '^[0-9]+$' then lpad((btrim(_part)::bigint)::text, 2, '0')
+    when _pad and btrim(_part) ~ '^[0-9]+$' then private.lot_two_digits(btrim(_part))
     else upper(btrim(_part)) end;
 $$;
 
@@ -49,7 +57,7 @@ $$;
 -- "B3-7" and "b-03-07" all give "B-03-07". src/lib/lotSlots.ts has the same rule.
 create or replace function private.lot_spot_key(_text text)
 returns text language sql immutable set search_path = private, public as $$
-  select nullif(string_agg(case when t ~ '^[0-9]+$' then lpad(ltrim(t, '0'), 2, '0') else t end, '-' order by n), '')
+  select nullif(string_agg(case when t ~ '^[0-9]+$' then private.lot_two_digits(t) else t end, '-' order by n), '')
     from regexp_split_to_table(
            regexp_replace(regexp_replace(upper(coalesce(_text, '')), '([A-Z])([0-9])', '\1 \2', 'g'),
                           '([0-9])([A-Z])', '\1 \2', 'g'),
@@ -436,6 +444,7 @@ end $$;
 -- 8. Who may call what
 -- ---------------------------------------------------------------------
 revoke all on function
+  private.lot_two_digits(text),
   private.lot_slot_part(text, boolean), private.lot_slot_code(text, text, text), private.lot_spot_key(text),
   private.lot_slot_occupants(uuid, uuid), private.lot_locations_guard(), private.car_lot_setting(text),
   public.car_lot_move(uuid, uuid, text, text, text, text, text),

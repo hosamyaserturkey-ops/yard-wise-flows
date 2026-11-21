@@ -207,7 +207,10 @@ select pg_temp.check('the helper functions are not callable by users', :'r' like
 select pg_temp.check('the typed-spot rule (same vectors as src/lib/__tests__/lotSlots.test.ts)',
   private.lot_spot_key('b 3 7') = 'B-03-07' and private.lot_spot_key('B3-7') = 'B-03-07' and private.lot_spot_key('b-03-07') = 'B-03-07'
   and private.lot_spot_key('Z10') = 'Z-10' and private.lot_spot_key('receiving') = 'RECEIVING' and private.lot_spot_key('007') = '07'
-  and private.lot_spot_key('0') = '00' and private.lot_spot_key('A/12.3') = 'A-12-03' and private.lot_spot_key('  ') is null);
+  and private.lot_spot_key('0') = '00' and private.lot_spot_key('A/12.3') = 'A-12-03' and private.lot_spot_key('  ') is null
+  and private.lot_spot_key('a 112') = 'A-112' and private.lot_spot_key('A-0100') = 'A-100');
+select pg_temp.check('three-digit slot numbers keep all their digits (A / 1 / 112 is A-01-112, not A-01-11)',
+  private.lot_slot_code('a', '1', '112') = 'A-01-112' and private.lot_slot_code('a', null, '0007') = 'A-07');
 
 -- ── server jobs are not held to the full-slot rule ──────────────────
 update public.vehicle_visits set location_id = :'s2' where id = :'C1';

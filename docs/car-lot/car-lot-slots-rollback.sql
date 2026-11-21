@@ -168,6 +168,7 @@ drop function if exists private.lot_slot_occupants(uuid, uuid);
 drop function if exists private.lot_spot_key(text);
 drop function if exists private.lot_slot_code(text, text, text);
 drop function if exists private.lot_slot_part(text, boolean);
+drop function if exists private.lot_two_digits(text);
 drop function if exists private.car_lot_setting(text);
 
 revoke all on function public.car_lot_edit_car(uuid, jsonb, jsonb, text) from public, anon, authenticated;
