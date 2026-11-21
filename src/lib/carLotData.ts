@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { VisitStatus } from "@/lib/carLot";
 import { inspectionState, type LotVisit } from "@/lib/carLotStats";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import type { LotSlot } from "@/lib/lotSlots";
 import { pairHolds, type HoldEvent, type LotHold, type LotReportVisit } from "@/lib/reports/carLotReportData";
 import { fetchNames } from "@/lib/reports/fetchReportData";
 
@@ -175,4 +176,69 @@ export async function loadLotReportData(
       reason: e.reason,
     }));
   return { visits, holds: pairHolds(holdEvents, visits) };
+}
+
+// ── slots and the cars in the lot, for Move, the lot map and Register ──
+
+const SLOT_COLUMNS = "id, zone, row_label, slot, code, kind, capacity, active";
+
+/** Every slot of the lot, in or out of use, by code. */
+export async function loadLotSlots(yardId: string): Promise<LotSlot[]> {
+  return fetchAllRows<LotSlot>((from, to) =>
+    supabase.from("lot_locations").select(SLOT_COLUMNS).eq("yard_id", yardId).order("code").order("id").range(from, to));
+}
+
+export interface OpenCar {
+  visitId: string;
+  ticketNumber: number;
+  vin: string;
+  model: string | null;
+  manufacturerCode: string;
+  manufacturerName: string;
+  locationId: string | null;
+  zone: string | null;
+  slot: string | null;
+  status: "in-lot" | "on-hold";
+  gateIn: Date;
+}
+
+interface OpenCarRow {
+  id: string;
+  ticket_number: number;
+  status: "in-lot" | "on-hold";
+  gate_in_time: string;
+  lot_zone: string | null;
+  lot_slot: string | null;
+  location_id: string | null;
+  vehicles: { vin: string; model: string | null } | null;
+  manufacturers: { code: string; name: string } | null;
+}
+
+/** The cars in the lot now (in the lot or on hold). */
+export async function loadOpenCars(yardId: string): Promise<OpenCar[]> {
+  const rows = await fetchAllRows<OpenCarRow>((from, to) =>
+    supabase.from("vehicle_visits")
+      .select("id, ticket_number, status, gate_in_time, lot_zone, lot_slot, location_id, vehicles(vin, model), manufacturers(code, name)")
+      .eq("yard_id", yardId).in("status", ["in-lot", "on-hold"])
+      .order("gate_in_time").order("id").range(from, to));
+  return rows.map((r) => ({
+    visitId: r.id,
+    ticketNumber: r.ticket_number,
+    vin: r.vehicles?.vin ?? "",
+    model: r.vehicles?.model ?? null,
+    manufacturerCode: r.manufacturers?.code ?? "",
+    manufacturerName: r.manufacturers?.name ?? "",
+    locationId: r.location_id,
+    zone: r.lot_zone,
+    slot: r.lot_slot,
+    status: r.status,
+    gateIn: new Date(r.gate_in_time),
+  }));
+}
+
+/** Cars in each slot now, by slot id. */
+export function carsPerSlot(cars: Pick<OpenCar, "locationId">[]): Map<string, number> {
+  const n = new Map<string, number>();
+  for (const c of cars) if (c.locationId) n.set(c.locationId, (n.get(c.locationId) ?? 0) + 1);
+  return n;
 }

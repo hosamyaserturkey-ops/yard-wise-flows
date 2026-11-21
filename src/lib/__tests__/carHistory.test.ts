@@ -18,3 +18,15 @@ describe("car history", () => {
     expect(eventChangeLines({ action: "edit", changes: null })).toEqual([]);
   });
 });
+
+describe("moves", () => {
+  it("are labelled, say how the place was chosen, and hide the slot's id", async () => {
+    const { eventLabel, eventHow, eventChangeLines } = await import("../carHistory");
+    expect(eventLabel("move")).toBe("Moved");
+    expect(eventHow({ via: "scan", device: "device-7f3a" })).toBe("scanned, on device-7f3a");
+    expect(eventHow({ via: "typed", device: null })).toBe("typed");
+    expect(eventHow({ via: null, device: null })).toBe("");
+    expect(eventChangeLines({ action: "move", changes: { lot_zone: [null, "A"], lot_slot: [null, "01-01"], location_id: [null, "x"] } }))
+      .toEqual(["Zone: — → A", "Slot: — → 01-01"]);
+  });
+});

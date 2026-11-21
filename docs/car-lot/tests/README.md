@@ -30,3 +30,38 @@ database `run-local.sh` builds, after applying `20261115000000_car_lot_retention
 that migration:
 
     psql -X -d carlot_test -f history.sql
+
+## Slots, scan-to-move and the full-slot rule
+
+`slots.sql` tests `supabase/migrations/20261121180000_car_lot_slots.sql` (60 checks, as real
+signed-in users, rolled back at the end):
+- who may add and see slots;
+- normalised names and look-alike codes;
+- moving by scan, from the list, or typed;
+- the full-slot rule, including when the code is typed, a direct update, or a hand-set override flag;
+- overrides (admin or owner only, with a reason);
+- slots of another lot or out of use;
+- slots with cars in them;
+- released cars;
+- `car_lot_edit_car()`;
+- the history, and the typed-spot rule's test vectors (shared with `src/lib/__tests__/lotSlots.test.ts`).
+
+## Quick run without a production export
+
+`run-base.sh` builds a small base (`replica/test-base.sql`: production's pre-car-lot `yards`,
+`profiles` and `user_roles` with their policies, plus the helpers the car lot builds on, read from
+production on 2026-11-21). It then applies the car-lot files in production's order and the
+fixtures, and runs `slots.sql`, `history.sql`, `retention.sql` (with a throwaway token in the
+local database only) and `rls-matrix.sql`:
+
+    PGHOST=... PGPORT=... PGUSER=postgres docs/car-lot/tests/run-base.sh
+
+Results on 2026-11-21:
+- `slots.sql` 60/60;
+- `history.sql` 41/41;
+- `retention.sql` 36/36;
+- `rls-matrix.sql` 107/108. The one failure is check 102, "owner reads all containers": it needs container data this base doesn't hold and passes on a full replica.
+- `--without-slots` gives the same history / retention / matrix results, so the migration changes none of them.
+- The rollback (`../car-lot-slots-rollback.sql`) was tested on this base:
+  - it refuses once a car has a slot;
+  - otherwise it leaves nothing behind, and the visit guard, history trigger and `car_lot_edit_car()` are byte-identical to before.

@@ -3,6 +3,7 @@ import {
   BarChart3, Container, Ship, FileText, Calendar, Anchor,
   Calculator, Users, Building2, ClipboardCheck, LogOut, ShieldCheck, Crown,
   MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark, Factory, Car, LayoutDashboard, FileSpreadsheet,
+  MoveRight, Map as MapIcon, Grid3x3,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -58,14 +59,18 @@ const INSPECTOR_ONLY = [
 // The car lot has its own, shorter menu: the container screens do not apply there.
 const CAR_LOT_NAV = [
   { href: "/cars", label: "Cars", icon: Car },
+  { href: "/cars/move", label: "Move a car", icon: MoveRight },
+  { href: "/cars/map", label: "Lot map", icon: MapIcon },
   { href: "/cars/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/cars/reports", label: "Reports", icon: FileSpreadsheet },
 ];
 const CAR_LOT_ADMIN_NAV = [
+  { href: "/cars/slots", label: "Slots", icon: Grid3x3 },
   { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory },
   { href: "/admin/users", label: "Users", icon: Users },
 ];
 const CAR_LOT_SUPER_NAV = [
+  { href: "/cars/slots", label: "Slots", icon: Grid3x3 },
   { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory },
   { href: "/admin/yards", label: "Yards", icon: Building2 },
   { href: "/admin/users", label: "Users", icon: Users },

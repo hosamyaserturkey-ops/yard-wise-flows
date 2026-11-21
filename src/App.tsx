@@ -30,6 +30,9 @@ const Manufacturers = lazy(() => import("./pages/Manufacturers"));
 const Cars = lazy(() => import("./pages/Cars"));
 const CarLotOverview = lazy(() => import("./pages/CarLotOverview"));
 const CarLotReports = lazy(() => import("./pages/CarLotReports"));
+const CarMove = lazy(() => import("./pages/CarMove"));
+const CarSlots = lazy(() => import("./pages/CarSlots"));
+const CarLotMap = lazy(() => import("./pages/CarLotMap"));
 const Inspection = lazy(() => import("./pages/Inspection"));
 const PortalLayout = lazy(() => import("./pages/portal/PortalLayout"));
 const PortalStock = lazy(() => import("./pages/portal/PortalStock"));
@@ -144,6 +147,21 @@ const App = () => (
                 <Route path="cars/reports" element={
                   <ProtectedRoute>
                     <CarLotReports />
+                  </ProtectedRoute>
+                } />
+                <Route path="cars/move" element={
+                  <ProtectedRoute>
+                    <CarMove />
+                  </ProtectedRoute>
+                } />
+                <Route path="cars/slots" element={
+                  <ProtectedRoute>
+                    <CarSlots />
+                  </ProtectedRoute>
+                } />
+                <Route path="cars/map" element={
+                  <ProtectedRoute>
+                    <CarLotMap />
                   </ProtectedRoute>
                 } />
                 <Route path="cars/:visitId/inspect/:phase" element={

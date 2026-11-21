@@ -593,6 +593,59 @@ export type Database = {
           },
         ]
       }
+      lot_locations: {
+        Row: {
+          active: boolean
+          capacity: number
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          match_key: string
+          row_label: string | null
+          slot: string | null
+          yard_id: string
+          zone: string
+        }
+        Insert: {
+          active?: boolean
+          capacity?: number
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          match_key?: string
+          row_label?: string | null
+          slot?: string | null
+          yard_id: string
+          zone: string
+        }
+        Update: {
+          active?: boolean
+          capacity?: number
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          match_key?: string
+          row_label?: string | null
+          slot?: string | null
+          yard_id?: string
+          zone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lot_locations_yard_id_fkey"
+            columns: ["yard_id"]
+            isOneToOne: false
+            referencedRelation: "yards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       manufacturers: {
         Row: {
           active: boolean
@@ -964,10 +1017,12 @@ export type Database = {
           actor_name: string | null
           at: string
           changes: Json
+          device: string | null
           id: number
           manufacturer_id: string
           reason: string | null
           vehicle_id: string
+          via: string | null
           visit_id: string | null
           yard_id: string
         }
@@ -977,10 +1032,12 @@ export type Database = {
           actor_name?: string | null
           at?: string
           changes?: Json
+          device?: string | null
           id?: never
           manufacturer_id: string
           reason?: string | null
           vehicle_id: string
+          via?: string | null
           visit_id?: string | null
           yard_id: string
         }
@@ -990,10 +1047,12 @@ export type Database = {
           actor_name?: string | null
           at?: string
           changes?: Json
+          device?: string | null
           id?: never
           manufacturer_id?: string
           reason?: string | null
           vehicle_id?: string
+          via?: string | null
           visit_id?: string | null
           yard_id?: string
         }
@@ -1026,6 +1085,7 @@ export type Database = {
           id: string
           is_running: boolean | null
           key_count: number | null
+          location_id: string | null
           lot_slot: string | null
           lot_zone: string | null
           manufacturer_id: string
@@ -1056,6 +1116,7 @@ export type Database = {
           id?: string
           is_running?: boolean | null
           key_count?: number | null
+          location_id?: string | null
           lot_slot?: string | null
           lot_zone?: string | null
           manufacturer_id?: string
@@ -1086,6 +1147,7 @@ export type Database = {
           id?: string
           is_running?: boolean | null
           key_count?: number | null
+          location_id?: string | null
           lot_slot?: string | null
           lot_zone?: string | null
           manufacturer_id?: string
@@ -1099,6 +1161,13 @@ export type Database = {
           yard_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vehicle_visits_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "lot_locations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vehicle_visits_manufacturer_id_fkey"
             columns: ["manufacturer_id"]
@@ -1204,6 +1273,18 @@ export type Database = {
       car_lot_edit_car: {
         Args: { _reason?: string; _vehicle: Json; _visit: Json; _visit_id: string }
         Returns: undefined
+      }
+      car_lot_move: {
+        Args: {
+          _device?: string
+          _location_id?: string
+          _override_reason?: string
+          _slot?: string
+          _via?: string
+          _visit_id: string
+          _zone?: string
+        }
+        Returns: string
       }
       container_for_gate_in: {
         Args: {
