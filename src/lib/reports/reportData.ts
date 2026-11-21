@@ -142,14 +142,14 @@ function yardLabel(ids: string[], ctx: ReportContext): string {
   return `All yards (${ids.length})`;
 }
 
-function fileName(kind: string, ids: string[], ctx: ReportContext): string {
+export function fileName(kind: string, ids: string[], ctx: ReportContext): string {
   const known = Object.values(ctx.yardCodes);
   const single = ids.length === 1 ? ctx.yardCodes[ids[0]] : ids.length === 0 && known.length === 1 ? known[0] : undefined;
   const code = ids.length > 1 ? "ALL" : (single || "Yard").toUpperCase();
   return `${code}_${kind}_${dayKey(ctx.now)}.xlsx`;
 }
 
-function baseMeta(ctx: ReportContext, yard: string, extra: [string, string][]): [string, string][] {
+export function baseMeta(ctx: ReportContext, yard: string, extra: [string, string][]): [string, string][] {
   const meta: [string, string][] = [["Yard", yard], ...extra];
   meta.push(["Filters", ctx.filtersLabel || "None"]);
   meta.push(["Generated", fmtStamp(ctx.now) + (ctx.generatedBy ? ` by ${ctx.generatedBy}` : "")]);

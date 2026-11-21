@@ -26,6 +26,8 @@ const ROUTE_LABELS: Record<string, string> = {
   "/admin/yards":  "Yards",
   "/admin/manufacturers": "Manufacturers",
   "/cars":         "Cars",
+  "/cars/overview": "Car lot overview",
+  "/cars/reports": "Car lot reports",
   "/inspector":    "Inspect",
   "/activity":     "Activity",
   "/yard-map":     "Yard Map",
