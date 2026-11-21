@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useYardKind } from "@/hooks/useYardKind";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
-import { Car, ClipboardCheck, History, LogOut, Pencil, PauseCircle, PlayCircle, Plus } from "lucide-react";
+import { Car, ClipboardCheck, History, LogOut, Pencil, PauseCircle, PlayCircle, Plus, Printer } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/PageHeader";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -50,6 +50,10 @@ interface MfrOption { id: string; code: string; name: string; }
 /** The database lets a car leave only once its departure inspection is closed. */
 const departureClosed = (r: VisitRow): boolean =>
   (r.vehicle_inspections ?? []).some((i) => i.phase === "gate_out" && i.status === "closed");
+
+/** The reception ticket carries the arrival condition, so it prints once that inspection is closed. */
+const arrivalClosed = (r: VisitRow): boolean =>
+  (r.vehicle_inspections ?? []).some((i) => i.phase === "gate_in" && i.status === "closed");
 
 type Tab = "open" | "out";
 
@@ -143,6 +147,16 @@ const Cars = () => {
         <Button size="sm" variant="outline" onClick={() => openHistory(r)}>
           <History className="h-3.5 w-3.5 mr-1" /> History
         </Button>
+        {canWrite && arrivalClosed(r) && (
+          <Button size="sm" variant="outline" onClick={() => reprint(r.id, "gate_in")}>
+            <Printer className="h-3.5 w-3.5 mr-1" /> Ticket
+          </Button>
+        )}
+        {canWrite && r.status === "out" && (
+          <Button size="sm" variant="outline" onClick={() => reprint(r.id, "gate_out")}>
+            <Printer className="h-3.5 w-3.5 mr-1" /> Release ticket
+          </Button>
+        )}
         {canEdit && tab === "open" && (
           <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
             <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
@@ -306,6 +320,11 @@ const Cars = () => {
       win.close();
       toast({ title: "Ticket not printed", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
     }
+  };
+
+  /** A reprint from the list; the window opens straight from the click, as pop-up rules require. */
+  const reprint = (visitId: string, kind: CarTicketKind) => {
+    void printTicket(visitId, kind, openTicketWindow(), true);
   };
 
   const gateOut = async () => {
