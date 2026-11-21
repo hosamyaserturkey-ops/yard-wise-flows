@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedActions, daysInLot, daysOverFree, gateInErrorMessage } from "../carLot";
+import { allowedActions, carActionErrorMessage, daysInLot, daysOverFree, gateInErrorMessage, gateOutBlockedReason } from "../carLot";
 
 describe("daysInLot", () => {
   const now = new Date("2026-11-10T12:00:00Z");
@@ -63,5 +63,30 @@ describe("gateInErrorMessage", () => {
 
   it("passes any other message through", () => {
     expect(gateInErrorMessage({ message: "something else" })).toBe("something else");
+  });
+});
+
+describe("gate-out needs a closed departure inspection", () => {
+  it("is blocked while the departure inspection is not closed", () => {
+    expect(allowedActions("in-lot", false).gateOut).toBe(false);
+    expect(allowedActions("in-lot", true).gateOut).toBe(true);
+    expect(allowedActions("on-hold", true).gateOut).toBe(false);
+  });
+  it("says why the button is disabled", () => {
+    expect(gateOutBlockedReason("in-lot", false)).toMatch(/departure inspection/);
+    expect(gateOutBlockedReason("on-hold", true)).toMatch(/Release the hold/);
+    expect(gateOutBlockedReason("in-lot", true)).toBeUndefined();
+  });
+});
+
+describe("carActionErrorMessage", () => {
+  it("turns the database rules into plain messages", () => {
+    expect(carActionErrorMessage({ message: "close the departure inspection before gate-out" })).toMatch(/Close the departure inspection/);
+    expect(carActionErrorMessage({ message: "a reason is required to put a car on hold" })).toMatch(/why the car is put on hold/);
+    expect(carActionErrorMessage({ message: "a reason is required to change a VIN" })).toMatch(/why the VIN/);
+    expect(carActionErrorMessage({ message: "a released car cannot be edited" })).toMatch(/already left/);
+    expect(carActionErrorMessage({ code: "42501", message: "only the car lot's admin or the owner can edit a car" })).toMatch(/Only the car lot's admin/);
+    expect(carActionErrorMessage({ code: "23505", message: "duplicate key" })).toMatch(/already registered/);
+    expect(carActionErrorMessage({ message: "other" })).toBe("other");
   });
 });

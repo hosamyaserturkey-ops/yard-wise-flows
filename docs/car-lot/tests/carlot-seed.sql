@@ -7,6 +7,7 @@
 --   vehicle A1 / B1 ....................... ee000000-...-0000000000a1 / ...b1
 --   visit A1 / B1 ......................... ef000000-...-0000000000a1 / ...b1
 --   inspection A1 (OPEN) / B1 (CLOSED) .... f1000000-...-0000000000a1 / ...b1
+--   departure inspection A1 (CLOSED) ...... f1000000-...-0000000000a3
 \set ON_ERROR_STOP 1
 select id as lot from public.yards where code = 'evl-cars' \gset
 
@@ -40,6 +41,10 @@ insert into public.:photos (inspection_id, angle, storage_path, taken_by) values
   ('f1000000-0000-0000-0000-0000000000b1', 'front', 'bbbbbbbb-0000-0000-0000-00000000000b/ee000000-0000-0000-0000-0000000000b1/f1000000-0000-0000-0000-0000000000b1/front.jpg', '22222222-0000-0000-0000-000000000002');
 -- close B1's gate-in inspection
 update public.vehicle_inspections set status = 'closed' where id = 'f1000000-0000-0000-0000-0000000000b1';
+-- A1 also has a CLOSED departure inspection, so it may be gated out (B1 has none, so it may not)
+insert into public.vehicle_inspections (id, visit_id, phase, inspector_id) values
+  ('f1000000-0000-0000-0000-0000000000a3', 'ef000000-0000-0000-0000-0000000000a1', 'gate_out', '22222222-0000-0000-0000-000000000002');
+update public.vehicle_inspections set status = 'closed' where id = 'f1000000-0000-0000-0000-0000000000a3';
 -- a third car (manufacturer A) whose visit is ON HOLD, for the "no gate-out while on hold" test
 insert into public.vehicles (id, vin, manufacturer_id, yard_id, model) values
   ('ee000000-0000-0000-0000-0000000000a2', 'JTDKB20U093000003', 'aaaaaaaa-0000-0000-0000-00000000000a', :'lot', 'Model A');

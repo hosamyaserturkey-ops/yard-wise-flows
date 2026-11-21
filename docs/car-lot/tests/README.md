@@ -21,3 +21,12 @@ The replica is the production schema plus small stand-ins for Supabase's `auth` 
 ## On a Supabase staging project or branch
 
 `carlot-seed.sql` and `rls-matrix.sql` also run in the SQL editor of a **non-production** project after the migration (they insert test users into `auth.users`). Set the `photos` variable by replacing `:photos` / `:'photos'` with `vehicle_inspection_photos` when not using psql. Never run them on production.
+
+## History, hold reason and the gate-out rule
+
+`history.sql` tests `supabase/migrations/20261121000000_car_lot_history_hold_gateout.sql`
+(41 checks, every step as a real signed-in user, rolled back at the end). Run it on the
+database `run-local.sh` builds, after applying `20261115000000_car_lot_retention.sql` and
+that migration:
+
+    psql -X -d carlot_test -f history.sql

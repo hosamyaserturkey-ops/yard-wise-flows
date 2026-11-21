@@ -12,15 +12,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { useYardKind } from "@/hooks/useYardKind";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
-import { Car, ClipboardCheck, LogOut, PauseCircle, PlayCircle, Plus, Printer } from "lucide-react";
+import { Car, ClipboardCheck, History, LogOut, Pencil, PauseCircle, PlayCircle, Plus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/PageHeader";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { normalizeVin, validateVin } from "@/lib/vin";
 import {
-  VISIT_STATUS_LABEL, allowedActions, daysInLot, daysOverFree, gateInErrorMessage, type VisitStatus,
+  VISIT_STATUS_LABEL, allowedActions, carActionErrorMessage, daysInLot, daysOverFree, gateInErrorMessage,
+  gateOutBlockedReason, type VisitStatus,
 } from "@/lib/carLot";
 import { openTicketWindow, printCarTicket, type CarTicketKind } from "@/lib/carTicket";
 import { loadCarTicket } from "@/lib/carTicketData";
+import { carEditChanges, formFromCar, hasChanges, validateCarEdit, type CarEditForm } from "@/lib/carEdit";
+import { eventChangeLines, eventLabel, type CarEvent } from "@/lib/carHistory";
 
 interface VisitRow {
   id: string;
@@ -31,10 +35,21 @@ interface VisitRow {
   lot_slot: string | null;
   free_days: number;
   ticket_number: number;
+  driver_name: string | null;
+  truck_number: string | null;
+  odometer_in: number | null;
+  key_count: number | null;
+  hold_reason: string | null;
+  held_at: string | null;
+  vehicle_inspections: { phase: string; status: string }[] | null;
   vehicles: { id: string; vin: string; model: string | null; model_year: number | null; color: string | null } | null;
   manufacturers: { code: string; name: string } | null;
 }
 interface MfrOption { id: string; code: string; name: string; }
+
+/** The database lets a car leave only once its departure inspection is closed. */
+const departureClosed = (r: VisitRow): boolean =>
+  (r.vehicle_inspections ?? []).some((i) => i.phase === "gate_out" && i.status === "closed");
 
 type Tab = "open" | "out";
 
@@ -54,9 +69,11 @@ const textOrNull = (v: string): string | null => v.trim() || null;
 /** The car lot's main screen: cars in the lot, register a car, hold/release, gate out. */
 const Cars = () => {
   const { toast } = useToast();
-  const { isReadOnlyAdmin, profile } = useAuth();
+  const { isReadOnlyAdmin, isAdmin, profile } = useAuth();
   const { yardId, isCarLot } = useYardKind();
   const canWrite = !isReadOnlyAdmin();
+  // Correcting a car is for the car lot's admin and the owner (the database allows more; the screen offers less).
+  const canEdit = isAdmin();
 
   const [tab, setTab] = useState<Tab>("open");
   const [rows, setRows] = useState<VisitRow[]>([]);
@@ -68,13 +85,20 @@ const Cars = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [outFor, setOutFor] = useState<VisitRow | null>(null);
   const [outForm, setOutForm] = useState(EMPTY_OUT);
+  const [editFor, setEditFor] = useState<VisitRow | null>(null);
+  const [editForm, setEditForm] = useState<CarEditForm | null>(null);
+  const [editReason, setEditReason] = useState("");
+  const [holdFor, setHoldFor] = useState<VisitRow | null>(null);
+  const [holdReason, setHoldReason] = useState("");
+  const [historyFor, setHistoryFor] = useState<VisitRow | null>(null);
+  const [history, setHistory] = useState<CarEvent[] | null>(null);
 
   const load = useCallback(async () => {
     if (!yardId) { setRows([]); setLoading(false); return; }
     setLoading(true);
     let query = supabase
       .from("vehicle_visits")
-      .select("id, status, gate_in_time, gate_out_time, lot_zone, lot_slot, free_days, ticket_number, vehicles(id, vin, model, model_year, color), manufacturers(code, name)")
+      .select("id, status, gate_in_time, gate_out_time, lot_zone, lot_slot, free_days, ticket_number, driver_name, truck_number, odometer_in, key_count, hold_reason, held_at, vehicle_inspections(phase, status), vehicles(id, vin, model, model_year, color), manufacturers(code, name)")
       .eq("yard_id", yardId)
       .order("gate_in_time", { ascending: false })
       .limit(500);
@@ -103,7 +127,9 @@ const Cars = () => {
 
   /** Inspect links for everyone; hold / release / gate-out for those who may write. */
   const renderActions = (r: VisitRow) => {
-    const can = allowedActions(r.status);
+    const closed = departureClosed(r);
+    const can = allowedActions(r.status, closed);
+    const blocked = gateOutBlockedReason(r.status, closed);
     return (
       <>
         <Button size="sm" variant="outline" asChild>
@@ -114,20 +140,28 @@ const Cars = () => {
             <Link to={`/cars/${r.id}/inspect/gate_out`}><ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Out</Link>
           </Button>
         )}
+        <Button size="sm" variant="outline" onClick={() => openHistory(r)}>
+          <History className="h-3.5 w-3.5 mr-1" /> History
+        </Button>
+        {canEdit && tab === "open" && (
+          <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
+            <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+          </Button>
+        )}
         {canWrite && tab === "open" && (
           <>
             {can.hold && (
-              <Button size="sm" variant="outline" onClick={() => setStatus(r, "on-hold")}>
+              <Button size="sm" variant="outline" onClick={() => { setHoldFor(r); setHoldReason(""); }}>
                 <PauseCircle className="h-3.5 w-3.5 mr-1" /> Hold
               </Button>
             )}
             {can.release && (
-              <Button size="sm" variant="outline" onClick={() => setStatus(r, "in-lot")}>
+              <Button size="sm" variant="outline" onClick={() => releaseHold(r)}>
                 <PlayCircle className="h-3.5 w-3.5 mr-1" /> Release hold
               </Button>
             )}
             <Button size="sm" variant="outline" disabled={!can.gateOut}
-              title={can.gateOut ? undefined : "Release the hold before gate-out"}
+              title={blocked}
               onClick={() => { setOutFor(r); setOutForm(EMPTY_OUT); }}>
               <LogOut className="h-3.5 w-3.5 mr-1" /> Gate out
             </Button>
@@ -191,11 +225,75 @@ const Cars = () => {
     }
   };
 
-  const setStatus = async (row: VisitRow, status: VisitStatus) => {
-    const { error } = await supabase.from("vehicle_visits").update({ status }).eq("id", row.id);
-    if (error) { toast({ title: "Not saved", description: error.message, variant: "destructive" }); return; }
-    toast({ title: status === "on-hold" ? "Car put on hold" : "Hold released" });
+  const putOnHold = async () => {
+    if (!holdFor) return;
+    const reason = holdReason.trim();
+    if (!reason) { toast({ title: "Write a reason", description: "Say why the car is put on hold.", variant: "destructive" }); return; }
+    setBusy(true);
+    // The database records who put it on hold and when.
+    const { error } = await supabase.from("vehicle_visits").update({ status: "on-hold", hold_reason: reason }).eq("id", holdFor.id);
+    setBusy(false);
+    if (error) { toast({ title: "Not saved", description: carActionErrorMessage(error), variant: "destructive" }); return; }
+    toast({ title: "Car put on hold", description: holdFor.vehicles?.vin });
+    setHoldFor(null);
     load();
+  };
+
+  const releaseHold = async (row: VisitRow) => {
+    const { error } = await supabase.from("vehicle_visits").update({ status: "in-lot" }).eq("id", row.id);
+    if (error) { toast({ title: "Not saved", description: carActionErrorMessage(error), variant: "destructive" }); return; }
+    toast({ title: "Hold released", description: row.vehicles?.vin });
+    load();
+  };
+
+  const openHistory = async (r: VisitRow) => {
+    setHistoryFor(r);
+    setHistory(null);
+    const { data, error } = await supabase
+      .from("vehicle_events")
+      .select("id, at, actor_name, action, changes, reason")
+      .eq("visit_id", r.id)
+      .order("at", { ascending: true })
+      .order("id", { ascending: true });
+    if (error) { toast({ title: "History not loaded", description: error.message, variant: "destructive" }); setHistoryFor(null); return; }
+    setHistory((data ?? []) as unknown as CarEvent[]);
+  };
+
+  const openEdit = (r: VisitRow) => {
+    if (!r.vehicles) return;
+    setEditFor(r);
+    setEditReason("");
+    setEditForm(formFromCar({ ...r.vehicles, lot_zone: r.lot_zone, lot_slot: r.lot_slot, odometer_in: r.odometer_in, key_count: r.key_count, driver_name: r.driver_name, truck_number: r.truck_number, free_days: r.free_days }));
+  };
+
+  const saveEdit = async () => {
+    if (!editFor?.vehicles || !editForm) return;
+    const invalid = validateCarEdit(editForm);
+    if (invalid) { toast({ title: "Check the form", description: invalid, variant: "destructive" }); return; }
+    const original = formFromCar({ ...editFor.vehicles, lot_zone: editFor.lot_zone, lot_slot: editFor.lot_slot, odometer_in: editFor.odometer_in, key_count: editFor.key_count, driver_name: editFor.driver_name, truck_number: editFor.truck_number, free_days: editFor.free_days });
+    const changes = carEditChanges(original, editForm);
+    if (!hasChanges(changes)) { setEditFor(null); return; }
+    const reason = editReason.trim();
+    if (changes.vehicle.vin !== undefined && !reason) {
+      toast({ title: "Write a reason", description: "Say why the VIN is being changed.", variant: "destructive" }); return;
+    }
+    setBusy(true);
+    try {
+      // One call: the car and its visit are saved together or not at all, and the change is recorded in the history.
+      const { error } = await supabase.rpc("car_lot_edit_car", {
+        _visit_id: editFor.id, _vehicle: changes.vehicle, _visit: changes.visit, _reason: reason || undefined,
+      });
+      if (error) throw error;
+      toast({ title: "Car updated", description: normalizeVin(editForm.vin) });
+      setEditFor(null);
+      setEditForm(null);
+      load();
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      toast({ title: "Not saved", description: carActionErrorMessage({ code: err.code, message: err.message ?? "Unknown error" }), variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
   };
 
   /** Prints a ticket. The window opens at the click (pop-up rules), the data loads after. */
@@ -222,7 +320,7 @@ const Cars = () => {
       odometer_out: intOrNull(outForm.odometer),
     }).eq("id", outFor.id);
     setBusy(false);
-    if (error) { ticketWindow?.close(); toast({ title: "Not released", description: error.message, variant: "destructive" }); return; }
+    if (error) { ticketWindow?.close(); toast({ title: "Not released", description: carActionErrorMessage(error), variant: "destructive" }); return; }
     toast({ title: "Car released", description: outFor.vehicles?.vin });
     const releasedId = outFor.id;
     setOutFor(null);
@@ -274,7 +372,7 @@ const Cars = () => {
           ) : (
             <>
             {/* Phones: one card per car, so Status and the buttons are never off-screen. */}
-            <div className="space-y-3 2xl:hidden">
+            <div className="space-y-3 min-[1800px]:hidden">
               {shown.map((r) => {
                 const days = daysInLot(r.gate_in_time, now, r.gate_out_time);
                 const over = daysOverFree(days, r.free_days);
@@ -290,6 +388,12 @@ const Cars = () => {
                       {over > 0 && r.status !== "out" && <span className="text-warning"> (+{over} over free)</span>}
                       {(r.lot_zone || r.lot_slot) && <> · spot {[r.lot_zone, r.lot_slot].filter(Boolean).join(" / ")}</>}
                     </p>
+                    {r.status === "on-hold" && r.hold_reason && (
+                      <p className="text-xs rounded bg-warning/10 px-2 py-1 break-words">
+                        <span className="font-medium">On hold:</span> {r.hold_reason}
+                        {r.held_at && <span className="text-muted-foreground"> · since {formatDate(r.held_at)}</span>}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-2 pt-1 [&_button]:min-h-10 [&_a]:min-h-10">{renderActions(r)}</div>
                   </div>
                 );
@@ -300,7 +404,7 @@ const Cars = () => {
                 </p>
               )}
             </div>
-            <Table className="hidden 2xl:table">
+            <Table className="hidden min-[1800px]:table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Ticket</TableHead>
@@ -318,7 +422,6 @@ const Cars = () => {
                 {shown.map((r) => {
                   const days = daysInLot(r.gate_in_time, now, r.gate_out_time);
                   const over = daysOverFree(days, r.free_days);
-                  const can = allowedActions(r.status);
                   return (
                     <TableRow key={r.id}>
                       <TableCell>{r.ticket_number}</TableCell>
@@ -333,6 +436,9 @@ const Cars = () => {
                       </TableCell>
                       <TableCell>
                         <Badge variant={r.status === "on-hold" ? "outline" : "secondary"}>{VISIT_STATUS_LABEL[r.status]}</Badge>
+                        {r.status === "on-hold" && r.hold_reason && (
+                          <p className="mt-1 max-w-[16rem] text-xs text-muted-foreground break-words" title={r.hold_reason}>{r.hold_reason}</p>
+                        )}
                       </TableCell>
                       <TableCell className="text-right space-x-2 whitespace-nowrap">
                         {renderActions(r)}
@@ -383,6 +489,85 @@ const Cars = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRegisterOpen(false)}>Cancel</Button>
             <Button onClick={register} disabled={busy}>{busy ? "Registering…" : "Register car"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editFor} onOpenChange={(open) => { if (!open) { setEditFor(null); setEditForm(null); } }}>
+        {/* Do not jump into the VIN box: its text would be selected, and one keystroke would replace it. */}
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader><DialogTitle>Edit car</DialogTitle></DialogHeader>
+          {editForm && editFor && (
+            <div className="grid grid-cols-2 gap-3 py-2">
+              <div className="col-span-2 text-sm text-muted-foreground">
+                {editFor.manufacturers?.name} · ticket {editFor.ticket_number}. The manufacturer and the arrival time cannot be changed.
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label>VIN</Label>
+                <Input className="font-mono" value={editForm.vin} maxLength={20} onChange={(e) => setEditForm({ ...editForm, vin: e.target.value.toUpperCase() })} />
+                <p className="text-xs text-muted-foreground">Correct a typing mistake only. Tickets already printed keep showing the old VIN.</p>
+              </div>
+              <div className="space-y-1"><Label>Model</Label><Input value={editForm.model} onChange={(e) => setEditForm({ ...editForm, model: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Year</Label><Input inputMode="numeric" value={editForm.model_year} onChange={(e) => setEditForm({ ...editForm, model_year: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Colour</Label><Input value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Free days</Label><Input inputMode="numeric" value={editForm.free_days} onChange={(e) => setEditForm({ ...editForm, free_days: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Zone</Label><Input value={editForm.lot_zone} onChange={(e) => setEditForm({ ...editForm, lot_zone: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Slot</Label><Input value={editForm.lot_slot} onChange={(e) => setEditForm({ ...editForm, lot_slot: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Odometer at arrival (km)</Label><Input inputMode="numeric" value={editForm.odometer_in} onChange={(e) => setEditForm({ ...editForm, odometer_in: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Keys</Label><Input inputMode="numeric" value={editForm.key_count} onChange={(e) => setEditForm({ ...editForm, key_count: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Driver</Label><Input value={editForm.driver_name} onChange={(e) => setEditForm({ ...editForm, driver_name: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Truck number</Label><Input value={editForm.truck_number} onChange={(e) => setEditForm({ ...editForm, truck_number: e.target.value })} /></div>
+              <div className="col-span-2 space-y-1">
+                <Label>Reason {normalizeVin(editForm.vin) !== normalizeVin(editFor.vehicles?.vin ?? "") ? "(required: the VIN changes)" : "(optional)"}</Label>
+                <Input value={editReason} maxLength={300} onChange={(e) => setEditReason(e.target.value)} placeholder="e.g. VIN mistyped at the gate" />
+                <p className="text-xs text-muted-foreground">Every change is kept in the car's history with your name.</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditFor(null); setEditForm(null); }}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={busy}>{busy ? "Saving…" : "Save changes"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!holdFor} onOpenChange={(open) => { if (!open) setHoldFor(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Put {holdFor?.vehicles?.vin} on hold</DialogTitle></DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="hold-reason">Reason (required)</Label>
+            <Textarea id="hold-reason" value={holdReason} maxLength={500} rows={3}
+              onChange={(e) => setHoldReason(e.target.value)} placeholder="e.g. Damage dispute, customs, unpaid fees" />
+            <p className="text-xs text-muted-foreground">A car on hold cannot be gated out until the hold is released.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHoldFor(null)}>Cancel</Button>
+            <Button onClick={putOnHold} disabled={busy || !holdReason.trim()}>{busy ? "Saving…" : "Put on hold"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!historyFor} onOpenChange={(open) => { if (!open) { setHistoryFor(null); setHistory(null); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>History · {historyFor?.vehicles?.vin}</DialogTitle></DialogHeader>
+          {history === null ? (
+            <p className="text-muted-foreground py-2">Loading…</p>
+          ) : history.length === 0 ? (
+            <p className="text-muted-foreground py-2">No changes recorded yet. Changes are recorded from now on.</p>
+          ) : (
+            <ol className="space-y-3 py-2">
+              {history.map((e) => (
+                <li key={e.id} className="border-l-2 pl-3">
+                  <p className="text-sm font-medium">{eventLabel(e.action)}</p>
+                  <p className="text-xs text-muted-foreground">{formatDateTime(e.at)} · {e.actor_name ?? "System"}</p>
+                  {eventChangeLines(e).map((line) => <p key={line} className="text-sm break-words">{line}</p>)}
+                  {e.reason && <p className="text-sm break-words"><span className="text-muted-foreground">Reason:</span> {e.reason}</p>}
+                </li>
+              ))}
+            </ol>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setHistoryFor(null); setHistory(null); }}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
