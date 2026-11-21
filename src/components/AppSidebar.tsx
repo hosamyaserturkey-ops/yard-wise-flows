@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3, Container, Ship, FileText, Calendar, Anchor,
   Calculator, Users, Building2, ClipboardCheck, LogOut, ShieldCheck, Crown,
-  MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark, Factory, Car,
+  MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark, Factory, Car, LayoutDashboard,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -58,6 +58,7 @@ const INSPECTOR_ONLY = [
 // The car lot has its own, shorter menu: the container screens do not apply there.
 const CAR_LOT_NAV = [
   { href: "/cars", label: "Cars", icon: Car },
+  { href: "/cars/overview", label: "Overview", icon: LayoutDashboard },
 ];
 const CAR_LOT_ADMIN_NAV = [
   { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory },
@@ -77,6 +78,11 @@ const LINE_REP_NAV = [
   { href: "/bookings",   label: "Bookings",      icon: Calendar },
 ];
 
+const ALL_HREFS = [
+  ...OPS_NAV, ...ADMIN_NAV, ...SUPER_NAV, ...INSPECTOR_ONLY,
+  ...CAR_LOT_NAV, ...CAR_LOT_ADMIN_NAV, ...CAR_LOT_SUPER_NAV, ...LINE_REP_NAV,
+].map((item) => item.href);
+
 export function AppSidebar() {
   const location = useLocation();
   const { profile, signOut, isAdmin, isSuperAdmin, isInspector, isLineRep } = useAuth();
@@ -87,8 +93,12 @@ export function AppSidebar() {
   const lineRep    = isLineRep();
   const { isCarLot } = useYardKind();
 
-  const isActive = (href: string) =>
-    href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
+  // When one item's link starts another's (/cars and /cars/overview), only the longer one lights up.
+  const isActive = (href: string) => {
+    if (href === "/") return location.pathname === "/";
+    if (!location.pathname.startsWith(href)) return false;
+    return !ALL_HREFS.some((h) => h.length > href.length && h.startsWith(href) && location.pathname.startsWith(h));
+  };
 
   const NavItem = ({ href, label, icon: Icon }: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }) => (
     <SidebarMenuItem>

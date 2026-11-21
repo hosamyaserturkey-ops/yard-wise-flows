@@ -28,6 +28,7 @@ const UserManagement = lazy(() => import("./pages/UserManagement"));
 const Yards = lazy(() => import("./pages/Yards"));
 const Manufacturers = lazy(() => import("./pages/Manufacturers"));
 const Cars = lazy(() => import("./pages/Cars"));
+const CarLotOverview = lazy(() => import("./pages/CarLotOverview"));
 const Inspection = lazy(() => import("./pages/Inspection"));
 const PortalLayout = lazy(() => import("./pages/portal/PortalLayout"));
 const PortalStock = lazy(() => import("./pages/portal/PortalStock"));
@@ -132,6 +133,11 @@ const App = () => (
                 <Route path="cars" element={
                   <ProtectedRoute>
                     <Cars />
+                  </ProtectedRoute>
+                } />
+                <Route path="cars/overview" element={
+                  <ProtectedRoute>
+                    <CarLotOverview />
                   </ProtectedRoute>
                 } />
                 <Route path="cars/:visitId/inspect/:phase" element={

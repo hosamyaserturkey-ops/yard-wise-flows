@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useYardKind } from "@/hooks/useYardKind";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Car, ClipboardCheck, History, LogOut, Pencil, PauseCircle, PlayCircle, Plus, Printer } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/PageHeader";
@@ -82,7 +82,9 @@ const Cars = () => {
   const [tab, setTab] = useState<Tab>("open");
   const [rows, setRows] = useState<VisitRow[]>([]);
   const [mfrs, setMfrs] = useState<MfrOption[]>([]);
-  const [search, setSearch] = useState("");
+  // The Overview links to a car as /cars?q=<VIN>.
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
