@@ -6,7 +6,7 @@ The car lot is already live in the app; nothing here needs a developer.
 ## Part 1. Set up (owner, once)
 
 1. [ ] Sign in as the owner. At the top right, open the yard switcher and choose **Everest Logistics - Car Lot**.
-   The menu changes to **Cars**, **Manufacturers**, **Yards** and **Users**. (Choose "All yards" to go back to the container yard.)
+   The menu changes to **Cars**, **Overview**, **Reports**, **Manufacturers**, **Yards** and **Users**. (Choose "All yards" to go back to the container yard.)
 2. [ ] **Manufacturers > Add manufacturer** for each brand: a short code (2 to 10 letters or numbers, e.g. TOY, cannot be changed later), the name, and the free days (7 is the usual). The owner **or the car lot's own Yard Admin** can do this; only the owner creates a manufacturer's portal login (step 4).
 3. [ ] **Users > Create user** for the two staff. Pick the car-lot yard, and a role:
    - **User** (office): can register cars, gate them out, hold and release, take inspections, print tickets.
@@ -51,6 +51,8 @@ Use a made-up manufacturer, for example code **TEST**, name "Test Manufacturer".
 **Correcting a mistake (Yard Admin or owner only):** press **Edit** on a car that is still in the lot to fix the VIN, model, year, colour, spot, driver, truck, keys, odometer or free days. The manufacturer and arrival time cannot be changed. Cars already released cannot be edited. Changing a VIN needs a reason.
 
 **History:** press **History** on any car to see every arrival, edit, hold, release of a hold and gate-out: who, when, what changed (old and new value) and why. Nobody can change or delete it.
+
+**The lot at a glance:** **Overview** shows the cars in the lot, arrivals and releases (today and the last 30 days), cars on hold, cars past their free days, and cars whose arrival inspection is not closed yet, each a tap away. It updates itself every minute. **Reports** downloads Excel files: cars in the lot, movements (with a month-by-month summary), dwell time, damage and holds, for any period and manufacturer.
 
 **Reprints:** **Ticket** (once the arrival inspection is closed) and **Release ticket** (for released cars, under **Released**) buttons on the Cars list. A reprint still shows the person who handled the car, and who printed it.
 

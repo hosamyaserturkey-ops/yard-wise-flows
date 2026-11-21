@@ -80,7 +80,7 @@ async function fetchPayments(period: ReportContext["period"]) {
  * user id → display name. Best-effort: line reps cannot read the yard roster,
  * so an unreadable profile just leaves the operator column blank.
  */
-async function fetchNames(ids: string[]): Promise<Map<string, string>> {
+export async function fetchNames(ids: string[]): Promise<Map<string, string>> {
   const names = new Map<string, string>();
   const unique = Array.from(new Set(ids.filter(Boolean)));
   for (let i = 0; i < unique.length; i += 100) {

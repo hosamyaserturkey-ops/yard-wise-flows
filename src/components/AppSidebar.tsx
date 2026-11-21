@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3, Container, Ship, FileText, Calendar, Anchor,
   Calculator, Users, Building2, ClipboardCheck, LogOut, ShieldCheck, Crown,
-  MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark, Factory, Car, LayoutDashboard,
+  MapPin, Camera, Activity, KeyRound, Search, Wallet, Landmark, Factory, Car, LayoutDashboard, FileSpreadsheet,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -59,6 +59,7 @@ const INSPECTOR_ONLY = [
 const CAR_LOT_NAV = [
   { href: "/cars", label: "Cars", icon: Car },
   { href: "/cars/overview", label: "Overview", icon: LayoutDashboard },
+  { href: "/cars/reports", label: "Reports", icon: FileSpreadsheet },
 ];
 const CAR_LOT_ADMIN_NAV = [
   { href: "/admin/manufacturers", label: "Manufacturers", icon: Factory },
