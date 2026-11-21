@@ -1,6 +1,6 @@
 /** Turning rows of public.vehicle_events into lines a person can read. */
 
-export type CarEventAction = "gate_in" | "edit" | "hold" | "release_hold" | "gate_out";
+export type CarEventAction = "gate_in" | "edit" | "hold" | "release_hold" | "gate_out" | "move";
 
 export interface CarEvent {
   id: number;
@@ -9,6 +9,9 @@ export interface CarEvent {
   action: string;
   changes: Record<string, [unknown, unknown]> | null;
   reason: string | null;
+  /** For a move: how the place was chosen, and on which phone or PC. */
+  via?: string | null;
+  device?: string | null;
 }
 
 export const CAR_EVENT_LABEL: Record<CarEventAction, string> = {
@@ -17,7 +20,16 @@ export const CAR_EVENT_LABEL: Record<CarEventAction, string> = {
   hold: "Put on hold",
   release_hold: "Hold released",
   gate_out: "Left the lot (gate-out)",
+  move: "Moved",
 };
+
+const VIA_LABEL: Record<string, string> = { scan: "scanned", list: "picked from the list", typed: "typed" };
+
+/** "scanned, on device-7f3a" for a move; empty for every other event. */
+export function eventHow(e: Pick<CarEvent, "via" | "device">): string {
+  const how = e.via ? VIA_LABEL[e.via] ?? e.via : "";
+  return [how, e.device ? `on ${e.device}` : ""].filter(Boolean).join(", ");
+}
 
 const FIELD_LABEL: Record<string, string> = {
   vin: "VIN", model: "Model", model_year: "Year", color: "Colour",
@@ -27,8 +39,9 @@ const FIELD_LABEL: Record<string, string> = {
   free_days: "Free days", daily_rate: "Daily rate", fees: "Fees", gate_in_time: "Arrival time",
 };
 
-/** Fields not worth a line: status is the event itself, the hold reason has its own line. */
-const HIDDEN = new Set(["status", "hold_reason"]);
+/** Fields not worth a line: status is the event itself, the hold reason has its own line, and a
+ *  slot's id says nothing that its zone and slot lines don't. */
+const HIDDEN = new Set(["status", "hold_reason", "location_id"]);
 
 const show = (v: unknown): string => (v === null || v === undefined || v === "" ? "—" : String(v));
 
