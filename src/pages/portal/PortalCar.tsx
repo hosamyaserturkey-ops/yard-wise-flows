@@ -17,6 +17,7 @@ interface Vehicle { id: string; vin: string; model: string | null; model_year: n
 interface Visit {
   id: string; status: VisitStatus; ticket_number: number; gate_in_time: string; gate_out_time: string | null;
   lot_zone: string | null; lot_slot: string | null; free_days: number;
+  hold_reason: string | null;
 }
 interface Inspection {
   id: string; visit_id: string; phase: "gate_in" | "gate_out"; status: "open" | "closed";
@@ -48,7 +49,7 @@ const PortalCar = () => {
       const [v, vs] = await Promise.all([
         supabase.from("vehicles").select("id, vin, model, model_year, color").eq("id", vehicleId).maybeSingle(),
         supabase.from("vehicle_visits")
-          .select("id, status, ticket_number, gate_in_time, gate_out_time, lot_zone, lot_slot, free_days")
+          .select("id, status, ticket_number, gate_in_time, gate_out_time, lot_zone, lot_slot, free_days, hold_reason")
           .eq("vehicle_id", vehicleId).order("gate_in_time", { ascending: false }),
       ]);
       if (!live) return;
@@ -183,6 +184,11 @@ const PortalCar = () => {
               <div><dt className="text-xs text-muted-foreground">{t("car.daysStored")}</dt><dd>{daysInLot(visit.gate_in_time, now, visit.gate_out_time)}</dd></div>
               <div><dt className="text-xs text-muted-foreground">{t("car.spot")}</dt><dd dir="ltr" className="text-start">{[visit.lot_zone, visit.lot_slot].filter(Boolean).join(" / ") || t("common.none")}</dd></div>
             </dl>
+            {visit.status === "on-hold" && visit.hold_reason && (
+              <p className="rounded bg-warning/10 px-2 py-1 text-sm break-words">
+                <span className="font-medium">{t("car.holdReason")}:</span> {visit.hold_reason}
+              </p>
+            )}
             <h4 className="pt-1 text-sm font-semibold">{t("car.inspections")}</h4>
             {renderInspection(visit, "gate_in")}
             {renderInspection(visit, "gate_out")}

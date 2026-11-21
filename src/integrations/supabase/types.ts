@@ -957,6 +957,56 @@ export type Database = {
           },
         ]
       }
+      vehicle_events: {
+        Row: {
+          action: string
+          actor: string | null
+          actor_name: string | null
+          at: string
+          changes: Json
+          id: number
+          manufacturer_id: string
+          reason: string | null
+          vehicle_id: string
+          visit_id: string | null
+          yard_id: string
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          actor_name?: string | null
+          at?: string
+          changes?: Json
+          id?: never
+          manufacturer_id: string
+          reason?: string | null
+          vehicle_id: string
+          visit_id?: string | null
+          yard_id: string
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          actor_name?: string | null
+          at?: string
+          changes?: Json
+          id?: never
+          manufacturer_id?: string
+          reason?: string | null
+          vehicle_id?: string
+          visit_id?: string | null
+          yard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_events_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_visits: {
         Row: {
           created_at: string
@@ -970,6 +1020,9 @@ export type Database = {
           gate_out_time: string | null
           gate_out_truck_number: string | null
           gated_out_by: string | null
+          held_at: string | null
+          held_by: string | null
+          hold_reason: string | null
           id: string
           is_running: boolean | null
           key_count: number | null
@@ -997,6 +1050,9 @@ export type Database = {
           gate_out_time?: string | null
           gate_out_truck_number?: string | null
           gated_out_by?: string | null
+          held_at?: string | null
+          held_by?: string | null
+          hold_reason?: string | null
           id?: string
           is_running?: boolean | null
           key_count?: number | null
@@ -1024,6 +1080,9 @@ export type Database = {
           gate_out_time?: string | null
           gate_out_truck_number?: string | null
           gated_out_by?: string | null
+          held_at?: string | null
+          held_by?: string | null
+          hold_reason?: string | null
           id?: string
           is_running?: boolean | null
           key_count?: number | null
@@ -1141,6 +1200,10 @@ export type Database = {
       admin_edit_container: {
         Args: { _changes: Json; _reason: string; _visit_id: string }
         Returns: Json
+      }
+      car_lot_edit_car: {
+        Args: { _reason?: string; _vehicle: Json; _visit: Json; _visit_id: string }
+        Returns: undefined
       }
       container_for_gate_in: {
         Args: {

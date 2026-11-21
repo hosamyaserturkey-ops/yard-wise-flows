@@ -21,7 +21,7 @@ insert into tests (actor, label, kind, stmt, expected) values
 -- ── Manufacturer A rep ─────────────────────────────────────────────────
  ('mfa_rep','sees only A vehicles (total:A)',            'read',  $$select count(*)||':'||count(*) filter (where manufacturer_id='{A}') from public.vehicles$$, '2:2'),
  ('mfa_rep','sees only A visits',                        'read',  $$select count(*)||':'||count(*) filter (where manufacturer_id='{A}') from public.vehicle_visits$$, '2:2'),
- ('mfa_rep','sees only A inspections',                   'read',  $$select count(*)||':'||count(*) filter (where manufacturer_id='{A}') from public.vehicle_inspections$$, '1:1'),
+ ('mfa_rep','sees only A inspections',                   'read',  $$select count(*)||':'||count(*) filter (where manufacturer_id='{A}') from public.vehicle_inspections$$, '2:2'),
  ('mfa_rep','sees only A photo rows',                    'read',  $$select count(*)||':'||count(*) filter (where manufacturer_id='{A}') from public.{photos}$$, '1:1'),
  ('mfa_rep','sees only own manufacturer row',            'read',  $$select string_agg(code, ',') from public.manufacturers$$, 'MFA'),
  ('mfa_rep','B vehicle by id',                           'read',  $$select count(*) from public.vehicles where id='{VB1}'$$, '0'),
@@ -79,6 +79,7 @@ insert into tests (actor, label, kind, stmt, expected) values
  ('lot_office','open a visit (register car in)',         'write', $$with v as (insert into public.vehicles (vin, manufacturer_id, yard_id) values ('JTDKB20U093000012','{A}','{LOT}') returning id) insert into public.vehicle_visits (vehicle_id, created_by) select id, auth.uid() from v$$, 'ok:1'),
  ('lot_office','edit a visit',                           'write', $$update public.vehicle_visits set lot_zone='Z'$$, 'ok:3'),
  ('lot_office','gate out a car (decision 3)',          'read',  $$with u as (update public.vehicle_visits set status='out' where id='ef000000-0000-0000-0000-0000000000a1' returning gated_out_by, gate_out_time) select (select gated_out_by::text || ':' || (gate_out_time is not null)::text from u)$$, '22222222-0000-0000-0000-000000000003:true'),
+ ('lot_office','gate out a car with no closed departure inspection', 'write', $$update public.vehicle_visits set status='out' where id='ef000000-0000-0000-0000-0000000000b1'$$, 'blocked'),
  ('lot_office','gate out a car that is ON HOLD',         'write', $$update public.vehicle_visits set status='out' where id='ef000000-0000-0000-0000-0000000000a2'$$, 'blocked'),
  ('lot_office','get photo upload key',                    'read',  $$select public.vehicle_photo_upload_prefix('{IA1}')$$, 'aaaaaaaa-0000-0000-0000-00000000000a/ee000000-0000-0000-0000-0000000000a1/f1000000-0000-0000-0000-0000000000a1/'),
  ('lot_office','create manufacturer',                    'write', $$insert into public.manufacturers (yard_id, code, name) values ('{LOT}','MFD','D')$$, 'error'),
@@ -87,7 +88,7 @@ insert into tests (actor, label, kind, stmt, expected) values
 -- ── Read-only admin (belongs to the car-lot yard, sees only that yard) ──────────────────────────────────────────
  ('ro_admin','read own-yard vehicles',                        'read',  $$select count(*) from public.vehicles$$, '3'),
  ('ro_admin','read own-yard visits',                          'read',  $$select count(*) from public.vehicle_visits$$, '3'),
- ('ro_admin','read own-yard inspections',                     'read',  $$select count(*) from public.vehicle_inspections$$, '2'),
+ ('ro_admin','read own-yard inspections',                     'read',  $$select count(*) from public.vehicle_inspections$$, '3'),
  ('ro_admin','read own-yard photo rows',                      'read',  $$select count(*) from public.{photos}$$, '2'),
  ('ro_admin','read manufacturers',                       'read',  $$select count(*) from public.manufacturers$$, '2'),
  ('ro_admin','create vehicle',                           'write', $$insert into public.vehicles (vin, manufacturer_id, yard_id) values ('JTDKB20U093000011','{A}','{LOT}')$$, 'error'),
