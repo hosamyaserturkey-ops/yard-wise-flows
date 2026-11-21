@@ -213,6 +213,32 @@ export function buildLotMap(slots: LotSlot[], cars: MapCar[]): { zones: MapZone[
   return { zones: mapZones, unplaced: unplaced.sort((a, b) => b.days - a.days) };
 }
 
+/** Where a car is put at registration: a listed slot, a typed spot, or none yet. */
+export type SpotChoice =
+  | { kind: "slot"; slotId: string }
+  | { kind: "typed"; zone: string; slot: string }
+  | { kind: "none" };
+
+/**
+ * The place Register suggests: the first receiving slot with room. A lot
+ * without slots types the spot as before; with slots but no free receiving
+ * one, nothing is chosen for the user.
+ */
+export function defaultSpot(slots: LotSlot[], occupancy: Map<string, number>): SpotChoice {
+  if (!slots.some((s) => s.active)) return { kind: "typed", zone: "", slot: "" };
+  const receiving = slots
+    .filter((s) => s.active && s.kind === "receiving" && freePlaces(s, occupancy.get(s.id) ?? 0) > 0)
+    .sort((a, b) => byNatural(a.code, b.code))[0];
+  return receiving ? { kind: "slot", slotId: receiving.id } : { kind: "none" };
+}
+
+/** Places in each zone's slots in use, by zone: for "12 of 40" on the Overview. */
+export function placesByZone(slots: Pick<LotSlot, "zone" | "capacity" | "active">[]): Map<string, number> {
+  const places = new Map<string, number>();
+  for (const s of slots) if (s.active) places.set(s.zone, (places.get(s.zone) ?? 0) + s.capacity);
+  return places;
+}
+
 /** Free places left in a slot (never negative). */
 export const freePlaces = (slot: Pick<LotSlot, "capacity">, carsInIt: number): number => Math.max(0, slot.capacity - carsInIt);
 

@@ -16,7 +16,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { useYardKind } from "@/hooks/useYardKind";
 import { useToast } from "@/hooks/use-toast";
-import { loadOverviewVisits } from "@/lib/carLotData";
+import { loadLotSlots, loadOverviewVisits } from "@/lib/carLotData";
+import { placesByZone } from "@/lib/lotSlots";
 import {
   ageBands, awaitingArrivalInspection, carsOnHold, dailyMovements, lotKpis, mostOverFree,
   stockByManufacturer, stockByZone, type LotTrendPoint, type LotVisit,
@@ -42,7 +43,7 @@ const MOVEMENT_CONFIG = {
 } satisfies ChartConfig;
 
 /** Ranked bars with their figures printed: one hue, square at the baseline, rounded at the end. */
-function BarList({ rows, empty }: { rows: { key: string; label: string; value: number }[]; empty: string }) {
+function BarList({ rows, empty }: { rows: { key: string; label: string; value: number; of?: number }[]; empty: string }) {
   if (rows.every((r) => r.value === 0)) return <p className="text-sm text-muted-foreground">{empty}</p>;
   const max = Math.max(...rows.map((r) => r.value));
   return (
@@ -51,7 +52,9 @@ function BarList({ rows, empty }: { rows: { key: string; label: string; value: n
         <li key={r.key} className="space-y-1">
           <div className="flex items-baseline justify-between gap-3 text-sm">
             <span className="truncate">{r.label}</span>
-            <span className="font-semibold tabular-nums">{r.value}</span>
+            <span className="font-semibold tabular-nums">
+              {r.value}{r.of !== undefined && <span className="font-normal text-muted-foreground"> of {r.of}</span>}
+            </span>
           </div>
           <div className="h-2" aria-hidden>
             {r.value > 0 && (
@@ -141,6 +144,8 @@ const CarLotOverview = () => {
   const { toast } = useToast();
   const { yardId, isCarLot } = useYardKind();
   const [visits, setVisits] = useState<LotVisit[] | null>(null);
+  // places per zone once the lot has slots ("12 of 40"); empty without slots
+  const [zonePlaces, setZonePlaces] = useState<Map<string, number>>(new Map());
   const [now, setNow] = useState(() => new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [showTable, setShowTable] = useState(false);
@@ -153,9 +158,13 @@ const CarLotOverview = () => {
     setRefreshing(true);
     const at = new Date();
     try {
-      const rows = await loadOverviewVisits(yardId, at, TREND_DAYS);
+      const [rows, slots] = await Promise.all([
+        loadOverviewVisits(yardId, at, TREND_DAYS),
+        loadLotSlots(yardId).catch(() => []), // the numbers still show without slots
+      ]);
       if (request !== latest.current) return;
       setVisits(rows);
+      setZonePlaces(placesByZone(slots));
       setNow(at);
       lastLoad.current = Date.now();
     } catch (e) {
@@ -167,7 +176,7 @@ const CarLotOverview = () => {
   }, [yardId, toast]);
 
   // A different yard (the owner's switcher) starts from an empty page, never another lot's numbers.
-  useEffect(() => { setVisits(null); void load(); }, [load]);
+  useEffect(() => { setVisits(null); setZonePlaces(new Map()); void load(); }, [load]);
 
   // No live push for car-lot tables: refresh every minute while the page is visible, and on return to it.
   useEffect(() => {
@@ -341,7 +350,7 @@ const CarLotOverview = () => {
             <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">By zone</CardTitle></CardHeader>
             <CardContent>
               {stats ? (
-                <BarList rows={stats.zones.map((z) => ({ key: z.zone, label: z.zone, value: z.count }))} empty="No cars in the lot." />
+                <BarList rows={stats.zones.map((z) => ({ key: z.zone, label: z.zone, value: z.count, of: zonePlaces.get(z.zone) }))} empty="No cars in the lot." />
               ) : <Skeleton className="h-32 w-full" />}
             </CardContent>
           </Card>

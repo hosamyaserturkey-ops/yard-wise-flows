@@ -15,7 +15,8 @@ export interface SlotLabel {
   zone: string;
   row: string | null;
   slot: string | null;
-  kind: string;
+  /** Printed after the name parts, e.g. "Receiving"; none for a plain storage slot. */
+  note: string | null;
   qrSvg: string;
 }
 
@@ -38,7 +39,7 @@ export function buildSlotLabelsHtml(labels: SlotLabel[], size: LabelSize, yardNa
     <div class="label">
       <div class="qr">${l.qrSvg}</div>
       <div class="code">${escapeHtml(l.code)}</div>
-      <div class="parts">${escapeHtml(partsLine(l))}${l.kind !== "storage" ? ` · ${escapeHtml(l.kind)}` : ""}</div>
+      <div class="parts">${escapeHtml(partsLine(l))}${l.note ? ` · ${escapeHtml(l.note)}` : ""}</div>
       <div class="yard">${yard} · scan to place a car here</div>
     </div>`;
   const css = size === "large"
@@ -106,6 +107,16 @@ export function buildCarTagHtml(d: CarTagData, printedBy: string, now: Date): st
   <div class="cut">✂ cut along the dashed line · place on the dashboard, QR facing up</div>
 </div>
 <script>${RECEIPT_PRINT_SCRIPT}</script></body></html>`;
+}
+
+/**
+ * Opens the print window straight from the click, as pop-up rules require; the
+ * page is written into it once its QR codes are drawn. Null when blocked.
+ */
+export function openPrintWindow(what: string): Window | null {
+  const win = window.open("", "_blank");
+  if (win) win.document.write(`<!DOCTYPE html><title>${escapeHtml(what)}</title><p style="font-family:sans-serif;padding:24px">Preparing the ${escapeHtml(what.toLowerCase())}…</p>`);
+  return win;
 }
 
 /** Puts a page into a window that was opened at the click (pop-up rules). */

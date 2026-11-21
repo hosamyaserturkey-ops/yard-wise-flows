@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildCarTagHtml, buildSlotLabelsHtml, type SlotLabel } from "../lotPrint";
 import { RECEIPT_PRINT_SCRIPT } from "../gateInReceipt";
 
-const label = (code: string): SlotLabel => ({ code, zone: "A", row: "01", slot: code.slice(-2), kind: "storage", qrSvg: `<svg data-code="${code}"></svg>` });
+const label = (code: string): SlotLabel => ({ code, zone: "A", row: "01", slot: code.slice(-2), note: null, qrSvg: `<svg data-code="${code}"></svg>` });
 
 describe("slot labels", () => {
   it("puts one large label per sheet", () => {
@@ -19,8 +19,9 @@ describe("slot labels", () => {
   });
 
   it("escapes what was typed and prints itself with the allowed script", () => {
-    const html = buildSlotLabelsHtml([{ ...label("A-01-01"), kind: "<b>exit</b>" }], "large", "Lot <script>");
+    const html = buildSlotLabelsHtml([{ ...label("A-01-01"), note: "<b>exit</b>" }], "large", "Lot <script>");
     expect(html).not.toContain("<b>exit</b>");
+    expect(html).toContain("&lt;b&gt;exit&lt;/b&gt;");
     expect(html).not.toContain("Lot <script>");
     expect(html).toContain(`<script>${RECEIPT_PRINT_SCRIPT}</script>`);
   });

@@ -7,12 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useYardKind } from "@/hooks/useYardKind";
+import { useYards } from "@/hooks/useYards";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useSearchParams } from "react-router-dom";
-import { Car, ClipboardCheck, History, LogOut, Pencil, PauseCircle, PlayCircle, Plus, Printer } from "lucide-react";
+import { Car, ClipboardCheck, History, LogOut, MoveRight, Pencil, PauseCircle, PlayCircle, Plus, Printer, Tag } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/PageHeader";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -24,7 +26,12 @@ import {
 import { openTicketWindow, printCarTicket, type CarTicketKind } from "@/lib/carTicket";
 import { loadCarTicket } from "@/lib/carTicketData";
 import { carEditChanges, formFromCar, hasChanges, validateCarEdit, type CarEditForm } from "@/lib/carEdit";
-import { eventChangeLines, eventLabel, type CarEvent } from "@/lib/carHistory";
+import { eventChangeLines, eventHow, eventLabel, type CarEvent } from "@/lib/carHistory";
+import { carsPerSlot, loadLotSlots, loadOpenCars } from "@/lib/carLotData";
+import { openPrintWindow, type CarTagData } from "@/lib/lotPrint";
+import { printCarTag } from "@/lib/lotPrintJobs";
+import { defaultSpot, slotErrorMessage, type LotSlot, type SpotChoice } from "@/lib/lotSlots";
+import { SpotPicker } from "@/components/carlot/SpotPicker";
 
 interface VisitRow {
   id: string;
@@ -33,6 +40,8 @@ interface VisitRow {
   gate_out_time: string | null;
   lot_zone: string | null;
   lot_slot: string | null;
+  /** Set when the car is in a listed slot; then only Move changes its place. */
+  location_id: string | null;
   free_days: number;
   ticket_number: number;
   driver_name: string | null;
@@ -59,8 +68,11 @@ type Tab = "open" | "out";
 
 const EMPTY_FORM = {
   manufacturer_id: "", vin: "", model: "", model_year: "", color: "",
-  lot_zone: "", lot_slot: "", odometer_in: "", key_count: "", driver_name: "", truck_number: "",
+  odometer_in: "", key_count: "", driver_name: "", truck_number: "",
 };
+const NO_SPOT: SpotChoice = { kind: "typed", zone: "", slot: "" };
+
+const spotOf = (r: Pick<VisitRow, "lot_zone" | "lot_slot">) => [r.lot_zone, r.lot_slot].filter(Boolean).join(" / ");
 const EMPTY_OUT = { driver: "", truck: "", odometer: "" };
 
 /** Whole number from a text box, or null when it is empty or not a whole number. */
@@ -75,6 +87,8 @@ const Cars = () => {
   const { toast } = useToast();
   const { isReadOnlyAdmin, isAdmin, profile } = useAuth();
   const { yardId, isCarLot } = useYardKind();
+  const { nameOf } = useYards();
+  const printedBy = profile?.username || profile?.full_name || "system";
   const canWrite = !isReadOnlyAdmin();
   // Correcting a car is for the car lot's admin and the owner (the database allows more; the screen offers less).
   const canEdit = isAdmin();
@@ -89,6 +103,10 @@ const Cars = () => {
   const [busy, setBusy] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [spot, setSpot] = useState<SpotChoice>(NO_SPOT);
+  const [lotSlots, setLotSlots] = useState<LotSlot[]>([]);
+  const [slotUse, setSlotUse] = useState<Map<string, number>>(new Map());
+  const [printTag, setPrintTag] = useState(true);
   const [outFor, setOutFor] = useState<VisitRow | null>(null);
   const [outForm, setOutForm] = useState(EMPTY_OUT);
   const [editFor, setEditFor] = useState<VisitRow | null>(null);
@@ -104,7 +122,7 @@ const Cars = () => {
     setLoading(true);
     let query = supabase
       .from("vehicle_visits")
-      .select("id, status, gate_in_time, gate_out_time, lot_zone, lot_slot, free_days, ticket_number, driver_name, truck_number, odometer_in, key_count, hold_reason, held_at, vehicle_inspections(phase, status), vehicles(id, vin, model, model_year, color), manufacturers(code, name)")
+      .select("id, status, gate_in_time, gate_out_time, lot_zone, lot_slot, location_id, free_days, ticket_number, driver_name, truck_number, odometer_in, key_count, hold_reason, held_at, vehicle_inspections(phase, status), vehicles(id, vin, model, model_year, color), manufacturers(code, name)")
       .eq("yard_id", yardId)
       .order("gate_in_time", { ascending: false })
       .limit(500);
@@ -125,7 +143,8 @@ const Cars = () => {
     const q = search.trim().toUpperCase();
     if (!q) return rows;
     return rows.filter((r) =>
-      [r.vehicles?.vin, r.vehicles?.model, r.manufacturers?.name, r.manufacturers?.code, r.lot_zone, r.lot_slot, String(r.ticket_number)]
+      [r.vehicles?.vin, r.vehicles?.model, r.manufacturers?.name, r.manufacturers?.code, r.lot_zone, r.lot_slot,
+        [r.lot_zone, r.lot_slot].filter(Boolean).join("-"), String(r.ticket_number)]
         .some((v) => v?.toUpperCase().includes(q)));
   }, [rows, search]);
 
@@ -159,6 +178,16 @@ const Cars = () => {
             <Printer className="h-3.5 w-3.5 mr-1" /> Release ticket
           </Button>
         )}
+        {canWrite && tab === "open" && (
+          <>
+            <Button size="sm" variant="outline" asChild>
+              <Link to={`/cars/move?vin=${encodeURIComponent(r.vehicles?.vin ?? "")}`}><MoveRight className="h-3.5 w-3.5 mr-1" /> Move</Link>
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => printTagFor(r)}>
+              <Tag className="h-3.5 w-3.5 mr-1" /> Tag
+            </Button>
+          </>
+        )}
         {canEdit && tab === "open" && (
           <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
             <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
@@ -188,6 +217,44 @@ const Cars = () => {
   };
 
 
+  /** Opens Register with fresh free places, preselecting a receiving slot with room. */
+  const openRegister = async () => {
+    setForm(EMPTY_FORM);
+    setSpot(NO_SPOT);
+    setPrintTag(true);
+    setRegisterOpen(true);
+    if (!yardId) return;
+    try {
+      const [slots, cars] = await Promise.all([loadLotSlots(yardId), loadOpenCars(yardId)]);
+      const use = carsPerSlot(cars);
+      setLotSlots(slots);
+      setSlotUse(use);
+      // only if nothing was typed meanwhile
+      setSpot((cur) => (cur.kind === "typed" && !cur.zone && !cur.slot ? defaultSpot(slots, use) : cur));
+    } catch {
+      setLotSlots([]); // the typed boxes still work
+    }
+  };
+
+  const tagData = (vin: string, ticketNumber: number, mfr: string, car: (string | number | null | undefined)[], arrived: string, spotText: string): Omit<CarTagData, "qrSvg"> => ({
+    vin, ticketNumber, manufacturerName: mfr, model: car.filter(Boolean).join(" · "), arrived, spot: spotText, yardName: nameOf(yardId),
+  });
+
+  /** Prints a car's tag into a window opened at the click. */
+  const sendTag = (win: Window | null, tag: Omit<CarTagData, "qrSvg">) => {
+    if (!win) { toast({ title: "Allow pop-ups to print", description: "Your browser blocked the tag window.", variant: "destructive" }); return; }
+    printCarTag(win, tag, printedBy).catch((e) => {
+      win.close();
+      toast({ title: "Tag not printed", description: e instanceof Error ? e.message : "Try again.", variant: "destructive" });
+    });
+  };
+
+  const printTagFor = (r: VisitRow) => {
+    if (!r.vehicles) return;
+    sendTag(openPrintWindow("Car tag"), tagData(r.vehicles.vin, r.ticket_number, r.manufacturers?.name ?? "",
+      [r.vehicles.model, r.vehicles.model_year, r.vehicles.color], r.gate_in_time, spotOf(r)));
+  };
+
   /** Gate a car in: find or create the vehicle by VIN, then open its visit. */
   const register = async () => {
     const invalid = validateVin(form.vin) ?? (form.manufacturer_id ? null : "Select the manufacturer.");
@@ -198,6 +265,9 @@ const Cars = () => {
     }
     if (!yardId) return;
     const vin = normalizeVin(form.vin);
+    // the tag window must open straight from the click, before any waiting
+    const tagWindow = printTag ? openPrintWindow("Car tag") : null;
+    let registered = false;
     setBusy(true);
     try {
       const { data: existing, error: findErr } = await supabase
@@ -221,22 +291,35 @@ const Cars = () => {
         vehicleId = created.id;
       }
 
-      const { error: visitErr } = await supabase.from("vehicle_visits").insert({
+      // A listed slot goes by its id (the database fills in zone and slot); a typed
+      // spot as text, which the database still matches to a slot of that name.
+      const place = spot.kind === "slot"
+        ? { location_id: spot.slotId }
+        : spot.kind === "typed" ? { lot_zone: textOrNull(spot.zone), lot_slot: textOrNull(spot.slot) } : {};
+      const { data: visit, error: visitErr } = await supabase.from("vehicle_visits").insert({
         vehicle_id: vehicleId,
-        lot_zone: textOrNull(form.lot_zone), lot_slot: textOrNull(form.lot_slot),
+        ...place,
         odometer_in: intOrNull(form.odometer_in), key_count: intOrNull(form.key_count),
         driver_name: textOrNull(form.driver_name), truck_number: textOrNull(form.truck_number),
-      });
+      }).select("ticket_number, gate_in_time, lot_zone, lot_slot").single();
       if (visitErr) throw visitErr;
+      registered = true;
 
-      toast({ title: "Car registered", description: vin });
+      toast({ title: "Car registered", description: [vin, spotOf(visit)].filter(Boolean).join(" · ") });
+      if (printTag) {
+        const mfr = mfrs.find((m) => m.id === form.manufacturer_id)?.name ?? "";
+        sendTag(tagWindow, tagData(vin, visit.ticket_number, mfr, [form.model.trim(), year, form.color.trim()], visit.gate_in_time, spotOf(visit)));
+      }
       setRegisterOpen(false);
       setForm(EMPTY_FORM);
       load();
     } catch (e) {
       const err = e as { code?: string; message?: string };
-      toast({ title: "Not registered", description: gateInErrorMessage({ code: err.code, message: err.message ?? "Unknown error" }), variant: "destructive" });
+      const raw = { code: err.code, message: err.message ?? "Unknown error" };
+      const said = gateInErrorMessage(raw);
+      toast({ title: "Not registered", description: said === raw.message ? slotErrorMessage(raw) : said, variant: "destructive" });
     } finally {
+      if (!registered) tagWindow?.close();
       setBusy(false);
     }
   };
@@ -267,7 +350,7 @@ const Cars = () => {
     setHistory(null);
     const { data, error } = await supabase
       .from("vehicle_events")
-      .select("id, at, actor_name, action, changes, reason")
+      .select("id, at, actor_name, action, changes, reason, via, device")
       .eq("visit_id", r.id)
       .order("at", { ascending: true })
       .order("id", { ascending: true });
@@ -367,7 +450,7 @@ const Cars = () => {
         title="Cars"
         subtitle={canWrite ? "Register, hold and release the cars in the lot" : "Cars in the lot (read-only)"}
         action={canWrite ? (
-          <Button onClick={() => { setForm(EMPTY_FORM); setRegisterOpen(true); }}>
+          <Button onClick={() => void openRegister()}>
             <Plus className="h-4 w-4 mr-1" /> Register car
           </Button>
         ) : undefined}
@@ -407,7 +490,7 @@ const Cars = () => {
                     <p className="text-xs text-muted-foreground">
                       Ticket {r.ticket_number} · in {formatDate(r.gate_in_time)} · day {days}
                       {over > 0 && r.status !== "out" && <span className="text-warning"> (+{over} over free)</span>}
-                      {(r.lot_zone || r.lot_slot) && <> · spot {[r.lot_zone, r.lot_slot].filter(Boolean).join(" / ")}</>}
+                      {(r.lot_zone || r.lot_slot) && <> · spot {spotOf(r)}</>}
                     </p>
                     {r.status === "on-hold" && r.hold_reason && (
                       <p className="text-xs rounded bg-warning/10 px-2 py-1 break-words">
@@ -449,7 +532,7 @@ const Cars = () => {
                       <TableCell className="font-mono text-xs">{r.vehicles?.vin}</TableCell>
                       <TableCell>{r.manufacturers?.name ?? "—"}</TableCell>
                       <TableCell>{[r.vehicles?.model, r.vehicles?.model_year, r.vehicles?.color].filter(Boolean).join(" · ") || "—"}</TableCell>
-                      <TableCell>{[r.lot_zone, r.lot_slot].filter(Boolean).join(" / ") || "—"}</TableCell>
+                      <TableCell>{spotOf(r) || "—"}</TableCell>
                       <TableCell>{formatDate(r.gate_in_time)}</TableCell>
                       <TableCell>
                         {days}
@@ -501,11 +584,16 @@ const Cars = () => {
             <div className="space-y-1"><Label>Year</Label><Input inputMode="numeric" value={form.model_year} onChange={set("model_year")} /></div>
             <div className="space-y-1"><Label>Colour</Label><Input value={form.color} onChange={set("color")} /></div>
             <div className="space-y-1"><Label>Odometer (km)</Label><Input inputMode="numeric" value={form.odometer_in} onChange={set("odometer_in")} /></div>
-            <div className="space-y-1"><Label>Zone</Label><Input value={form.lot_zone} onChange={set("lot_zone")} /></div>
-            <div className="space-y-1"><Label>Slot</Label><Input value={form.lot_slot} onChange={set("lot_slot")} /></div>
             <div className="space-y-1"><Label>Keys</Label><Input inputMode="numeric" value={form.key_count} onChange={set("key_count")} /></div>
             <div className="space-y-1"><Label>Driver</Label><Input value={form.driver_name} onChange={set("driver_name")} /></div>
-            <div className="col-span-2 space-y-1"><Label>Truck number</Label><Input value={form.truck_number} onChange={set("truck_number")} /></div>
+            <div className="space-y-1"><Label>Truck number</Label><Input value={form.truck_number} onChange={set("truck_number")} /></div>
+            <div className="col-span-2">
+              <SpotPicker slots={lotSlots} occupancy={slotUse} value={spot} onChange={setSpot} />
+            </div>
+            <div className="col-span-2 flex items-center gap-2">
+              <Checkbox id="print-tag" checked={printTag} onCheckedChange={(v) => setPrintTag(v === true)} />
+              <Label htmlFor="print-tag" className="font-normal">Print the car tag (QR for moving the car; goes on the dashboard)</Label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRegisterOpen(false)}>Cancel</Button>
@@ -532,8 +620,19 @@ const Cars = () => {
               <div className="space-y-1"><Label>Year</Label><Input inputMode="numeric" value={editForm.model_year} onChange={(e) => setEditForm({ ...editForm, model_year: e.target.value })} /></div>
               <div className="space-y-1"><Label>Colour</Label><Input value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} /></div>
               <div className="space-y-1"><Label>Free days</Label><Input inputMode="numeric" value={editForm.free_days} onChange={(e) => setEditForm({ ...editForm, free_days: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Zone</Label><Input value={editForm.lot_zone} onChange={(e) => setEditForm({ ...editForm, lot_zone: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Slot</Label><Input value={editForm.lot_slot} onChange={(e) => setEditForm({ ...editForm, lot_slot: e.target.value })} /></div>
+              {editFor.location_id ? (
+                <div className="col-span-2 rounded-md border px-3 py-2 text-sm flex flex-wrap items-center justify-between gap-2">
+                  <span>Spot <span className="font-medium">{spotOf(editFor)}</span> is a listed slot. Use Move to change it.</span>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link to={`/cars/move?vin=${encodeURIComponent(editFor.vehicles?.vin ?? "")}`}><MoveRight className="h-3.5 w-3.5 mr-1" /> Move</Link>
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1"><Label>Zone</Label><Input value={editForm.lot_zone} onChange={(e) => setEditForm({ ...editForm, lot_zone: e.target.value })} /></div>
+                  <div className="space-y-1"><Label>Slot</Label><Input value={editForm.lot_slot} onChange={(e) => setEditForm({ ...editForm, lot_slot: e.target.value })} /></div>
+                </>
+              )}
               <div className="space-y-1"><Label>Odometer at arrival (km)</Label><Input inputMode="numeric" value={editForm.odometer_in} onChange={(e) => setEditForm({ ...editForm, odometer_in: e.target.value })} /></div>
               <div className="space-y-1"><Label>Keys</Label><Input inputMode="numeric" value={editForm.key_count} onChange={(e) => setEditForm({ ...editForm, key_count: e.target.value })} /></div>
               <div className="space-y-1"><Label>Driver</Label><Input value={editForm.driver_name} onChange={(e) => setEditForm({ ...editForm, driver_name: e.target.value })} /></div>
@@ -579,7 +678,10 @@ const Cars = () => {
             <ol className="space-y-3 py-2">
               {history.map((e) => (
                 <li key={e.id} className="border-l-2 pl-3">
-                  <p className="text-sm font-medium">{eventLabel(e.action)}</p>
+                  <p className="text-sm font-medium">
+                    {eventLabel(e.action)}
+                    {e.action === "move" && eventHow(e) && <span className="font-normal text-muted-foreground"> · {eventHow(e)}</span>}
+                  </p>
                   <p className="text-xs text-muted-foreground">{formatDateTime(e.at)} · {e.actor_name ?? "System"}</p>
                   {eventChangeLines(e).map((line) => <p key={line} className="text-sm break-words">{line}</p>)}
                   {e.reason && <p className="text-sm break-words"><span className="text-muted-foreground">Reason:</span> {e.reason}</p>}

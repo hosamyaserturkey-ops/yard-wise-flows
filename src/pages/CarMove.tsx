@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, MoveRight, ScanLine } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useYardKind } from "@/hooks/useYardKind";
 import { carsPerSlot, loadLotSlots, loadOpenCars, type OpenCar } from "@/lib/carLotData";
+import { normalizeVin } from "@/lib/vin";
 import { deviceLabel, freePlaces, readScan, slotErrorMessage, spotKey, type LotSlot } from "@/lib/lotSlots";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,9 @@ const CarMove = () => {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
+  // The Cars list and the lot map open this page on a car: /cars/move?vin=<VIN>.
+  const [params] = useSearchParams();
+  const askedVin = useRef(params.get("vin"));
 
   const load = useCallback(async () => {
     if (!yardId) return;
@@ -74,7 +78,16 @@ const CarMove = () => {
   };
 
   // fresh numbers for the free places before a slot is chosen
-  const chooseCar = (c: OpenCar) => { setCar(c); setNotice(null); setStep("place"); void load(); };
+  const chooseCar = useCallback((c: OpenCar) => { setCar(c); setNotice(null); setStep("place"); void load(); }, [load]);
+
+  useEffect(() => {
+    const vin = askedVin.current;
+    if (!vin || !cars) return;
+    askedVin.current = null; // once
+    const found = cars.find((c) => c.vin === normalizeVin(vin));
+    if (found) chooseCar(found);
+    else setNotice(`No car with VIN ${normalizeVin(vin)} is in this lot. It may have left already.`);
+  }, [cars, chooseCar]);
 
   const onCarCode = (text: string, how: "scan" | "typed") => {
     const r = readScan(text);

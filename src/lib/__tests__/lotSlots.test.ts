@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import QRCode from "qrcode";
 import {
-  buildLotMap, carTagText, deviceLabel, freePlaces, readScan, slotCode, slotErrorMessage, slotNameProblem,
+  buildLotMap, carTagText, defaultSpot, deviceLabel, freePlaces, placesByZone, readScan, slotCode, slotErrorMessage, slotNameProblem,
   slotPart, slotQrText, slotsInRange, spotKey, tileState, type LotSlot, type MapCar,
 } from "../lotSlots";
 import { readQrPixels } from "../qr";
@@ -151,6 +151,22 @@ describe("the lot map", () => {
   it("names each state", () => {
     expect([tileState(0, 1), tileState(1, 2), tileState(2, 2), tileState(3, 2)]).toEqual(["empty", "partly", "full", "over"]);
     expect(freePlaces({ capacity: 2 }, 3)).toBe(0);
+  });
+
+  it("adds up the places of each zone's slots in use", () => {
+    const places = placesByZone([slot("A-1", "A", null, "1", { capacity: 2 }), slot("A-2", "A", null, "2"),
+      slot("A-3", "A", null, "3", { active: false }), slot("B-1", "B", null, "1", { capacity: 5 })]);
+    expect([...places]).toEqual([["A", 3], ["B", 5]]);
+  });
+
+  it("suggests the first receiving slot with room at registration", () => {
+    const slots = [slot("R-2", "R", null, "2", { kind: "receiving" }), slot("R-10", "R", null, "10", { kind: "receiving" }),
+      slot("R-1", "R", null, "1", { kind: "receiving", active: false }), slot("A-1", "A", null, "1")];
+    expect(defaultSpot(slots, new Map())).toEqual({ kind: "slot", slotId: "R-2" });
+    expect(defaultSpot(slots, new Map([["R-2", 1]]))).toEqual({ kind: "slot", slotId: "R-10" }); // 2 is full; 10 sorts after 2
+    expect(defaultSpot(slots, new Map([["R-2", 1], ["R-10", 1]]))).toEqual({ kind: "none" }); // pick one yourself
+    expect(defaultSpot([slot("A-1", "A", null, "1", { active: false })], new Map())).toEqual({ kind: "typed", zone: "", slot: "" });
+    expect(defaultSpot([], new Map())).toEqual({ kind: "typed", zone: "", slot: "" }); // no slots: type it, as before
   });
 });
 
