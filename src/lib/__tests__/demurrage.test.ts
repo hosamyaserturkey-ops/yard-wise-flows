@@ -37,11 +37,16 @@ describe("hasDemurrageRules", () => {
     expect(hasDemurrageRules("WOM")).toBe(true);
     expect(hasDemurrageRules("SFT")).toBe(true);
     expect(hasDemurrageRules("EEL")).toBe(true);
+    expect(hasDemurrageRules("OVP")).toBe(true);
+    expect(hasDemurrageRules("HKY")).toBe(true);
   });
 
   it("rejects unknown lines", () => {
     expect(hasDemurrageRules("MSC")).toBe(false);
     expect(hasDemurrageRules("")).toBe(false);
+    // Only own keys count: inherited object properties are not lines.
+    expect(hasDemurrageRules("toString")).toBe(false);
+    expect(hasDemurrageRules("constructor")).toBe(false);
   });
 });
 
@@ -148,7 +153,7 @@ describe("calculateDemurrage — tiered totals", () => {
   });
 
   it("reports the configured free days", () => {
-    for (const line of ["SLG", "SLD", "WOM", "SFT", "EEL"] as const) {
+    for (const line of ["SLG", "SLD", "WOM", "SFT", "EEL", "OVP", "HKY"] as const) {
       const r = calculateDemurrage(line, "20FT", "2026-01-01", d("2026-01-02"));
       expect(r.freeDays).toBe(DEMURRAGE_RULES[line].freeDays);
     }
@@ -284,6 +289,27 @@ describe("firstGateInOfTrip", () => {
 
 // WOM's port list (EVL_DEMURAGE_SUNNY_.xlsx): 20ft, 21 free days, $50/day,
 // Last Free Day = Vessel Arrival Date + Free Days - 1.
+describe("OVP and HKY — WOM's tariff", () => {
+  it("uses exactly WOM's rules", () => {
+    expect(DEMURRAGE_RULES.OVP).toEqual(DEMURRAGE_RULES.WOM);
+    expect(DEMURRAGE_RULES.HKY).toEqual(DEMURRAGE_RULES.WOM);
+  });
+
+  it("charges the same as WOM for the same container and dates", () => {
+    for (const line of ["OVP", "HKY"] as const) {
+      for (const type of ["20GP", "40HC"]) {
+        const free = calculateDemurrage(line, type, "2026-01-01", d("2026-01-21"));
+        expect(free.totalUSD).toBe(0);
+        const charged = calculateDemurrage(line, type, "2026-01-01", d("2026-02-04"));
+        expect(charged).toEqual(calculateDemurrage("WOM", type, "2026-01-01", d("2026-02-04")));
+      }
+    }
+    // Day 22-35 is 14 charged days: 14 × $50 (20ft), 14 × $100 (40ft).
+    expect(calculateDemurrage("OVP", "20GP", "2026-01-01", d("2026-02-04")).totalUSD).toBe(700);
+    expect(calculateDemurrage("HKY", "40HC", "2026-01-01", d("2026-02-04")).totalUSD).toBe(1400);
+  });
+});
+
 describe("calculateDemurrage — WOM port list", () => {
   it("matches the sheet for the 12 Sep vessel", () => {
     expect(lastFreeDay("2026-09-12", 21)).toBe("2026-10-02");
