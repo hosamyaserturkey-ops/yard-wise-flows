@@ -12,6 +12,7 @@ export const SHIPPING_LINES = [
   "Gezairi",
   "OVP",
   "HKY",
+  "MHL",
 ] as const;
 
 export type ShippingLine = (typeof SHIPPING_LINES)[number] | string;
