@@ -13,6 +13,7 @@ export const SHIPPING_LINES = [
   "OVP",
   "HKY",
   "MHL",
+  "OSC",
 ] as const;
 
 export type ShippingLine = (typeof SHIPPING_LINES)[number] | string;
