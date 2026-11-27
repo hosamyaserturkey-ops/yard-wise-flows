@@ -249,6 +249,31 @@ deploys the frontend, which then calls the new function.
 3. Merge the PR, and once Cloudflare has deployed, gate a test container in
    and out as a gate operator.
 
+### Gate operators manage port data (`20261127120000`)
+
+Port Data (`/port-data`) used to be for admins and line reps. Gate operators
+(role `user`) now have it under Operations: they can view the port list,
+import a line's Excel list and add or correct a row by hand, for their own
+yard only. Deleting port data stays with admins. Inspectors, read-only admins,
+car-lot accounts and accounts with no yard still can't write it. Operators
+could already read their yard's port data, because Gate In uses it.
+
+**Apply the migration before merging.** If the app goes first, operators see
+the page but every save is refused. If the migration goes first, nothing
+changes until the app catches up.
+
+1. Apply `20261127120000_operators_manage_port_data.sql` the same way as
+   above. It changes only `cpd_insert` and `cpd_update` on
+   `container_port_data`.
+2. Check it: run `supabase/checks/operators_port_data.sql` in the SQL editor.
+   It plays every kind of account against port data in a rolled-back
+   transaction and ends with "operators port data: all checks passed".
+3. Merge the PR. Once Cloudflare has deployed, sign in as a gate operator,
+   open Port Data, and save one row by hand.
+
+To undo it, re-apply the `cpd_insert` and `cpd_update` statements from
+`20261011130000_rls_initplan_fk_indexes_policy_merges.sql`.
+
 ## 5. Terminal empty-return check (APM Terminals API)
 
 **Terminal Check** (`/terminal-check`, in the sidebar) asks APM Terminals

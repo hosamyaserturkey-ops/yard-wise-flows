@@ -47,15 +47,17 @@ export function CommandPalette() {
   const [detailContainer, setDetailContainer] = useState<ContainerType | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const navigate = useNavigate();
-  const { isAdmin, isSuperAdmin, isInspector } = useAuth();
+  const { profile, isAdmin, isSuperAdmin, isInspector } = useAuth();
 
   const admin = isAdmin();
   const superAdmin = isSuperAdmin();
   const inspector = isInspector();
+  const operator = profile?.role === "user";
 
   // Filter nav items by role
   const navItems = NAV_COMMANDS.filter((item) => {
-    if (item.href === "/port-data" || item.href === "/admin/yards") return superAdmin;
+    if (item.href === "/admin/yards") return superAdmin;
+    if (item.href === "/port-data") return admin || operator;
     if (["/accounting", "/admin/users"].includes(item.href)) return admin;
     if (item.href === "/inspector") return admin || superAdmin || inspector;
     // The terminal lookup is an ops tool, and super admins keep it too — it is
