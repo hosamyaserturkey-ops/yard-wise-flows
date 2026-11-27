@@ -71,7 +71,10 @@ export function buildPortListRows(
       gateIn ?? today,
       entry.free_days,
     );
-    const daysOver = charged && !result.error ? Math.max(0, result.daysElapsed - result.freeDays) : 0;
+    // A trip from before the line started charging owes nothing, so it isn't "over" either.
+    const daysOver = charged && !result.error && !result.chargingStartsOn
+      ? Math.max(0, result.daysElapsed - result.freeDays)
+      : 0;
 
     const recordedArrival = dateOnly(visit?.port_arrival_date);
     const recordedFreeDays = visit?.free_days ?? null;

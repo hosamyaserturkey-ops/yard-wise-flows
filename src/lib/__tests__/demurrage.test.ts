@@ -9,6 +9,7 @@ import {
   hasDemurrageRules,
   isDemurrageSettledForTrip,
   toDemurrageContainerType,
+  DEMURRAGE_CHARGED_FROM,
   DEMURRAGE_RULES,
   USD_TO_JOD,
 } from "../demurrage";
@@ -39,6 +40,8 @@ describe("hasDemurrageRules", () => {
     expect(hasDemurrageRules("EEL")).toBe(true);
     expect(hasDemurrageRules("OVP")).toBe(true);
     expect(hasDemurrageRules("HKY")).toBe(true);
+    expect(hasDemurrageRules("MHL")).toBe(true);
+    expect(hasDemurrageRules("OSC")).toBe(true);
   });
 
   it("rejects unknown lines", () => {
@@ -153,7 +156,7 @@ describe("calculateDemurrage — tiered totals", () => {
   });
 
   it("reports the configured free days", () => {
-    for (const line of ["SLG", "SLD", "WOM", "SFT", "EEL", "OVP", "HKY"] as const) {
+    for (const line of ["SLG", "SLD", "WOM", "SFT", "EEL", "OVP", "HKY", "MHL", "OSC"] as const) {
       const r = calculateDemurrage(line, "20FT", "2026-01-01", d("2026-01-02"));
       expect(r.freeDays).toBe(DEMURRAGE_RULES[line].freeDays);
     }
@@ -289,14 +292,16 @@ describe("firstGateInOfTrip", () => {
 
 // WOM's port list (EVL_DEMURAGE_SUNNY_.xlsx): 20ft, 21 free days, $50/day,
 // Last Free Day = Vessel Arrival Date + Free Days - 1.
-describe("OVP and HKY — WOM's tariff", () => {
+describe("OVP, HKY, MHL and OSC — WOM's tariff", () => {
   it("uses exactly WOM's rules", () => {
     expect(DEMURRAGE_RULES.OVP).toEqual(DEMURRAGE_RULES.WOM);
     expect(DEMURRAGE_RULES.HKY).toEqual(DEMURRAGE_RULES.WOM);
+    expect(DEMURRAGE_RULES.MHL).toEqual(DEMURRAGE_RULES.WOM);
+    expect(DEMURRAGE_RULES.OSC).toEqual(DEMURRAGE_RULES.WOM);
   });
 
   it("charges the same as WOM for the same container and dates", () => {
-    for (const line of ["OVP", "HKY"] as const) {
+    for (const line of ["OVP", "HKY", "MHL"] as const) {
       for (const type of ["20GP", "40HC"]) {
         const free = calculateDemurrage(line, type, "2026-01-01", d("2026-01-21"));
         expect(free.totalUSD).toBe(0);
@@ -307,6 +312,37 @@ describe("OVP and HKY — WOM's tariff", () => {
     // Day 22-35 is 14 charged days: 14 × $50 (20ft), 14 × $100 (40ft).
     expect(calculateDemurrage("OVP", "20GP", "2026-01-01", d("2026-02-04")).totalUSD).toBe(700);
     expect(calculateDemurrage("HKY", "40HC", "2026-01-01", d("2026-02-04")).totalUSD).toBe(1400);
+    expect(calculateDemurrage("MHL", "40HC", "2026-01-01", d("2026-02-04")).totalUSD).toBe(1400);
+  });
+});
+
+describe("OSC — charged only from its start date", () => {
+  it("starts on 28 Nov 2026", () => {
+    expect(DEMURRAGE_CHARGED_FROM.OSC).toBe("2026-11-28");
+  });
+
+  it("charges nothing for a trip measured to a day before the start", () => {
+    // 4 Oct arrival, gated in 31 Oct: 28 days, 7 past free time. Under WOM's
+    // tariff that's $350; OSC wasn't charged yet, so nothing is owed.
+    const r = calculateDemurrage("OSC", "20GP", "2026-10-04", d("2026-10-31"), 21);
+    expect(r).toMatchObject({ daysElapsed: 28, freeDays: 21, totalUSD: 0, totalJOD: 0, chargingStartsOn: "2026-11-28" });
+    expect(r.breakdown).toEqual([]);
+    // The day before the start is still uncharged.
+    expect(calculateDemurrage("OSC", "20GP", "2026-10-04", d("2026-11-27"), 21).totalUSD).toBe(0);
+  });
+
+  it("charges WOM's rates from the start date on, for the whole trip", () => {
+    // 1 Nov arrival, gated in 28 Nov: 28 days, 7 charged at $50.
+    const r = calculateDemurrage("OSC", "20GP", "2026-11-01", d("2026-11-28"), 21);
+    expect(r.chargingStartsOn).toBeUndefined();
+    expect(r.totalUSD).toBe(350);
+    expect(r).toEqual(calculateDemurrage("WOM", "20GP", "2026-11-01", d("2026-11-28"), 21));
+  });
+
+  it("leaves lines without a start date charged as before", () => {
+    const r = calculateDemurrage("WOM", "20GP", "2026-10-04", d("2026-10-31"), 21);
+    expect(r.totalUSD).toBe(350);
+    expect(r.chargingStartsOn).toBeUndefined();
   });
 });
 

@@ -51,6 +51,22 @@ describe("buildPortListRows", () => {
     expect(row.daysOver).toBe(0);
   });
 
+  it("doesn't count an OSC gate-in from before OSC was charged as over", () => {
+    const visits = new Map([["YLLU2003551", [visit("2026-10-31")]]]);
+    const [row] = buildPortListRows(
+      [entry("YLLU2003551", "2026-10-04", { shipping_line: "OSC" })],
+      visits,
+      d("2026-11-27"),
+    );
+    expect(row).toMatchObject({ status: "in_yard", daysOver: 0, demurrageUSD: 0 });
+  });
+
+  it("counts an OSC container still at port once OSC is charged", () => {
+    // 1 Nov arrival, 21 free days → last free day 21 Nov; 28 Nov is 7 days over.
+    const [row] = buildPortListRows([entry("YLLU2003551", "2026-11-01", { shipping_line: "OSC" })], new Map(), d("2026-11-28"));
+    expect(row).toMatchObject({ status: "awaiting", daysOver: 7, demurrageUSD: 350 });
+  });
+
   it("uses the list's free days", () => {
     const [row] = buildPortListRows([entry("TEMU4267243", "2026-09-12", { free_days: 30 })], new Map(), TODAY);
     expect(row.lastFreeDay).toBe("2026-10-11");

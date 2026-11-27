@@ -12,7 +12,9 @@ export type DemurrageShippingLine =
   | "SFT"
   | "EEL"
   | "OVP"
-  | "HKY";
+  | "HKY"
+  | "MHL"
+  | "OSC";
 
 export interface DemurrageTier {
   // Inclusive start day, inclusive end day (null = open-ended).
@@ -37,6 +39,11 @@ export interface DemurrageResult {
   totalUSD: number;
   totalJOD: number;
   error?: "missing-date" | "future-date";
+  /**
+   * Set when the line only started charging after this trip was measured
+   * (see DEMURRAGE_CHARGED_FROM): the totals are zero, the day counts are real.
+   */
+  chargingStartsOn?: string;
 }
 
 // Tier definitions. Day numbering starts at 1 = port arrival day.
@@ -76,7 +83,7 @@ export const DEMURRAGE_RULES: Record<
       { fromDay: 22, toDay: null, rate20: 50, rate40: 100, label: "Day 22+" },
     ],
   },
-  // OVP and HKY bill on WOM's tariff: 21 free days, then a flat rate.
+  // OVP, HKY, MHL and OSC bill on WOM's tariff: 21 free days, then a flat rate.
   OVP: {
     freeDays: 21,
     tiers: [
@@ -85,6 +92,20 @@ export const DEMURRAGE_RULES: Record<
     ],
   },
   HKY: {
+    freeDays: 21,
+    tiers: [
+      { fromDay: 1, toDay: 21, rate20: 0, rate40: 0, label: "Days 1-21 (Free)" },
+      { fromDay: 22, toDay: null, rate20: 50, rate40: 100, label: "Day 22+" },
+    ],
+  },
+  MHL: {
+    freeDays: 21,
+    tiers: [
+      { fromDay: 1, toDay: 21, rate20: 0, rate40: 0, label: "Days 1-21 (Free)" },
+      { fromDay: 22, toDay: null, rate20: 50, rate40: 100, label: "Day 22+" },
+    ],
+  },
+  OSC: {
     freeDays: 21,
     tiers: [
       { fromDay: 1, toDay: 21, rate20: 0, rate40: 0, label: "Days 1-21 (Free)" },
@@ -101,6 +122,15 @@ export const DEMURRAGE_RULES: Record<
       { fromDay: 18, toDay: null, rate20: 300, rate40: 350, label: "Day 18+" },
     ],
   },
+};
+
+// Lines that started being charged while their containers were already in the
+// yard. A trip measured to a day before the line's date (a gate-in before it,
+// or a container still at port before it) is not charged: nothing was
+// collected at those gate-ins, so they must not start showing as owed. OSC had
+// gated in hundreds of containers, and port-listed them, before it was charged.
+export const DEMURRAGE_CHARGED_FROM: Partial<Record<DemurrageShippingLine, string>> = {
+  OSC: "2026-11-28",
 };
 
 // Maps a full container type code to the demurrage size bucket. Deliberately
@@ -283,6 +313,12 @@ export const calculateDemurrage = (
   const daysElapsed = diffDays + 1;
   const size = toDemurrageContainerType(containerType);
   const freeDays = effectiveFreeDays(shippingLine, freeDaysOverride);
+
+  const chargedFrom = DEMURRAGE_CHARGED_FROM[shippingLine];
+  const start = chargedFrom ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(chargedFrom) : null;
+  if (chargedFrom && start && t.getTime() < new Date(+start[1], +start[2] - 1, +start[3]).getTime()) {
+    return { ...empty, daysElapsed, freeDays, chargingStartsOn: chargedFrom };
+  }
   const tiers = tiersForFreeDays(shippingLine, freeDays);
 
   const breakdown: DemurrageBreakdownRow[] = [];
