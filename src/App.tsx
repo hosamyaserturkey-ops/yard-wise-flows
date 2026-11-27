@@ -98,7 +98,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="port-data" element={
-                  <ProtectedRoute adminOnly lineRepAllowed>
+                  <ProtectedRoute adminOnly lineRepAllowed operatorAllowed>
                     <PortDemurrageData />
                   </ProtectedRoute>
                 } />

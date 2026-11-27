@@ -11,17 +11,20 @@ interface ProtectedRouteProps {
   /** Allow shipping-line representatives onto this route (they are otherwise
    *  confined to the routes that carry this flag and redirected to /reports). */
   lineRepAllowed?: boolean;
+  /** With adminOnly: also let gate operators (role `user`) in. */
+  operatorAllowed?: boolean;
 }
 
-const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false, lineRepAllowed = false }: ProtectedRouteProps) => {
-  const { user, isAdmin, isSuperAdmin, isLineRep, isManufacturerRep, loading } = useAuth();
+const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false, lineRepAllowed = false, operatorAllowed = false }: ProtectedRouteProps) => {
+  const { user, profile, isAdmin, isSuperAdmin, isLineRep, isManufacturerRep, loading } = useAuth();
   const notified = useRef(false);
 
   const lineRep = !loading && !!user && isLineRep();
+  const operator = !loading && !!user && profile?.role === "user";
   const denied =
     !loading && user &&
     ((superAdminOnly && !isSuperAdmin()) ||
-      (adminOnly && !isAdmin() && !(lineRepAllowed && lineRep)));
+      (adminOnly && !isAdmin() && !(lineRepAllowed && lineRep) && !(operatorAllowed && operator)));
 
   useEffect(() => {
     if (denied && !notified.current) {

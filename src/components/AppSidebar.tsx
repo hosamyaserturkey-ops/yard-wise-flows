@@ -26,12 +26,12 @@ const OPS_NAV = [
   { href: "/photos",     label: "Photos",     icon: Camera       },
   { href: "/reports",    label: "Reports",    icon: FileText     },
   { href: "/bookings",   label: "Bookings",   icon: Calendar     },
+  { href: "/port-data",  label: "Port Data",  icon: Anchor       },
   { href: "/terminal-check", label: "Terminal Check", icon: Search  },
   { href: "/cash-count", label: "Cash Count", icon: Wallet       },
 ];
 
 const ADMIN_NAV = [
-  { href: "/port-data",  label: "Port Data",  icon: Anchor       },
   { href: "/accounting", label: "Accounting", icon: Calculator   },
   { href: "/activity",   label: "Activity",   icon: Activity     },
   { href: "/admin/users",label: "Users",      icon: Users        },
