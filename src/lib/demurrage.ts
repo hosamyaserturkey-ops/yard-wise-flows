@@ -12,7 +12,8 @@ export type DemurrageShippingLine =
   | "SFT"
   | "EEL"
   | "OVP"
-  | "HKY";
+  | "HKY"
+  | "MHL";
 
 export interface DemurrageTier {
   // Inclusive start day, inclusive end day (null = open-ended).
@@ -76,7 +77,7 @@ export const DEMURRAGE_RULES: Record<
       { fromDay: 22, toDay: null, rate20: 50, rate40: 100, label: "Day 22+" },
     ],
   },
-  // OVP and HKY bill on WOM's tariff: 21 free days, then a flat rate.
+  // OVP, HKY and MHL bill on WOM's tariff: 21 free days, then a flat rate.
   OVP: {
     freeDays: 21,
     tiers: [
@@ -85,6 +86,13 @@ export const DEMURRAGE_RULES: Record<
     ],
   },
   HKY: {
+    freeDays: 21,
+    tiers: [
+      { fromDay: 1, toDay: 21, rate20: 0, rate40: 0, label: "Days 1-21 (Free)" },
+      { fromDay: 22, toDay: null, rate20: 50, rate40: 100, label: "Day 22+" },
+    ],
+  },
+  MHL: {
     freeDays: 21,
     tiers: [
       { fromDay: 1, toDay: 21, rate20: 0, rate40: 0, label: "Days 1-21 (Free)" },

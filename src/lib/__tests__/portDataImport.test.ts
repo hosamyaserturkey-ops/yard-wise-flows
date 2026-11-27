@@ -80,6 +80,15 @@ describe("parsePortRows", () => {
     expect(parsed.errors[0].message).toMatch(/only import WOM/);
   });
 
+  it("imports an MHL list, defaulting to WOM's 21 free days", () => {
+    const { "Free Days": _omit, ...noFree } = base;
+    const parsed = parsePortRows([row(2, noFree)], { defaultLine: "MHL" });
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.records[0]).toEqual(
+      expect.objectContaining({ shipping_line: "MHL", free_days: 21, freeDaysDefaulted: true }),
+    );
+  });
+
   it("skips lines that aren't charged demurrage", () => {
     const parsed = parsePortRows([row(2, { ...base, Line: "7seas" })], { defaultLine: null });
     expect(parsed.errors[0].message).toMatch(/7Seas isn't charged/);

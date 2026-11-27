@@ -39,6 +39,7 @@ describe("hasDemurrageRules", () => {
     expect(hasDemurrageRules("EEL")).toBe(true);
     expect(hasDemurrageRules("OVP")).toBe(true);
     expect(hasDemurrageRules("HKY")).toBe(true);
+    expect(hasDemurrageRules("MHL")).toBe(true);
   });
 
   it("rejects unknown lines", () => {
@@ -153,7 +154,7 @@ describe("calculateDemurrage — tiered totals", () => {
   });
 
   it("reports the configured free days", () => {
-    for (const line of ["SLG", "SLD", "WOM", "SFT", "EEL", "OVP", "HKY"] as const) {
+    for (const line of ["SLG", "SLD", "WOM", "SFT", "EEL", "OVP", "HKY", "MHL"] as const) {
       const r = calculateDemurrage(line, "20FT", "2026-01-01", d("2026-01-02"));
       expect(r.freeDays).toBe(DEMURRAGE_RULES[line].freeDays);
     }
@@ -289,14 +290,15 @@ describe("firstGateInOfTrip", () => {
 
 // WOM's port list (EVL_DEMURAGE_SUNNY_.xlsx): 20ft, 21 free days, $50/day,
 // Last Free Day = Vessel Arrival Date + Free Days - 1.
-describe("OVP and HKY — WOM's tariff", () => {
+describe("OVP, HKY and MHL — WOM's tariff", () => {
   it("uses exactly WOM's rules", () => {
     expect(DEMURRAGE_RULES.OVP).toEqual(DEMURRAGE_RULES.WOM);
     expect(DEMURRAGE_RULES.HKY).toEqual(DEMURRAGE_RULES.WOM);
+    expect(DEMURRAGE_RULES.MHL).toEqual(DEMURRAGE_RULES.WOM);
   });
 
   it("charges the same as WOM for the same container and dates", () => {
-    for (const line of ["OVP", "HKY"] as const) {
+    for (const line of ["OVP", "HKY", "MHL"] as const) {
       for (const type of ["20GP", "40HC"]) {
         const free = calculateDemurrage(line, type, "2026-01-01", d("2026-01-21"));
         expect(free.totalUSD).toBe(0);
@@ -307,6 +309,7 @@ describe("OVP and HKY — WOM's tariff", () => {
     // Day 22-35 is 14 charged days: 14 × $50 (20ft), 14 × $100 (40ft).
     expect(calculateDemurrage("OVP", "20GP", "2026-01-01", d("2026-02-04")).totalUSD).toBe(700);
     expect(calculateDemurrage("HKY", "40HC", "2026-01-01", d("2026-02-04")).totalUSD).toBe(1400);
+    expect(calculateDemurrage("MHL", "40HC", "2026-01-01", d("2026-02-04")).totalUSD).toBe(1400);
   });
 });
 
