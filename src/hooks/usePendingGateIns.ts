@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchPendingGateIns } from "@/lib/pendingGateIns";
 import type { PendingGateIn } from "@/types/gateIn";
 
 /**
@@ -8,75 +9,21 @@ import type { PendingGateIn } from "@/types/gateIn";
  */
 export function usePendingGateIns(currentYardId: () => string | null) {
   const [pendingGateIns, setPendingGateIns] = useState<PendingGateIn[]>([]);
+  // A gate-in fires several realtime events in a row; only the newest reload
+  // may write, so a slower earlier one can't put a gated-in box back.
+  const latestRequest = useRef(0);
 
   const reload = useCallback(async () => {
     const yardId = currentYardId();
     if (!yardId) return;
-
-    const [{ data: checks }, { data: visitRows }] = await Promise.all([
-      // Latest inspection per container
-      // Cancelled checks are excluded in the query, not filtered afterwards: the
-      // "latest per container" pass below would otherwise let a cancelled row
-      // shadow an older, still-valid approval for the same number.
-      supabase
-        .from("inspector_checks")
-        .select("id, container_number, container_type, grade, status, notes, created_at")
-        .eq("yard_id", yardId)
-        .neq("status", "cancelled")
-        .order("created_at", { ascending: false }),
-
-      // All visits for this yard: open visits mark containers currently in yard
-      // (exclude from queue); the latest gate-out per container tells us whether
-      // an approval was already spent on a completed trip (also exclude).
-      supabase
-        .from("container_visits")
-        .select("gate_out_time, containers!inner(container_number)")
-        .eq("yard_id", yardId),
-    ]);
-
-    const inYardSet = new Set<string>();
-    const lastGateOut = new Map<string, string>();
-    for (const r of (visitRows ?? []) as {
-      gate_out_time: string | null;
-      containers: { container_number: string } | null;
-    }[]) {
-      const num = r.containers?.container_number ?? "";
-      if (!num) continue;
-      if (!r.gate_out_time) {
-        inYardSet.add(num);
-      } else if (!lastGateOut.has(num) || r.gate_out_time > (lastGateOut.get(num) as string)) {
-        lastGateOut.set(num, r.gate_out_time);
-      }
+    const request = ++latestRequest.current;
+    try {
+      const items = await fetchPendingGateIns(yardId);
+      if (request === latestRequest.current) setPendingGateIns(items);
+    } catch (err) {
+      // Keep the last good list rather than blanking the queue on a blip.
+      console.error("Failed to load the Awaiting Gate-In queue", err);
     }
-
-    // Keep latest check per container, then filter approved + not in yard +
-    // approval newer than the container's last gate-out (a fresh, unspent
-    // approval for the current trip — matches the gate-in form and DB rule).
-    const latestPerContainer = new Map<string, NonNullable<typeof checks>[number]>();
-    for (const c of checks || []) {
-      if (!latestPerContainer.has(c.container_number)) {
-        latestPerContainer.set(c.container_number, c);
-      }
-    }
-
-    setPendingGateIns(
-      Array.from(latestPerContainer.values())
-        .filter((c) => {
-          if (c.status !== "approved") return false;
-          if (inYardSet.has(c.container_number)) return false;
-          const out = lastGateOut.get(c.container_number);
-          if (out && new Date(c.created_at).getTime() <= new Date(out).getTime()) return false;
-          return true;
-        })
-        .map((c) => ({
-          id: c.id,
-          container_number: c.container_number,
-          container_type: c.container_type,
-          grade: c.grade,
-          notes: c.notes,
-          inspected_at: c.created_at,
-        }))
-    );
   }, [currentYardId]);
 
   useEffect(() => {
